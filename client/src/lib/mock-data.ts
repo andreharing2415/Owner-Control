@@ -210,6 +210,28 @@ export const ANALYSIS_MOCK = {
   ]
 };
 
+export const FINANCIAL_MOCK = {
+  totalBudget: 2500000,
+  totalSpent: 850000,
+  projectedCost: 2650000,
+  currency: "BRL",
+  categories: [
+    { name: "Mão de Obra", planned: 800000, spent: 350000, status: "on-track" },
+    { name: "Materiais (Concreto/Aço)", planned: 900000, spent: 420000, status: "warning" },
+    { name: "Equipamentos", planned: 300000, spent: 50000, status: "on-track" },
+    { name: "Projetos & Taxas", planned: 150000, spent: 150000, status: "completed" },
+    { name: "Acabamentos", planned: 350000, spent: 0, status: "pending" }
+  ],
+  monthlyData: [
+    { month: "Jan", planned: 50000, actual: 48000, accumulatedPlan: 50000, accumulatedActual: 48000 },
+    { month: "Fev", planned: 80000, actual: 85000, accumulatedPlan: 130000, accumulatedActual: 133000 },
+    { month: "Mar", planned: 120000, actual: 135000, accumulatedPlan: 250000, accumulatedActual: 268000 },
+    { month: "Abr", planned: 150000, actual: 140000, accumulatedPlan: 400000, accumulatedActual: 408000 },
+    { month: "Mai", planned: 200000, actual: 210000, accumulatedPlan: 600000, accumulatedActual: 618000 },
+    { month: "Jun", planned: 250000, actual: 232000, accumulatedPlan: 850000, accumulatedActual: 850000 }
+  ]
+};
+
 export const ALERTS_MOCK = [
   {
     id: 1,
@@ -241,5 +263,6 @@ export const NAV_ITEMS = [
   { title: "Checklists", icon: CheckSquare, href: "/checklists" },
   { title: "Busca Normativa (IA)", icon: Search, href: "/norms", featured: true },
   { title: "Documentos", icon: FileText, href: "/documents" },
+  { title: "Financeiro", icon: DollarSign, href: "/financial" },
   { title: "Configurações", icon: Settings, href: "/settings" },
 ];

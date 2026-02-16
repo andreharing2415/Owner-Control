@@ -11,6 +11,7 @@ import Timeline from "@/pages/Timeline";
 import Checklists from "@/pages/Checklists";
 import Documents from "@/pages/Documents";
 import DocumentAnalysis from "@/pages/DocumentAnalysis";
+import Financial from "@/pages/Financial";
 import ComingSoon from "@/pages/ComingSoon";
 import { Shell } from "@/components/layout/Shell";
 
@@ -25,6 +26,7 @@ function Router() {
         <Route path="/checklists" component={Checklists} />
         <Route path="/documents" component={Documents} />
         <Route path="/documents/:id/analysis" component={DocumentAnalysis} />
+        <Route path="/financial" component={Financial} />
         <Route path="/settings" component={ComingSoon} />
         {/* Fallback to 404 */}
         <Route component={NotFound} />
