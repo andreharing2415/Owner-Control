@@ -1,0 +1,286 @@
+# PRD — OwnerControl
+Plataformas: iOS / Android / Windows  
+Versão: 1.1  
+Escopo: Governança da obra para proprietário de alto padrão  
+Diferencial central: IA multimodal + busca ativa de normas técnicas atualizadas na Internet
+
+---
+
+# 1. Visão Geral
+
+OwnerControl é uma plataforma premium que permite ao proprietário:
+
+- Validar tecnicamente sua obra sem ser engenheiro
+- Monitorar qualidade por etapa
+- Controlar orçamento com governança
+- Analisar projetos via IA
+- Detectar riscos por foto
+- Gerar relatórios executivos
+- Buscar e interpretar normas técnicas atualizadas automaticamente
+
+---
+
+# 2. Diferencial Estratégico — IA com Busca de Normas Atualizadas
+
+## 2.1 Objetivo
+
+A IA não deve depender apenas de base interna.
+Ela deve:
+
+1. Identificar a etapa da obra.
+2. Identificar normas aplicáveis.
+3. Buscar versões atualizadas na internet.
+4. Extrair diretrizes relevantes.
+5. Traduzir para linguagem leiga.
+6. Gerar checklist acionável.
+
+---
+
+## 2.2 Arquitetura Funcional da IA
+
+### Camadas:
+
+1. Classificador de Etapa
+2. Identificador de Disciplina (estrutura, elétrica etc.)
+3. Motor de Busca Externa (Web Search)
+4. RAG (Retrieval Augmented Generation)
+5. Tradutor Técnico → Leigo
+6. Gerador de Checklist
+7. Módulo de Evidência e Risco
+8. Validador de Confiabilidade
+
+---
+
+## 2.3 Regras Obrigatórias
+
+- Sempre indicar:
+  - Data da norma encontrada
+  - Fonte
+  - Se é versão oficial ou secundária
+- Não apresentar como parecer técnico
+- Mostrar nível de confiança
+- Logar versão da norma usada
+
+---
+
+# 3. Escopo Funcional
+
+## 3.1 Módulos
+
+- Gestão de Obras
+- Linha do Tempo
+- Checklists Inteligentes
+- Biblioteca Normativa Dinâmica
+- Upload de Projetos
+- IA Documental
+- IA Visual
+- Score de Conformidade
+- Governança Financeira
+- Relatórios Executivos
+
+---
+
+# 4. PRD — Fases
+
+---
+
+# FASE 0 — Conteúdo Base + Estrutura Normativa
+
+## Objetivo
+Definir estrutura de etapas e motor de busca normativa.
+
+## Funcionalidades
+
+- Taxonomia de etapas
+- Mapeamento etapa → palavras-chave de norma
+- Definição do fluxo IA com busca externa
+- Prototipação UX
+
+---
+
+# FASE 1 — MVP (Sem IA externa dinâmica)
+
+## Objetivo
+Validar uso do produto.
+
+## Funcionalidades
+
+- Cadastro de obra
+- 6 etapas principais
+- Checklists fixos
+- Evidências por foto
+- Score básico
+- Exportação PDF
+
+---
+
+# FASE 2 — IA com Busca Normativa Dinâmica
+
+## Objetivo
+Ativar o principal diferencial.
+
+## Funcionalidades
+
+- Motor de busca de normas na internet
+- Parser de documentos normativos
+- Armazenamento de versão
+- Tradução para leigo
+- Checklist dinâmico baseado em norma
+
+---
+
+# FASE 3 — IA Documental (Projetos)
+
+## Objetivo
+Analisar projetos técnicos.
+
+## Funcionalidades
+
+- Upload PDF
+- Extração de dados
+- Identificação de conflitos
+- Cruzamento com normas atuais
+- Relatório de risco
+
+---
+
+# FASE 4 — IA Visual
+
+## Objetivo
+Analisar fotos de obra.
+
+## Funcionalidades
+
+- Classificação da etapa pela imagem
+- Detecção de padrões anômalos
+- Geração de achados
+- Solicitação de evidências adicionais
+
+---
+
+# FASE 5 — Governança Financeira + Premium
+
+## Objetivo
+Completar modelo premium.
+
+## Funcionalidades
+
+- Orçamento por etapa
+- Controle de contratos
+- Curva S
+- Alertas de desvio
+- Relatórios executivos avançados
+
+---
+
+# 5. BACKLOG — Estrutura Jira Ready
+
+Formato:  
+Issue Type | Summary | Description | Acceptance Criteria | Priority | Story Points | Epic
+
+---
+
+## EPIC 1 — Estrutura Base da Obra
+
+Story | Criar entidade Obra | Permitir cadastro de obra com dados básicos | Obra criada com nome, orçamento e datas | Must | 5 | Estrutura Base
+Story | Criar etapas padrão | Sistema cria etapas padrão ao iniciar obra | 6 etapas geradas automaticamente | Must | 5 | Estrutura Base
+Story | Status de etapa | Permitir alteração de status | Status salvo corretamente | Must | 3 | Estrutura Base
+
+---
+
+## EPIC 2 — Checklists
+
+Story | Checklist por etapa | Criar checklist fixo por etapa | Itens exibidos corretamente | Must | 8 | Checklists
+Story | Registro de evidência | Upload de foto vinculada a item | Foto associada ao item | Must | 5 | Checklists
+Story | Score por etapa | Calcular score baseado nos itens | Score atualizado automaticamente | Must | 8 | Checklists
+
+---
+
+## EPIC 3 — Biblioteca Normativa Dinâmica
+
+Story | Classificador de etapa | Identificar disciplina automaticamente | Disciplina correta em 90% dos casos | Must | 8 | IA Normativa
+Story | Motor de busca web | Buscar normas relacionadas na internet | Retornar pelo menos 3 fontes | Must | 13 | IA Normativa
+Story | Parser de norma | Extrair texto relevante | Texto estruturado corretamente | Must | 13 | IA Normativa
+Story | Tradução leiga | Converter linguagem técnica para leiga | Texto claro e acionável | Must | 8 | IA Normativa
+Story | Registro de versão | Armazenar data e fonte da norma | Versão registrada e exibida | Must | 5 | IA Normativa
+
+---
+
+## EPIC 4 — IA Documental
+
+Story | Upload de projeto | Permitir upload PDF | Arquivo salvo e processado | Must | 5 | IA Projetos
+Story | Extração textual | Extrair texto do PDF | Texto estruturado extraído | Must | 8 | IA Projetos
+Story | Identificação de riscos | Gerar lista de riscos | Lista coerente e priorizada | Must | 13 | IA Projetos
+Story | Checklist personalizado | Gerar checklist com base no projeto | Itens personalizados exibidos | Must | 13 | IA Projetos
+
+---
+
+## EPIC 5 — IA Visual
+
+Story | Upload de imagem | Enviar foto da obra | Foto salva corretamente | Must | 3 | IA Visual
+Story | Classificação de imagem | Identificar etapa na imagem | Classificação correta | Should | 13 | IA Visual
+Story | Geração de achados | Criar finding automático | Achado com severidade e ação | Must | 13 | IA Visual
+
+---
+
+## EPIC 6 — Financeiro
+
+Story | Cadastro de orçamento | Registrar orçamento por etapa | Valores salvos corretamente | Must | 5 | Financeiro
+Story | Controle previsto x realizado | Comparar valores | Desvio calculado corretamente | Must | 8 | Financeiro
+Story | Relatório executivo | Gerar PDF executivo | PDF com dados consolidados | Must | 8 | Financeiro
+
+---
+
+# 6. Priorização MoSCoW
+
+Must:
+- Estrutura da obra
+- Checklists
+- IA normativa dinâmica
+- IA documental básica
+- Evidências
+
+Should:
+- IA visual
+- Curva S
+- Alertas avançados
+
+Could:
+- Benchmarking
+- Marketplace de especialistas
+
+Won’t (inicialmente):
+- Integração BIM IFC avançada
+- Leitura nativa DWG
+
+---
+
+# 7. Métricas de Sucesso
+
+- 80% dos usuários usam checklist em campo
+- 70% utilizam IA de análise de projeto
+- Redução de reprovação tardia
+- Aumento do ARPU com módulo IA
+
+---
+
+# 8. Estrutura de Exportação Jira
+
+Para importar via CSV no Jira, utilizar colunas:
+
+Issue Type, Summary, Description, Priority, Story Points, Epic Link
+
+Separador recomendado: vírgula  
+Encoding: UTF-8  
+
+---
+
+Se você quiser, posso agora:
+
+- Gerar o CSV estruturado pronto para importação no Jira  
+- Definir arquitetura técnica recomendada (.NET + Flutter + Azure/OpenAI etc.)  
+- Montar plano de sprint (3 meses)  
+- Definir stack ideal para IA com busca externa confiável  
+- Definir modelo de governança de risco jurídico do uso de normas  
+
+Qual próximo passo você quer aprofundar?
