@@ -30,6 +30,106 @@ export const PROJECT_MOCK = {
   qualityScore: 94
 };
 
+export type StageStatus = "completed" | "in-progress" | "upcoming" | "delayed";
+
+export const TIMELINE_MOCK = [
+  {
+    id: 1,
+    title: "Projetos e Legalização",
+    date: "Jan 2026",
+    status: "completed" as StageStatus,
+    budget: { planejado: 50000, realizado: 48000 },
+    progress: 100,
+    description: "Aprovação na prefeitura e projetos executivos finalizados."
+  },
+  {
+    id: 2,
+    title: "Serviços Preliminares",
+    date: "Fev 2026",
+    status: "completed" as StageStatus,
+    budget: { planejado: 25000, realizado: 28000 },
+    progress: 100,
+    description: "Limpeza do terreno, tapumes e canteiro de obras."
+  },
+  {
+    id: 3,
+    title: "Fundação e Infraestrutura",
+    date: "Mar 2026",
+    status: "in-progress" as StageStatus,
+    budget: { planejado: 120000, realizado: 85000 },
+    progress: 65,
+    description: "Estacas escavadas e blocos de coroamento em execução.",
+    currentActivity: "Concretagem dos blocos do setor A"
+  },
+  {
+    id: 4,
+    title: "Superestrutura (Lajes e Pilares)",
+    date: "Mai 2026",
+    status: "upcoming" as StageStatus,
+    budget: { planejado: 350000, realizado: 0 },
+    progress: 0,
+    description: "Pilares, vigas e lajes dos pavimentos."
+  },
+  {
+    id: 5,
+    title: "Alvenaria e Vedação",
+    date: "Jul 2026",
+    status: "upcoming" as StageStatus,
+    budget: { planejado: 180000, realizado: 0 },
+    progress: 0,
+    description: "Paredes internas e externas."
+  },
+  {
+    id: 6,
+    title: "Instalações Hidráulicas/Elétricas",
+    date: "Ago 2026",
+    status: "upcoming" as StageStatus,
+    budget: { planejado: 220000, realizado: 0 },
+    progress: 0,
+    description: "Tubulações, fiação e infraestrutura de ar condicionado."
+  }
+];
+
+export const CHECKLIST_MOCK = {
+  stageId: 3,
+  stageName: "Fundação e Infraestrutura",
+  items: [
+    {
+      id: "f1",
+      category: "Gabarito e Locação",
+      question: "Os eixos das estacas conferem com o projeto de locação?",
+      critical: true,
+      status: "checked",
+      evidence: "/images/evidence-1.jpg"
+    },
+    {
+      id: "f2",
+      category: "Escavação",
+      question: "A profundidade das estacas atingiu a cota de projeto?",
+      critical: true,
+      status: "checked",
+      evidence: null
+    },
+    {
+      id: "f3",
+      category: "Armação",
+      question: "As armaduras estão isentas de oxidação excessiva (ferrugem)?",
+      critical: false,
+      status: "unchecked",
+      evidence: null,
+      aiObservation: "Norma NBR 6118 permite oxidação superficial, mas recomenda limpeza se houver descamação."
+    },
+    {
+      id: "f4",
+      category: "Concretagem",
+      question: "Foi realizado o teste de slump (abatimento) do concreto na chegada do caminhão?",
+      critical: true,
+      status: "unchecked",
+      evidence: null
+    }
+  ]
+};
+
 export const ALERTS_MOCK = [
   {
     id: 1,
