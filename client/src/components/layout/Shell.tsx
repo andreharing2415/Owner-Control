@@ -12,7 +12,8 @@ import {
   SidebarMenuButton, 
   SidebarProvider,
   SidebarFooter,
-  SidebarRail
+  SidebarRail,
+  SidebarTrigger
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NAV_ITEMS } from "@/lib/mock-data";
@@ -26,10 +27,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background text-foreground font-sans">
         <AppSidebar location={location} />
-        <main className="flex-1 overflow-auto">
-          <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-md">
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-border bg-background/80 px-4 md:px-6 backdrop-blur-md shrink-0">
             <div className="flex items-center gap-4">
-              <h1 className="text-xl font-display font-semibold tracking-tight">
+              <SidebarTrigger className="md:hidden" />
+              <h1 className="text-lg md:text-xl font-display font-semibold tracking-tight truncate">
                 {NAV_ITEMS.find(i => i.href === location)?.title || "OwnerControl"}
               </h1>
             </div>
@@ -49,7 +51,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </header>
-          <div className="p-6 md:p-8 animate-in fade-in duration-500">
+          <div className="flex-1 overflow-auto p-4 md:p-8 animate-in fade-in duration-500">
             {children}
           </div>
         </main>

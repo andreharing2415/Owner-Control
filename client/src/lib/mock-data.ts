@@ -257,12 +257,12 @@ export const ALERTS_MOCK = [
 ];
 
 export const NAV_ITEMS = [
-  { title: "Dashboard", icon: LayoutDashboard, href: "/" },
-  { title: "Minhas Obras", icon: Building2, href: "/projects" },
-  { title: "Cronograma", icon: Calendar, href: "/timeline" },
-  { title: "Checklists", icon: CheckSquare, href: "/checklists" },
-  { title: "Busca Normativa (IA)", icon: Search, href: "/norms", featured: true },
-  { title: "Documentos", icon: FileText, href: "/documents" },
-  { title: "Financeiro", icon: DollarSign, href: "/financial" },
-  { title: "Configurações", icon: Settings, href: "/settings" },
+  { title: "Dashboard", icon: LayoutDashboard, href: "/app" },
+  { title: "Minhas Obras", icon: Building2, href: "/app/projects" },
+  { title: "Cronograma", icon: Calendar, href: "/app/timeline" },
+  { title: "Checklists", icon: CheckSquare, href: "/app/checklists" },
+  { title: "Busca Normativa (IA)", icon: Search, href: "/app/norms", featured: true },
+  { title: "Documentos", icon: FileText, href: "/app/documents" },
+  { title: "Financeiro", icon: DollarSign, href: "/app/financial" },
+  { title: "Configurações", icon: Settings, href: "/app/settings" },
 ];
