@@ -9,6 +9,8 @@ import ProjectList from "@/pages/ProjectList";
 import NormsSearch from "@/pages/NormsSearch";
 import Timeline from "@/pages/Timeline";
 import Checklists from "@/pages/Checklists";
+import Documents from "@/pages/Documents";
+import DocumentAnalysis from "@/pages/DocumentAnalysis";
 import ComingSoon from "@/pages/ComingSoon";
 import { Shell } from "@/components/layout/Shell";
 
@@ -21,7 +23,8 @@ function Router() {
         <Route path="/norms" component={NormsSearch} />
         <Route path="/timeline" component={Timeline} />
         <Route path="/checklists" component={Checklists} />
-        <Route path="/documents" component={ComingSoon} />
+        <Route path="/documents" component={Documents} />
+        <Route path="/documents/:id/analysis" component={DocumentAnalysis} />
         <Route path="/settings" component={ComingSoon} />
         {/* Fallback to 404 */}
         <Route component={NotFound} />

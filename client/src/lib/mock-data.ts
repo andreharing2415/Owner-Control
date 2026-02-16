@@ -130,6 +130,86 @@ export const CHECKLIST_MOCK = {
   ]
 };
 
+export const DOCUMENTS_MOCK = [
+  {
+    id: "d1",
+    name: "Projeto Arquitetônico Executivo.pdf",
+    type: "PDF",
+    size: "12.4 MB",
+    uploadedAt: "10/01/2026",
+    version: "R03",
+    status: "analyzed",
+    riskLevel: "low",
+    category: "Arquitetura"
+  },
+  {
+    id: "d2",
+    name: "Projeto Estrutural - Fundação.pdf",
+    type: "PDF",
+    size: "8.1 MB",
+    uploadedAt: "15/02/2026",
+    version: "R01",
+    status: "analyzed",
+    riskLevel: "high",
+    category: "Estrutura"
+  },
+  {
+    id: "d3",
+    name: "Instalações Elétricas Térreo.dwg",
+    type: "DWG",
+    size: "4.5 MB",
+    uploadedAt: "20/02/2026",
+    version: "R00",
+    status: "pending",
+    riskLevel: "unknown",
+    category: "Elétrica"
+  },
+  {
+    id: "d4",
+    name: "Memorial Descritivo.docx",
+    type: "DOCX",
+    size: "2.1 MB",
+    uploadedAt: "10/01/2026",
+    version: "R02",
+    status: "analyzed",
+    riskLevel: "medium",
+    category: "Geral"
+  }
+];
+
+export const ANALYSIS_MOCK = {
+  documentId: "d2",
+  fileName: "Projeto Estrutural - Fundação.pdf",
+  overallRisk: "high",
+  summary: "O projeto apresenta divergências com a norma NBR 6122 em relação ao recobrimento das armaduras em solo agressivo.",
+  findings: [
+    {
+      id: 1,
+      severity: "high",
+      title: "Recobrimento Insuficiente",
+      description: "O detalhe 04/02 especifica recobrimento de 3cm, mas a NBR 6122 exige 4cm para este tipo de solo.",
+      page: 12,
+      location: "Blocos B4 e B5"
+    },
+    {
+      id: 2,
+      severity: "medium",
+      title: "Especificação de Concreto",
+      description: "Fck especificado (25MPa) está no limite inferior para classe de agressividade II.",
+      page: 3,
+      location: "Notas Gerais"
+    },
+    {
+      id: 3,
+      severity: "low",
+      title: "Ausência de Cotas",
+      description: "Faltam cotas de nível na planta de locação para os blocos da divisa.",
+      page: 5,
+      location: "Eixo 1-A"
+    }
+  ]
+};
+
 export const ALERTS_MOCK = [
   {
     id: 1,
