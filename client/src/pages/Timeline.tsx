@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CheckCircle2, Clock, Calendar, AlertCircle, ChevronRight, DollarSign } from "lucide-react";
+import { CheckCircle2, Clock, Calendar, AlertCircle, ChevronRight, DollarSign, CheckSquare, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Link } from "wouter";
 
 export default function Timeline() {
   return (
@@ -14,9 +15,16 @@ export default function Timeline() {
           <h2 className="text-3xl font-display font-bold tracking-tight">Cronograma Físico-Financeiro</h2>
           <p className="text-muted-foreground mt-1">Acompanhe o avanço das etapas e o desembolso financeiro</p>
         </div>
-        <div className="flex gap-2">
-           <Button variant="outline" size="sm">
-             <Calendar className="mr-2 h-4 w-4" /> Exportar PDF
+        <div className="flex flex-wrap gap-2">
+           <Button asChild variant="outline" size="sm">
+             <Link href="/app/checklists">
+               <CheckSquare className="mr-2 h-4 w-4" /> Checklist IA
+             </Link>
+           </Button>
+           <Button asChild variant="outline" size="sm">
+             <Link href="/app/norms">
+               <Search className="mr-2 h-4 w-4" /> Normas
+             </Link>
            </Button>
            <Button size="sm" className="bg-primary text-white">
              Atualizar Status

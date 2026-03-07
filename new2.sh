@@ -1,0 +1,2 @@
+sh
+    cd mobile/android

@@ -42,7 +42,14 @@ export default defineConfig({
   },
   server: {
     host: "0.0.0.0",
+    port: 5000,
     allowedHosts: true,
+    proxy: {
+      "/api": {
+        target: process.env.VITE_API_BASE_URL || "https://polymktbr-web-fjrjxh4gla-uc.a.run.app",
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

@@ -4,3 +4,29 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+.env
+.env.production
+server/.env.production
+
+# IDE
+.idea/
+.vscode/
+
+# Cache / temp
+__pycache__/
+*.pyc
+.local/
+.playwright-mcp/
+test-results/
+nul
+ERROR
+
+# Claude worktrees
+.claude/worktrees/
+.claude/settings.local.json
+
+# Flutter build artifacts
+mobile/build/
+
+# Screenshots
+flutter_*.png

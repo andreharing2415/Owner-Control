@@ -13,6 +13,7 @@ import Documents from "@/pages/Documents";
 import DocumentAnalysis from "@/pages/DocumentAnalysis";
 import Financial from "@/pages/Financial";
 import ComingSoon from "@/pages/ComingSoon";
+import Providers from "@/pages/Providers";
 import Landing from "@/pages/Landing";
 import { Shell } from "@/components/layout/Shell";
 
@@ -28,6 +29,7 @@ function AppRouter() {
         <Route path="/app/documents" component={Documents} />
         <Route path="/app/documents/:id/analysis" component={DocumentAnalysis} />
         <Route path="/app/financial" component={Financial} />
+        <Route path="/app/providers" component={Providers} />
         <Route path="/app/settings" component={ComingSoon} />
         <Route component={NotFound} />
       </Switch>

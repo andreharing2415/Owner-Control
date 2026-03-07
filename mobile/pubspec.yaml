@@ -1,0 +1,65 @@
+name: mestre_da_obra
+description: "Plataforma premium para proprietários gerenciarem obras de construção."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.1
+  file_picker: ^8.0.0
+  http_parser: ^4.0.2
+  path_provider: ^2.1.3
+  open_filex: ^4.4.0
+  image_picker: ^1.1.2
+  provider: ^6.1.2
+  flutter_svg: ^2.0.17
+  cupertino_icons: ^1.0.8
+  url_launcher: ^6.2.5
+  shared_preferences: ^2.3.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.6
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+
+# ─── flutter_launcher_icons ───────────────────────────────────────────────────
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  web:
+    generate: false
+  windows:
+    generate: false
+  macos:
+    generate: false
+
+# ─── flutter_native_splash ────────────────────────────────────────────────────
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/images/logo.png
+  color_dark: "#FFFFFF"
+  image_dark: assets/images/logo.png
+  android: true
+  ios: true
+  android_12:
+    image: assets/images/logo.png
+    color: "#FFFFFF"
+    image_dark: assets/images/logo.png
+    color_dark: "#FFFFFF"
+  fullscreen: false

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Upload, Search, Filter, AlertTriangle, CheckCircle2, Clock, Eye, MoreVertical, FileCode, FileType } from "lucide-react";
+import { FileText, Upload, Search, Filter, AlertTriangle, CheckCircle2, Clock, Eye, MoreVertical, FileCode, FileType, CheckSquare } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Link } from "wouter";
 
@@ -15,7 +15,12 @@ export default function Documents() {
           <h2 className="text-3xl font-display font-bold tracking-tight">Documentação de Projeto</h2>
           <p className="text-muted-foreground mt-1">Centralize e analise seus projetos com IA</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+           <Button asChild variant="outline" className="gap-2">
+             <Link href="/app/checklists">
+               <CheckSquare className="h-4 w-4" /> Checklist IA
+             </Link>
+           </Button>
            <Button variant="outline" className="gap-2">
              <Filter className="h-4 w-4" /> Filtros
            </Button>

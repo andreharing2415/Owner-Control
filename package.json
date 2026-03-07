@@ -9,6 +9,10 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
+    "db:up": "docker compose -f docker-compose.yml up -d",
+    "db:down": "docker compose -f docker-compose.yml down",
+    "db:wait": "tsx script/wait-for-db.ts",
+    "db:init": "npm run db:up && npm run db:wait && npm run db:push",
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
@@ -49,6 +53,7 @@
     "date-fns": "^3.6.0",
     "drizzle-orm": "^0.39.3",
     "drizzle-zod": "^0.7.0",
+    "dotenv": "^16.6.1",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.0.1",
     "express-session": "^1.18.1",

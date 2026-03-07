@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { NAV_ITEMS } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
+import { MobileNav } from "@/components/layout/MobileNav";
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -51,10 +52,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </header>
-          <div className="flex-1 overflow-auto p-4 md:p-8 animate-in fade-in duration-500">
+          <div className="flex-1 overflow-auto p-4 pb-24 md:p-8 md:pb-8 animate-in fade-in duration-500">
             {children}
           </div>
         </main>
+        <MobileNav />
       </div>
     </SidebarProvider>
   );

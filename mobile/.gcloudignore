@@ -1,0 +1,27 @@
+# Ignore everything except what's needed for the Docker build
+.dart_tool/
+.idea/
+.packages
+.pub/
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+lib/
+# Only exclude top-level assets (not build/web/assets/)
+/assets/
+.build/
+.buildlog/
+build/app/
+build/cache/
+build/flutter_assets/
+build/intermediates/
+build/linux/
+build/macos/
+build/windows/
+build/ios/
+build/android/
+*.dart
+pubspec.*

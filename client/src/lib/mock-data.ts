@@ -1,16 +1,17 @@
-import { 
-  Building2, 
-  Calendar, 
-  CheckSquare, 
-  FileText, 
-  Home, 
-  LayoutDashboard, 
-  Search, 
-  Settings, 
+import {
+  Building2,
+  Calendar,
+  CheckSquare,
+  FileText,
+  Home,
+  LayoutDashboard,
+  Search,
+  Settings,
   AlertTriangle,
   TrendingUp,
   DollarSign,
-  Activity
+  Activity,
+  HardHat
 } from "lucide-react";
 
 export const PROJECT_MOCK = {
@@ -189,7 +190,27 @@ export const ANALYSIS_MOCK = {
       title: "Recobrimento Insuficiente",
       description: "O detalhe 04/02 especifica recobrimento de 3cm, mas a NBR 6122 exige 4cm para este tipo de solo.",
       page: 12,
-      location: "Blocos B4 e B5"
+      location: "Blocos B4 e B5",
+      normaReferencia: "NBR 6122:2022",
+      normaUrl: "https://www.abntcatalogo.com.br/pnm.aspx?Q=NBR6122",
+      traducaoLeigo: "O \"recobrimento\" é a camada de concreto que protege o ferro da fundação. Se for fino demais, a ferragem pode enferrujar com o tempo e comprometer a estrutura da casa.",
+      acaoProprietario: "Peça ao seu engenheiro estrutural que revise o detalhe 04/02 do projeto e corrija a proteção do ferro para no mínimo 4cm, como exige a norma para o tipo de solo do seu terreno.",
+      perguntasParaProfissional: [
+        {
+          pergunta: "O recobrimento dos blocos B4 e B5 está adequado para o tipo de solo do nosso terreno?",
+          respostaEsperada: "Ele deve confirmar que o recobrimento atende à norma NBR 6122 para a classe de agressividade do solo do seu terreno. Se ele disser que 3cm é suficiente sem justificativa, insista."
+        },
+        {
+          pergunta: "Você pode emitir uma revisão do projeto corrigindo esse ponto?",
+          respostaEsperada: "Sim, e a revisão deve vir acompanhada de uma nova ART (Anotação de Responsabilidade Técnica) registrada no CREA."
+        }
+      ],
+      documentosAExigir: [
+        "Revisão do projeto estrutural (detalhe 04/02) com ART atualizada",
+        "Laudo de sondagem do solo (se não houver um recente)"
+      ],
+      requerValidacaoProfissional: true,
+      confianca: 92
     },
     {
       id: 2,
@@ -197,7 +218,22 @@ export const ANALYSIS_MOCK = {
       title: "Especificação de Concreto",
       description: "Fck especificado (25MPa) está no limite inferior para classe de agressividade II.",
       page: 3,
-      location: "Notas Gerais"
+      location: "Notas Gerais",
+      normaReferencia: "NBR 6118:2023",
+      normaUrl: "https://www.abntcatalogo.com.br/pnm.aspx?Q=NBR6118",
+      traducaoLeigo: "O concreto especificado no projeto tem a resistência mínima permitida para o tipo de ambiente do seu terreno. Funciona, mas não tem margem de segurança extra.",
+      acaoProprietario: "Pergunte ao seu engenheiro se vale a pena usar um concreto um pouco mais forte (30MPa em vez de 25MPa) para ter mais segurança, e qual seria o custo adicional.",
+      perguntasParaProfissional: [
+        {
+          pergunta: "O concreto de 25MPa é realmente suficiente para o nosso caso, ou seria melhor usar 30MPa?",
+          respostaEsperada: "Ele deve explicar o motivo da escolha e se a classe de agressividade do solo foi considerada. Se recomendar 30MPa, peça que atualize o projeto."
+        }
+      ],
+      documentosAExigir: [
+        "Solicite ao engenheiro que documente por escrito a justificativa para a escolha do concreto 25MPa"
+      ],
+      requerValidacaoProfissional: false,
+      confianca: 78
     },
     {
       id: 3,
@@ -205,10 +241,58 @@ export const ANALYSIS_MOCK = {
       title: "Ausência de Cotas",
       description: "Faltam cotas de nível na planta de locação para os blocos da divisa.",
       page: 5,
-      location: "Eixo 1-A"
+      location: "Eixo 1-A",
+      normaReferencia: null,
+      normaUrl: null,
+      traducaoLeigo: "Faltam algumas medidas de altura no desenho do projeto, o que pode causar confusão na hora de construir os blocos perto do muro.",
+      acaoProprietario: "Peça ao engenheiro que complete o projeto com todas as medidas de altura (cotas de nível) que estão faltando, principalmente nos blocos perto da divisa.",
+      perguntasParaProfissional: [
+        {
+          pergunta: "As cotas de nível dos blocos da divisa estão completas no projeto?",
+          respostaEsperada: "Ele deve reconhecer que faltam e prometer incluir na próxima revisão do projeto."
+        }
+      ],
+      documentosAExigir: [
+        "Revisão da planta de locação com todas as cotas de nível"
+      ],
+      requerValidacaoProfissional: false,
+      confianca: 85
     }
   ]
 };
+
+export const CHECKLIST_JOBS_MOCK = [
+  {
+    id: "log-1",
+    obraId: "1",
+    status: "concluido",
+    totalDocsAnalisados: 2,
+    caracteristicasIdentificadas: '["piscina","ar_condicionado","automacao_residencial"]',
+    totalItensSugeridos: 18,
+    totalItensAplicados: 12,
+    totalPaginas: 45,
+    paginasProcessadas: 45,
+    resumoGeral: "Projeto residencial de alto padrão com piscina, climatização central e automação.",
+    avisoLegal: "Esta análise é informativa e NÃO substitui parecer técnico de engenheiro ou arquiteto habilitado.",
+    erroDetalhe: null,
+    createdAt: "2026-03-05T14:30:00Z",
+  },
+  {
+    id: "log-2",
+    obraId: "1",
+    status: "processando",
+    totalDocsAnalisados: 1,
+    caracteristicasIdentificadas: '["elevador"]',
+    totalItensSugeridos: 4,
+    totalItensAplicados: 0,
+    totalPaginas: 30,
+    paginasProcessadas: 12,
+    resumoGeral: null,
+    avisoLegal: null,
+    erroDetalhe: null,
+    createdAt: "2026-03-07T10:00:00Z",
+  },
+];
 
 export const FINANCIAL_MOCK = {
   totalBudget: 2500000,
@@ -264,5 +348,6 @@ export const NAV_ITEMS = [
   { title: "Busca Normativa (IA)", icon: Search, href: "/app/norms", featured: true },
   { title: "Documentos", icon: FileText, href: "/app/documents" },
   { title: "Financeiro", icon: DollarSign, href: "/app/financial" },
+  { title: "Prestadores", icon: HardHat, href: "/app/providers" },
   { title: "Configurações", icon: Settings, href: "/app/settings" },
 ];

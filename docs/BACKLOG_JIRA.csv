@@ -1,0 +1,49 @@
+Issue Type,Summary,Description,Priority,Story Points,Epic Link
+Epic,Estrutura Base da Obra,Base para cadastro e etapas iniciais,Must,,
+Story,Criar entidade Obra,Permitir cadastro de obra com dados basicos,Must,5,Estrutura Base da Obra
+Story,Criar etapas padrao,Sistema cria 6 etapas automaticamente ao iniciar obra,Must,5,Estrutura Base da Obra
+Story,Status de etapa,Permitir alteracao de status e historico,Must,3,Estrutura Base da Obra
+Epic,Checklists,Checklist fixo, evidencias e score por etapa,Must,,
+Story,Checklist por etapa,Criar checklist fixo por etapa,Must,8,Checklists
+Story,Registro de evidencia,Upload de foto vinculada a item,Must,5,Checklists
+Story,Score por etapa,Calcular score baseado nos itens,Must,8,Checklists
+Epic,IA Normativa,Biblioteca normativa dinamica com busca web,Must,,
+Story,Classificador de etapa,Identificar disciplina automaticamente,Must,8,IA Normativa
+Story,Motor de busca web,Buscar normas relacionadas na internet,Must,13,IA Normativa
+Story,Parser de norma,Extrair texto relevante,Must,13,IA Normativa
+Story,Traducao leiga,Converter linguagem tecnica para leiga,Must,8,IA Normativa
+Story,Registro de versao,Armazenar data e fonte da norma,Must,5,IA Normativa
+Epic,IA Documental,Pipeline de PDF e achados,Must,,
+Story,Upload de projeto,Permitir upload PDF,Must,5,IA Documental
+Story,Extracao textual,Extrair texto do PDF,Must,8,IA Documental
+Story,Identificacao de riscos,Gerar lista de riscos,Must,13,IA Documental
+Story,Checklist personalizado,Gerar checklist com base no projeto,Must,13,IA Documental
+Epic,IA Visual,Classificacao de etapa e anomalias,Should,,
+Story,Upload de imagem,Enviar foto da obra,Should,3,IA Visual
+Story,Classificacao de imagem,Identificar etapa na imagem,Should,13,IA Visual
+Story,Geracao de achados,Criar finding automatico,Should,13,IA Visual
+Epic,Financeiro,Orcamento, previsto x realizado e relatorios,Should,,
+Story,Cadastro de orcamento,Registrar orcamento por etapa,Should,5,Financeiro
+Story,Controle previsto x realizado,Comparar valores e calcular desvio,Should,8,Financeiro
+Story,Relatorio executivo,Gerar PDF executivo,Should,8,Financeiro
+Epic,Conteudo Base e Estrutura Normativa,Taxonomia de etapas e mapeamento etapa -> palavras-chave,Must,,
+Story,Taxonomia de etapas,Definir e validar 6 etapas iniciais,Must,5,Conteudo Base e Estrutura Normativa
+Story,Mapeamento etapa-palavras-chave,Documentar e versionar palavras-chave por etapa,Must,5,Conteudo Base e Estrutura Normativa
+Story,Fluxo IA documentado,Descrever entradas e saidas do fluxo IA,Must,3,Conteudo Base e Estrutura Normativa
+Story,Prototipo UX checklists/evidencias,Validar fluxo de UX para checklists e evidencias,Must,5,Conteudo Base e Estrutura Normativa
+Epic,Guardrails Normativos,Regras globais de compliance normativa,Must,,
+Story,Exibir fonte/data/versao,Mostrar fonte, data e versao em toda analise normativa,Must,5,Guardrails Normativos
+Story,Indicar fonte oficial/secundaria,Identificar tipo de fonte de norma,Must,3,Guardrails Normativos
+Story,Nao parecer tecnico,Padronizar linguagem leiga e nao pericial,Must,5,Guardrails Normativos
+Story,Nivel de confianca,Exibir confianca em toda analise,Must,3,Guardrails Normativos
+Story,Log de consulta normativa,Registrar versao e data de consulta,Must,5,Guardrails Normativos
+Story,Evidencia obrigatoria itens criticos,Requerer evidencia para itens criticos,Must,8,Guardrails Normativos
+Story,Workflow risco alto,Recomendacao clara e solicitacao de validacao profissional,Must,8,Guardrails Normativos
+Story,Exportacao PDF,Gerar PDF com dados da obra e checklists,Must,8,Checklists
+Story,Relatorio de risco documental,Emitir relatorio com fonte normativa e confianca,Must,8,IA Documental
+Story,Solicitar evidencias adicionais,Disparar pedidos de evidencias quando aplicavel,Should,5,IA Visual
+Story,Curva S,Gerar curva S por obra e etapa,Should,8,Financeiro
+Story,Alertas de desvio,Configurar alertas de desvio previsto x realizado,Should,5,Financeiro
+Epic,Baseline Setup,Tarefas iniciais de organizacao e handoff,Must,,
+Story,Criar ROADMAP_TASKS,Consolidar fases, epics e checklists de aceite em ROADMAP_TASKS.md,Must,3,Baseline Setup
+Story,Template de checklist de entrega,Adicionar template de handoff com requisitos e riscos,Must,3,Baseline Setup
