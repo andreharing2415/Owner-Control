@@ -46,8 +46,9 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       "/api": {
-        target: process.env.VITE_API_BASE_URL || "https://polymktbr-web-fjrjxh4gla-uc.a.run.app",
+        target: process.env.VITE_API_BASE_URL || "https://mestreobra-backend-530484413221.us-central1.run.app",
         changeOrigin: true,
+        secure: true,
       },
     },
     fs: {

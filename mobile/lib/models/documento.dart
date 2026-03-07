@@ -1,3 +1,5 @@
+import "dart:convert";
+
 class ProjetoDoc {
   ProjetoDoc({
     required this.id,
@@ -40,6 +42,10 @@ class Risco {
     required this.traducaoLeigo,
     required this.requerValidacaoProfissional,
     required this.confianca,
+    this.normaUrl,
+    this.acaoProprietario,
+    this.perguntasParaProfissional,
+    this.documentosAExigir,
   });
 
   final String id;
@@ -50,8 +56,48 @@ class Risco {
   final String traducaoLeigo;
   final bool requerValidacaoProfissional;
   final int confianca;
+  final String? normaUrl;
+  final String? acaoProprietario;
+  final List<Map<String, String>>? perguntasParaProfissional;
+  final List<String>? documentosAExigir;
 
   factory Risco.fromJson(Map<String, dynamic> json) {
+    List<Map<String, String>>? parsePerguntas(dynamic raw) {
+      if (raw == null) return null;
+      if (raw is String) {
+        try {
+          final parsed = jsonDecode(raw);
+          if (parsed is List) {
+            return parsed
+                .map((e) => Map<String, String>.from(e as Map))
+                .toList();
+          }
+        } catch (_) {}
+        return null;
+      }
+      if (raw is List) {
+        return raw.map((e) => Map<String, String>.from(e as Map)).toList();
+      }
+      return null;
+    }
+
+    List<String>? parseDocs(dynamic raw) {
+      if (raw == null) return null;
+      if (raw is String) {
+        try {
+          final parsed = jsonDecode(raw);
+          if (parsed is List) {
+            return parsed.map((e) => e.toString()).toList();
+          }
+        } catch (_) {}
+        return null;
+      }
+      if (raw is List) {
+        return raw.map((e) => e.toString()).toList();
+      }
+      return null;
+    }
+
     return Risco(
       id: json["id"] as String,
       projetoId: json["projeto_id"] as String,
@@ -62,6 +108,11 @@ class Risco {
       requerValidacaoProfissional:
           json["requer_validacao_profissional"] as bool? ?? false,
       confianca: (json["confianca"] as num?)?.toInt() ?? 0,
+      normaUrl: json["norma_url"] as String?,
+      acaoProprietario: json["acao_proprietario"] as String?,
+      perguntasParaProfissional:
+          parsePerguntas(json["perguntas_para_profissional"]),
+      documentosAExigir: parseDocs(json["documentos_a_exigir"]),
     );
   }
 }

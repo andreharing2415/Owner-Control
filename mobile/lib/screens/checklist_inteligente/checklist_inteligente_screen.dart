@@ -2,6 +2,7 @@ import "dart:async";
 
 import "package:flutter/material.dart";
 
+import "../../models/auth.dart";
 import "../../services/api_client.dart";
 
 class ChecklistInteligenteScreen extends StatefulWidget {
@@ -23,136 +24,136 @@ class ChecklistInteligenteScreen extends StatefulWidget {
 
 class _ChecklistInteligenteScreenState
     extends State<ChecklistInteligenteScreen> {
-  // Stepper state
-  int _currentStep = 0; // 0=idle, 1-4=steps
-  String _stepLabel = "";
-  int _pagesCurrent = 0;
-  int _pagesTotal = 0;
-  String _currentDoc = "";
-
-  // Results
-  final List<Map<String, dynamic>> _caracteristicas = [];
-  final List<Map<String, dynamic>> _itens = [];
-  String? _resumo;
-  String? _avisoLegal;
+  // Job state
+  ChecklistInteligenteLog? _log;
+  List<ChecklistGeracaoItemModel> _itens = [];
+  bool _loading = false;
   String? _erro;
-  bool _concluido = false;
+
+  // History
+  List<ChecklistInteligenteLog>? _historico;
+  bool _loadingHistorico = true;
 
   // Selection for apply
-  final Set<int> _itensSelecionados = {};
+  final Set<String> _itensSelecionados = {};
 
-  StreamSubscription<Map<String, dynamic>>? _subscription;
+  // Polling
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
+    _carregarHistorico();
     if (widget.autoStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _gerar());
+      WidgetsBinding.instance.addPostFrameCallback((_) => _iniciar());
     }
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
   }
 
-  void _gerar() {
-    setState(() {
-      _currentStep = 1;
-      _stepLabel = "Iniciando...";
-      _pagesCurrent = 0;
-      _pagesTotal = 0;
-      _currentDoc = "";
-      _caracteristicas.clear();
-      _itens.clear();
-      _itensSelecionados.clear();
-      _resumo = null;
-      _avisoLegal = null;
-      _erro = null;
-      _concluido = false;
-    });
-
-    _subscription?.cancel();
-    _subscription = widget.api
-        .streamChecklistInteligente(widget.obraId)
-        .listen(
-      _onEvent,
-      onError: (e) {
-        if (mounted) {
-          setState(() {
-            _erro = e.toString().replaceFirst("Exception: ", "");
-            _currentStep = 0;
-          });
+  Future<void> _carregarHistorico() async {
+    try {
+      final historico =
+          await widget.api.historicoChecklistInteligente(widget.obraId);
+      if (mounted) {
+        setState(() {
+          _historico = historico;
+          _loadingHistorico = false;
+        });
+        // If there's an active job, resume polling
+        final ativo = historico.where((l) => l.isProcessando).firstOrNull;
+        if (ativo != null) {
+          _log = ativo;
+          _iniciarPolling(ativo.id);
         }
-      },
-      onDone: () {
-        if (mounted && !_concluido) {
-          setState(() {
-            _concluido = true;
-            _currentStep = 4;
-            _stepLabel = "Concluído!";
-          });
-        }
-      },
-    );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadingHistorico = false;
+          _erro = "Erro ao carregar histórico: $e";
+        });
+      }
+    }
   }
 
-  void _onEvent(Map<String, dynamic> data) {
-    if (!mounted) return;
-
-    final event = data["event"] as String? ?? "";
-
+  Future<void> _iniciar() async {
     setState(() {
-      switch (event) {
-        case "step":
-          _currentStep = data["step"] as int? ?? _currentStep;
-          _stepLabel = data["label"] as String? ?? _stepLabel;
-          break;
-
-        case "page":
-          _pagesCurrent = data["current"] as int? ?? _pagesCurrent;
-          _pagesTotal = data["total"] as int? ?? _pagesTotal;
-          _currentDoc = data["doc"] as String? ?? _currentDoc;
-          break;
-
-        case "caracteristica":
-          _caracteristicas.add(data);
-          break;
-
-        case "itens":
-          final newItens = data["itens"] as List? ?? [];
-          for (int j = 0; j < newItens.length; j++) {
-            final item = newItens[j];
-            if (item is Map<String, dynamic>) {
-              _itensSelecionados.add(_itens.length);
-              _itens.add(item);
-            }
-          }
-          break;
-
-        case "error":
-          final msg = data["message"] as String? ?? "Erro desconhecido";
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg), backgroundColor: Colors.orange),
-          );
-          break;
-
-        case "done":
-          _concluido = true;
-          _currentStep = 4;
-          _resumo = data["resumo_projeto"] as String?;
-          _avisoLegal = data["aviso_legal"] as String?;
-          for (int i = 0; i < _itens.length; i++) {
-            _itensSelecionados.add(i);
-          }
-          break;
-      }
+      _loading = true;
+      _erro = null;
+      _itens = [];
+      _itensSelecionados.clear();
     });
+
+    try {
+      final log =
+          await widget.api.iniciarChecklistInteligente(widget.obraId);
+      if (mounted) {
+        setState(() {
+          _log = log;
+          _loading = false;
+        });
+        _iniciarPolling(log.id);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _erro = e.toString().replaceFirst("Exception: ", "");
+        });
+      }
+    }
+  }
+
+  void _iniciarPolling(String logId) {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      _poll(logId);
+    });
+    // First poll immediately
+    _poll(logId);
+  }
+
+  Future<void> _poll(String logId) async {
+    try {
+      final status =
+          await widget.api.statusChecklistInteligente(widget.obraId, logId);
+      if (!mounted) return;
+
+      setState(() {
+        _log = status.log;
+        _itens = status.itens;
+      });
+
+      if (status.log.isConcluido || status.log.isErro) {
+        _pollTimer?.cancel();
+        if (status.log.isConcluido) {
+          // Auto-select all items
+          _itensSelecionados.addAll(status.itens.map((i) => i.id));
+        }
+        if (status.log.isErro) {
+          setState(() {
+            _erro = status.log.erroDetalhe ?? "Erro durante processamento";
+          });
+        }
+        // Refresh history
+        _carregarHistorico();
+      }
+    } catch (e) {
+      // Don't stop polling on transient errors
+    }
   }
 
   Future<void> _aplicar() async {
-    final selecionados = _itensSelecionados.map((i) => _itens[i]).toList();
+    final selecionados = _itens
+        .where((i) => _itensSelecionados.contains(i.id))
+        .map((i) => i.toJsonForApply())
+        .toList();
+
     if (selecionados.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Selecione ao menos um item.")),
@@ -179,6 +180,32 @@ class _ChecklistInteligenteScreenState
     }
   }
 
+  void _verDetalhesJob(ChecklistInteligenteLog job) async {
+    try {
+      final status =
+          await widget.api.statusChecklistInteligente(widget.obraId, job.id);
+      if (mounted) {
+        setState(() {
+          _log = status.log;
+          _itens = status.itens;
+          _erro = null;
+          if (status.log.isConcluido) {
+            _itensSelecionados.addAll(status.itens.map((i) => i.id));
+          }
+        });
+        if (status.log.isProcessando) {
+          _iniciarPolling(job.id);
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro ao carregar detalhes: $e")),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -187,7 +214,7 @@ class _ChecklistInteligenteScreenState
       appBar: AppBar(
         title: const Text("Checklist Inteligente"),
         actions: [
-          if (_concluido && _itens.isNotEmpty)
+          if (_log != null && _log!.isConcluido && _itens.isNotEmpty)
             FilledButton.icon(
               onPressed: _aplicar,
               icon: const Icon(Icons.check),
@@ -195,105 +222,273 @@ class _ChecklistInteligenteScreenState
             ),
         ],
       ),
-      body: _currentStep == 0 && _erro == null && !_concluido
-          ? _buildInicio(theme)
-          : _erro != null && _currentStep == 0
-              ? _buildErro(theme)
-              : _buildStreaming(theme),
+      body: _log != null
+          ? _buildJobView(theme)
+          : _buildMainView(theme),
     );
   }
 
-  Widget _buildInicio(ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome,
-                size: 72, color: theme.colorScheme.primary),
-            const SizedBox(height: 20),
-            Text("Checklist Inteligente",
-                style: theme.textTheme.headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Text(
-              "A IA analisa os projetos PDF da sua obra e gera um checklist "
-              "personalizado com base nas normas técnicas aplicáveis.",
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 32),
-            FilledButton.icon(
-              onPressed: _gerar,
-              icon: const Icon(Icons.auto_awesome),
-              label: const Text("Gerar Checklist com IA"),
-              style: FilledButton.styleFrom(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErro(ThemeData theme) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 12),
-            Text(_erro!, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-                onPressed: _gerar, child: const Text("Tentar novamente")),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStreaming(ThemeData theme) {
+  Widget _buildMainView(ThemeData theme) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildStepper(theme),
+        // Hero section
+        Center(
+          child: Column(
+            children: [
+              Icon(Icons.auto_awesome,
+                  size: 64, color: theme.colorScheme.primary),
+              const SizedBox(height: 16),
+              Text("Checklist Inteligente",
+                  style: theme.textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(
+                "A IA analisa os projetos PDF da sua obra e gera um checklist "
+                "personalizado com base nas normas técnicas aplicáveis.",
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.info_outline,
+                        size: 16, color: Colors.blue[700]),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        "O processamento continua mesmo que você saia desta tela.",
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.blue[800]),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _loading ? null : _iniciar,
+                icon: _loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.auto_awesome),
+                label: Text(
+                    _loading ? "Iniciando..." : "Gerar Checklist com IA"),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 32, vertical: 16),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        if (_erro != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text(_erro!, style: const TextStyle(color: Colors.red))),
+              ],
+            ),
+          ),
+        ],
+
+        // History
+        if (_loadingHistorico) ...[
+          const SizedBox(height: 32),
+          const Center(child: CircularProgressIndicator()),
+        ] else if (_historico != null && _historico!.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          Text("Histórico de Gerações",
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 12),
+          ..._historico!.map((job) => _buildHistoricoCard(theme, job)),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildHistoricoCard(ThemeData theme, ChecklistInteligenteLog job) {
+    final Color statusColor;
+    final IconData statusIcon;
+    final String statusLabel;
+
+    if (job.isProcessando) {
+      statusColor = Colors.blue;
+      statusIcon = Icons.hourglass_top;
+      statusLabel = "Processando";
+    } else if (job.isConcluido) {
+      statusColor = Colors.green;
+      statusIcon = Icons.check_circle;
+      statusLabel = "Concluído";
+    } else {
+      statusColor = Colors.red;
+      statusIcon = Icons.error;
+      statusLabel = "Erro";
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _verDetalhesJob(job),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(statusIcon, size: 18, color: statusColor),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    "${job.totalDocsAnalisados} doc(s)",
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.chevron_right, size: 20),
+                ],
+              ),
+              if (job.isProcessando && job.totalPaginas > 0) ...[
+                const SizedBox(height: 8),
+                LinearProgressIndicator(
+                  value: job.paginasProcessadas / job.totalPaginas,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Página ${job.paginasProcessadas} de ${job.totalPaginas}",
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
+              if (job.isConcluido) ...[
+                const SizedBox(height: 6),
+                Text(
+                  "${job.totalItensSugeridos} itens sugeridos · ${job.totalItensAplicados} aplicados",
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: Colors.grey[600]),
+                ),
+              ],
+              if (job.caracteristicasIdentificadas != null &&
+                  job.caracteristicasIdentificadas!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 4,
+                  runSpacing: 4,
+                  children: job.caracteristicasIdentificadas!
+                      .take(5)
+                      .map((c) => Chip(
+                            label: Text(c, style: const TextStyle(fontSize: 10)),
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                          ))
+                      .toList(),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildJobView(ThemeData theme) {
+    final log = _log!;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // Back to list
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () {
+              _pollTimer?.cancel();
+              setState(() {
+                _log = null;
+                _itens = [];
+                _erro = null;
+              });
+              _carregarHistorico();
+            },
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text("Voltar ao histórico"),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Status + progress
+        _buildStepper(theme, log),
         const SizedBox(height: 16),
 
         // Page progress bar
-        if (_pagesTotal > 0 && !_concluido) ...[
+        if (log.isProcessando && log.totalPaginas > 0) ...[
           LinearProgressIndicator(
-            value: _pagesTotal > 0 ? _pagesCurrent / _pagesTotal : 0,
+            value: log.paginasProcessadas / log.totalPaginas,
           ),
           const SizedBox(height: 4),
           Text(
-            "Página $_pagesCurrent de $_pagesTotal"
-            "${_currentDoc.isNotEmpty ? ' — $_currentDoc' : ''}",
+            "Página ${log.paginasProcessadas} de ${log.totalPaginas}",
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           const SizedBox(height: 16),
         ],
 
         // Características chips
-        if (_caracteristicas.isNotEmpty) ...[
+        if (log.caracteristicasIdentificadas != null &&
+            log.caracteristicasIdentificadas!.isNotEmpty) ...[
           Text("Características identificadas:",
               style: theme.textTheme.titleSmall),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,
             runSpacing: 4,
-            children: _caracteristicas
+            children: log.caracteristicasIdentificadas!
                 .map((c) => Chip(
                       avatar: Icon(Icons.check_circle,
                           size: 16, color: theme.colorScheme.primary),
-                      label: Text("${c['nome'] ?? c['id']}",
-                          style: const TextStyle(fontSize: 12)),
+                      label: Text(c, style: const TextStyle(fontSize: 12)),
                       visualDensity: VisualDensity.compact,
                     ))
                 .toList(),
@@ -302,7 +497,7 @@ class _ChecklistInteligenteScreenState
         ],
 
         // Resumo
-        if (_resumo != null && _resumo!.isNotEmpty)
+        if (log.resumoGeral != null && log.resumoGeral!.isNotEmpty)
           Card(
             color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
             child: Padding(
@@ -317,14 +512,14 @@ class _ChecklistInteligenteScreenState
                         style: TextStyle(fontWeight: FontWeight.bold)),
                   ]),
                   const SizedBox(height: 8),
-                  Text(_resumo!),
+                  Text(log.resumoGeral!),
                 ],
               ),
             ),
           ),
 
         // Aviso legal
-        if (_avisoLegal != null) ...[
+        if (log.avisoLegal != null) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
@@ -339,8 +534,40 @@ class _ChecklistInteligenteScreenState
                     size: 16, color: Colors.amber),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: Text(_avisoLegal!,
+                    child: Text(log.avisoLegal!,
                         style: const TextStyle(fontSize: 12))),
+              ],
+            ),
+          ),
+        ],
+
+        // Error
+        if (log.isErro && log.erroDetalhe != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: Colors.red, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(log.erroDetalhe!,
+                            style: const TextStyle(color: Colors.red))),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: _iniciar,
+                  child: const Text("Tentar novamente"),
+                ),
               ],
             ),
           ),
@@ -355,16 +582,14 @@ class _ChecklistInteligenteScreenState
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, fontSize: 15)),
               const Spacer(),
-              if (_concluido)
+              if (log.isConcluido)
                 TextButton(
                   onPressed: () {
                     setState(() {
                       if (_itensSelecionados.length == _itens.length) {
                         _itensSelecionados.clear();
                       } else {
-                        for (int i = 0; i < _itens.length; i++) {
-                          _itensSelecionados.add(i);
-                        }
+                        _itensSelecionados.addAll(_itens.map((i) => i.id));
                       }
                     });
                   },
@@ -384,27 +609,20 @@ class _ChecklistInteligenteScreenState
 
   Widget _buildItemTile(int i) {
     final item = _itens[i];
-    final titulo =
-        item["titulo"] as String? ?? item["item"] as String? ?? "";
-    final critico = item["critico"] as bool? ?? false;
-    final norma = item["norma_referencia"] as String?;
-    final etapa = item["etapa_nome"] as String?;
-    final medidasMinimas = item["medidas_minimas"] as String?;
-    final explicacaoLeigo = item["explicacao_leigo"] as String?;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Column(
         children: [
           CheckboxListTile(
-            value: _itensSelecionados.contains(i),
-            onChanged: _concluido
+            value: _itensSelecionados.contains(item.id),
+            onChanged: _log?.isConcluido == true
                 ? (v) {
                     setState(() {
                       if (v == true) {
-                        _itensSelecionados.add(i);
+                        _itensSelecionados.add(item.id);
                       } else {
-                        _itensSelecionados.remove(i);
+                        _itensSelecionados.remove(item.id);
                       }
                     });
                   }
@@ -412,9 +630,9 @@ class _ChecklistInteligenteScreenState
             title: Row(
               children: [
                 Expanded(
-                    child:
-                        Text(titulo, style: const TextStyle(fontSize: 14))),
-                if (critico)
+                    child: Text(item.titulo,
+                        style: const TextStyle(fontSize: 14))),
+                if (item.critico)
                   Container(
                     margin: const EdgeInsets.only(left: 4),
                     padding: const EdgeInsets.symmetric(
@@ -431,10 +649,10 @@ class _ChecklistInteligenteScreenState
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (etapa != null)
-                  Text(etapa, style: const TextStyle(fontSize: 11)),
-                if (norma != null)
-                  Text(norma,
+                Text(item.etapaNome,
+                    style: const TextStyle(fontSize: 11)),
+                if (item.normaReferencia != null)
+                  Text(item.normaReferencia!,
                       style:
                           const TextStyle(fontSize: 11, color: Colors.grey)),
               ],
@@ -442,7 +660,7 @@ class _ChecklistInteligenteScreenState
             dense: true,
             controlAffinity: ListTileControlAffinity.leading,
           ),
-          if (medidasMinimas != null || explicacaoLeigo != null)
+          if (item.medidasMinimas != null || item.explicacaoLeigo.isNotEmpty)
             Container(
               width: double.infinity,
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -456,7 +674,24 @@ class _ChecklistInteligenteScreenState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (medidasMinimas != null) ...[
+                  if (item.comoVerificar.isNotEmpty) ...[
+                    Row(
+                      children: [
+                        Icon(Icons.visibility, size: 14, color: Colors.green[700]),
+                        const SizedBox(width: 4),
+                        Text("Como verificar",
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green[700])),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(item.comoVerificar,
+                        style: const TextStyle(fontSize: 12)),
+                    const SizedBox(height: 6),
+                  ],
+                  if (item.medidasMinimas != null) ...[
                     const Row(
                       children: [
                         Icon(Icons.straighten, size: 14, color: Colors.blue),
@@ -469,11 +704,12 @@ class _ChecklistInteligenteScreenState
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(medidasMinimas,
+                    Text(item.medidasMinimas!,
                         style: const TextStyle(fontSize: 12)),
-                    if (explicacaoLeigo != null) const SizedBox(height: 6),
+                    if (item.explicacaoLeigo.isNotEmpty)
+                      const SizedBox(height: 6),
                   ],
-                  if (explicacaoLeigo != null) ...[
+                  if (item.explicacaoLeigo.isNotEmpty) ...[
                     Row(
                       children: [
                         Icon(Icons.lightbulb_outline,
@@ -487,7 +723,7 @@ class _ChecklistInteligenteScreenState
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(explicacaoLeigo,
+                    Text(item.explicacaoLeigo,
                         style: const TextStyle(fontSize: 12)),
                   ],
                 ],
@@ -498,7 +734,22 @@ class _ChecklistInteligenteScreenState
     );
   }
 
-  Widget _buildStepper(ThemeData theme) {
+  Widget _buildStepper(ThemeData theme, ChecklistInteligenteLog log) {
+    final int currentStep;
+    if (log.isProcessando) {
+      if (log.paginasProcessadas == 0) {
+        currentStep = 1;
+      } else if (log.totalItensSugeridos == 0) {
+        currentStep = 2;
+      } else {
+        currentStep = 3;
+      }
+    } else if (log.isConcluido) {
+      currentStep = 4;
+    } else {
+      currentStep = 0;
+    }
+
     const steps = [
       (icon: Icons.description, label: "Extraindo PDFs"),
       (icon: Icons.search, label: "Analisando projeto"),
@@ -510,8 +761,8 @@ class _ChecklistInteligenteScreenState
       children: List.generate(steps.length, (i) {
         final step = steps[i];
         final stepNum = i + 1;
-        final isActive = _currentStep == stepNum;
-        final isDone = _currentStep > stepNum;
+        final isActive = currentStep == stepNum;
+        final isDone = currentStep > stepNum;
 
         return Expanded(
           child: Column(
@@ -548,7 +799,8 @@ class _ChecklistInteligenteScreenState
                                   color: Colors.white,
                                 ),
                               )
-                            : Icon(step.icon, size: 16, color: Colors.grey[400]),
+                            : Icon(step.icon,
+                                size: 16, color: Colors.grey[400]),
                   ),
                   if (i < steps.length - 1)
                     Expanded(
@@ -561,7 +813,7 @@ class _ChecklistInteligenteScreenState
               ),
               const SizedBox(height: 4),
               Text(
-                isActive ? _stepLabel : step.label,
+                step.label,
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: isActive ? FontWeight.bold : FontWeight.normal,

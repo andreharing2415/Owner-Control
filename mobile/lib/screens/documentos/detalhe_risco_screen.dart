@@ -1,4 +1,5 @@
 import "package:flutter/material.dart";
+import "package:url_launcher/url_launcher.dart";
 
 import "../../models/documento.dart";
 
@@ -33,9 +34,22 @@ class DetalheRiscoScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _abrirNormaUrl(BuildContext context) async {
+    if (risco.normaUrl == null) return;
+    final uri = Uri.tryParse(risco.normaUrl!);
+    if (uri != null && await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Não foi possível abrir o link.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final color = _severidadeColor(risco.severidade);
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -103,14 +117,14 @@ class DetalheRiscoScreen extends StatelessWidget {
           // Descricao
           Text(
             "Descrição",
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            style: theme.textTheme.titleSmall?.copyWith(
                   color: Colors.grey[600],
                 ),
           ),
           const SizedBox(height: 6),
           Text(
             risco.descricao,
-            style: Theme.of(context).textTheme.bodyLarge,
+            style: theme.textTheme.bodyLarge,
           ),
           const SizedBox(height: 20),
 
@@ -118,20 +132,29 @@ class DetalheRiscoScreen extends StatelessWidget {
           if (risco.normaReferencia != null) ...[
             Text(
               "Norma de Referência",
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              style: theme.textTheme.titleSmall?.copyWith(
                     color: Colors.grey[600],
                   ),
             ),
             const SizedBox(height: 6),
             Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.gavel, size: 20, color: Colors.blueGrey),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(risco.normaReferencia!)),
-                  ],
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: risco.normaUrl != null
+                    ? () => _abrirNormaUrl(context)
+                    : null,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.gavel, size: 20, color: Colors.blueGrey),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(risco.normaReferencia!)),
+                      if (risco.normaUrl != null)
+                        const Icon(Icons.open_in_new,
+                            size: 16, color: Colors.blue),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -141,7 +164,7 @@ class DetalheRiscoScreen extends StatelessWidget {
           // Traducao leigo
           Text(
             "Explicação Simplificada",
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            style: theme.textTheme.titleSmall?.copyWith(
                   color: Colors.grey[600],
                 ),
           ),
@@ -164,10 +187,131 @@ class DetalheRiscoScreen extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
+          // Acao do proprietario
+          if (risco.acaoProprietario != null) ...[
+            _buildSection(
+              context,
+              icon: Icons.task_alt,
+              iconColor: Colors.green,
+              title: "O que você deve fazer",
+              bgColor: Colors.green.withValues(alpha: 0.08),
+              borderColor: Colors.green.withValues(alpha: 0.3),
+              child: Text(
+                risco.acaoProprietario!,
+                style: TextStyle(
+                  color: Colors.green[900],
+                  fontSize: 14,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Perguntas para profissional
+          if (risco.perguntasParaProfissional != null &&
+              risco.perguntasParaProfissional!.isNotEmpty) ...[
+            _buildSection(
+              context,
+              icon: Icons.help_outline,
+              iconColor: Colors.blue,
+              title: "Pergunte ao seu engenheiro",
+              bgColor: Colors.blue.withValues(alpha: 0.08),
+              borderColor: Colors.blue.withValues(alpha: 0.3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: risco.perguntasParaProfissional!.map((perg) {
+                  final pergunta = perg["pergunta"] ?? "";
+                  final respostaEsperada = perg["resposta_esperada"] ?? "";
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.chat_bubble_outline,
+                                size: 16, color: Colors.blue[700]),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                pergunta,
+                                style: TextStyle(
+                                  color: Colors.blue[900],
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (respostaEsperada.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 24),
+                            child: Text(
+                              "Resposta esperada: $respostaEsperada",
+                              style: TextStyle(
+                                color: Colors.blue[700],
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
+          // Documentos a exigir
+          if (risco.documentosAExigir != null &&
+              risco.documentosAExigir!.isNotEmpty) ...[
+            _buildSection(
+              context,
+              icon: Icons.description,
+              iconColor: Colors.purple,
+              title: "Documentos a exigir",
+              bgColor: Colors.purple.withValues(alpha: 0.08),
+              borderColor: Colors.purple.withValues(alpha: 0.3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: risco.documentosAExigir!
+                    .map((doc) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.article_outlined,
+                                  size: 16, color: Colors.purple[600]),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  doc,
+                                  style: TextStyle(
+                                    color: Colors.purple[900],
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+
           // Confianca
           Text(
             "Confiança da Análise",
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            style: theme.textTheme.titleSmall?.copyWith(
                   color: Colors.grey[600],
                 ),
           ),
@@ -194,7 +338,7 @@ class DetalheRiscoScreen extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 "${risco.confianca}%",
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
@@ -227,7 +371,7 @@ class DetalheRiscoScreen extends StatelessWidget {
                         Text(
                           "Validação Profissional Necessária",
                           style:
-                              Theme.of(context).textTheme.titleSmall?.copyWith(
+                              theme.textTheme.titleSmall?.copyWith(
                                     color: Colors.orange[800],
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -245,6 +389,46 @@ class DetalheRiscoScreen extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSection(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Color bgColor,
+    required Color borderColor,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: iconColor),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: iconColor,
+                    ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
         ],
       ),
     );

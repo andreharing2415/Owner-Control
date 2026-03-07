@@ -847,6 +847,33 @@ class ApiClient {
     }
   }
 
+  /// Starts background checklist processing. Returns the log with its ID.
+  Future<ChecklistInteligenteLog> iniciarChecklistInteligente(
+      String obraId) async {
+    final response = await _post(
+      "/api/obras/$obraId/checklist-inteligente/iniciar",
+    );
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao iniciar checklist");
+    }
+    return ChecklistInteligenteLog.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  /// Polls the status of a checklist generation job.
+  Future<ChecklistGeracaoStatus> statusChecklistInteligente(
+      String obraId, String logId) async {
+    final response = await _get(
+      "/api/obras/$obraId/checklist-inteligente/$logId/status",
+    );
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao consultar status");
+    }
+    return ChecklistGeracaoStatus.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   Future<void> aplicarChecklistInteligente(
       String obraId, List<Map<String, dynamic>> itens) async {
     final response = await _post(
