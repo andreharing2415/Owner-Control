@@ -1,3 +1,0 @@
-    cd mobile
-    flutter run
-    

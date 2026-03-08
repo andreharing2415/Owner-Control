@@ -1,5 +1,7 @@
 import os
+import re
 from typing import BinaryIO
+from urllib.parse import unquote, urlparse
 
 
 def _use_gcs() -> bool:
@@ -93,6 +95,40 @@ def download_file(bucket_name: str, object_key: str) -> bytes:
     if _use_gcs():
         return _download_gcs(bucket_name, object_key)
     return _download_s3(bucket_name, object_key)
+
+
+def extract_object_key(arquivo_url: str, bucket: str) -> str:
+    """Extract the GCS/S3 object key from a stored file URL.
+
+    Handles multiple URL formats:
+    - GCS: https://storage.googleapis.com/{bucket}/{key}
+    - Supabase S3: https://xxx.supabase.co/storage/v1/object/public/{bucket}/{key}
+    - MinIO S3: http://localhost:9000/{bucket}/{key}
+    - Fallback: regex search for known path patterns (projetos/*, evidencias/*)
+    """
+    url = unquote(arquivo_url)
+
+    prefix = f"/{bucket}/"
+    idx = url.find(prefix)
+    if idx != -1:
+        return url[idx + len(prefix):]
+
+    parsed = urlparse(url)
+    path = parsed.path.lstrip("/")
+    if path.startswith(f"{bucket}/"):
+        return path[len(f"{bucket}/"):]
+
+    match = re.search(r"(projetos/[0-9a-f-]+/.+)$", url)
+    if match:
+        return match.group(1)
+    match = re.search(r"(evidencias/.+)$", url)
+    if match:
+        return match.group(1)
+    match = re.search(r"(analises-visuais/.+)$", url)
+    if match:
+        return match.group(1)
+
+    raise ValueError(f"Nao foi possivel extrair object_key da URL '{arquivo_url}' com bucket '{bucket}'")
 
 
 def download_by_url(url: str, bucket_name: str, object_key: str) -> bytes:

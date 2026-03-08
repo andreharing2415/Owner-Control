@@ -1,4 +1,5 @@
 import "package:flutter/material.dart";
+import "package:flutter_svg/flutter_svg.dart";
 import "package:provider/provider.dart";
 
 import "../../providers/auth_provider.dart";
@@ -58,10 +59,10 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset(
-                    "assets/images/logo_icone.png",
-                    width: 80,
-                    height: 80,
+                  SvgPicture.asset(
+                    "assets/images/logo_icone.svg",
+                    width: 100,
+                    height: 100,
                   ),
                   const SizedBox(height: 12),
                   Text(

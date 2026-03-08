@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/obra.dart';
@@ -108,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Row(
               children: [
-                Image.asset('assets/images/logo_icone.png', height: 28),
+                SvgPicture.asset('assets/images/logo_icone.svg', height: 28),
                 const SizedBox(width: 8),
                 const Text("Mestre da Obra"),
               ],
@@ -169,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Image.asset('assets/images/logo.png', width: 130),
+            SvgPicture.asset('assets/images/logo_icone.svg', width: 130),
             const SizedBox(height: 28),
             Text(
               "Bem-vindo ao Mestre da Obra",

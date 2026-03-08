@@ -7,7 +7,6 @@ import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import List
-from urllib.parse import unquote, urlparse
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
@@ -75,7 +74,7 @@ from .schemas import (
     TokenRefreshRequest,
 )
 from .auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user
-from .storage import ensure_bucket, upload_file, download_file, download_by_url
+from .storage import ensure_bucket, upload_file, download_file, download_by_url, extract_object_key
 from .pdf import render_obra_pdf
 from .seed_checklists import get_itens_padrao
 from .normas import buscar_normas
@@ -104,42 +103,6 @@ def _sanitize_filename(name: str) -> str:
     name = re.sub(r"[^\w.\-]", "", name)
     return name or "file"
 
-
-def _extract_object_key(arquivo_url: str, bucket: str) -> str:
-    """Extract the GCS/S3 object key from a stored file URL.
-
-    Handles multiple URL formats:
-    - GCS: https://storage.googleapis.com/{bucket}/{key}
-    - Supabase S3: https://xxx.supabase.co/storage/v1/object/public/{bucket}/{key}
-    - MinIO S3: http://localhost:9000/{bucket}/{key}
-    - Fallback: regex search for known path patterns (projetos/*, evidencias/*)
-    """
-    url = unquote(arquivo_url)
-
-    # Strategy 1: find /{bucket}/ in the URL and take everything after it
-    prefix = f"/{bucket}/"
-    idx = url.find(prefix)
-    if idx != -1:
-        return url[idx + len(prefix):]
-
-    # Strategy 2: parse URL path and strip leading /bucket/ if present
-    parsed = urlparse(url)
-    path = parsed.path.lstrip("/")
-    if path.startswith(f"{bucket}/"):
-        return path[len(f"{bucket}/"):]
-
-    # Strategy 3: look for known object key patterns
-    match = re.search(r"(projetos/[0-9a-f-]+/.+)$", url)
-    if match:
-        return match.group(1)
-    match = re.search(r"(evidencias/.+)$", url)
-    if match:
-        return match.group(1)
-    match = re.search(r"(analises-visuais/.+)$", url)
-    if match:
-        return match.group(1)
-
-    raise ValueError(f"Nao foi possivel extrair object_key da URL '{arquivo_url}' com bucket '{bucket}'")
 
 
 app = FastAPI(title=APP_NAME)
@@ -938,7 +901,7 @@ def deletar_projeto(
     bucket = os.getenv("S3_BUCKET")
     if bucket and projeto.arquivo_url:
         try:
-            object_key = _extract_object_key(projeto.arquivo_url, bucket)
+            object_key = extract_object_key(projeto.arquivo_url, bucket)
             from .storage import _use_gcs
             if _use_gcs():
                 from .storage import _get_gcs_client
@@ -981,7 +944,7 @@ def analisar_projeto(
     session.commit()
 
     try:
-        object_key = _extract_object_key(projeto.arquivo_url, bucket)
+        object_key = extract_object_key(projeto.arquivo_url, bucket)
 
         pdf_bytes = download_by_url(projeto.arquivo_url, bucket, object_key)
         resultado = analisar_documento(pdf_bytes, projeto.arquivo_nome)
@@ -1443,7 +1406,7 @@ def stream_checklist_inteligente(
     # Baixar PDFs antes de iniciar o stream
     pdfs: list[tuple[bytes, str]] = []
     for projeto in projetos:
-        object_key = _extract_object_key(projeto.arquivo_url, bucket)
+        object_key = extract_object_key(projeto.arquivo_url, bucket)
         pdf_bytes = download_by_url(projeto.arquivo_url, bucket, object_key)
         pdfs.append((pdf_bytes, projeto.arquivo_nome))
 
@@ -1498,12 +1461,7 @@ def iniciar_checklist_inteligente(
     if not bucket:
         raise HTTPException(status_code=500, detail="S3_BUCKET nao configurado")
 
-    # Download PDFs before launching thread
-    pdfs: list[tuple[bytes, str]] = []
-    for projeto in projetos:
-        object_key = _extract_object_key(projeto.arquivo_url, bucket)
-        pdf_bytes = download_by_url(projeto.arquivo_url, bucket, object_key)
-        pdfs.append((pdf_bytes, projeto.arquivo_nome))
+    projetos_info = [(p.arquivo_url, p.arquivo_nome) for p in projetos]
 
     # Create log entry
     log = ChecklistGeracaoLog(
@@ -1515,11 +1473,11 @@ def iniciar_checklist_inteligente(
     session.commit()
     session.refresh(log)
 
-    # Launch background thread
+    # Launch background thread — PDFs are downloaded inside the thread
     from .db import get_database_url
     thread = threading.Thread(
         target=processar_checklist_background,
-        args=(log.id, pdfs, obra.localizacao, get_database_url()),
+        args=(log.id, projetos_info, obra.localizacao, get_database_url(), bucket),
         daemon=True,
     )
     thread.start()

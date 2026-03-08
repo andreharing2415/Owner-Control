@@ -1,2 +1,0 @@
-    flutter doctor --android-licenses
-    

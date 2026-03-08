@@ -1,3 +1,5 @@
+import "dart:convert";
+
 class AuthTokens {
   AuthTokens({
     required this.accessToken,
@@ -83,6 +85,13 @@ class ChecklistInteligenteLog {
       final raw = json["caracteristicas_identificadas"];
       if (raw is List) {
         caract = raw.cast<String>();
+      } else if (raw is String && raw.isNotEmpty) {
+        try {
+          final parsed = jsonDecode(raw);
+          if (parsed is List) {
+            caract = parsed.cast<String>();
+          }
+        } catch (_) {}
       }
     }
     return ChecklistInteligenteLog(

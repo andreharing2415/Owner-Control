@@ -591,20 +591,30 @@ def gerar_checklist_stream(
 
 def processar_checklist_background(
     log_id: UUID,
-    pdfs: list[tuple[bytes, str]],
+    projetos_info: list[tuple[str, str]],  # (arquivo_url, arquivo_nome)
     localizacao: Optional[str],
     database_url: str,
+    bucket: str,
 ) -> None:
     """
     Runs the full checklist pipeline in a background thread.
+    Downloads PDFs inside the thread to avoid blocking the HTTP handler.
     Creates its own DB session (threads cannot share SQLModel sessions).
     Saves results incrementally to ChecklistGeracaoItem.
     Updates ChecklistGeracaoLog with progress and final status.
     """
     from sqlmodel import Session, create_engine
     from .models import ChecklistGeracaoLog, ChecklistGeracaoItem
+    from .storage import download_by_url, extract_object_key
 
     engine = create_engine(database_url, echo=False)
+
+    # Download PDFs here (inside thread) so the HTTP handler returns immediately
+    pdfs: list[tuple[bytes, str]] = []
+    for arquivo_url, arquivo_nome in projetos_info:
+        object_key = extract_object_key(arquivo_url, bucket)
+        pdf_bytes = download_by_url(arquivo_url, bucket, object_key)
+        pdfs.append((pdf_bytes, arquivo_nome))
 
     try:
         # Count total pages

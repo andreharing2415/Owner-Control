@@ -33,6 +33,7 @@ class _ChecklistInteligenteScreenState
   // History
   List<ChecklistInteligenteLog>? _historico;
   bool _loadingHistorico = true;
+  String? _erroHistorico;
 
   // Selection for apply
   final Set<String> _itensSelecionados = {};
@@ -56,6 +57,10 @@ class _ChecklistInteligenteScreenState
   }
 
   Future<void> _carregarHistorico() async {
+    setState(() {
+      _loadingHistorico = true;
+      _erroHistorico = null;
+    });
     try {
       final historico =
           await widget.api.historicoChecklistInteligente(widget.obraId);
@@ -75,7 +80,8 @@ class _ChecklistInteligenteScreenState
       if (mounted) {
         setState(() {
           _loadingHistorico = false;
-          _erro = "Erro ao carregar histórico: $e";
+          _erroHistorico =
+              "Não foi possível carregar o histórico. Verifique sua conexão.";
         });
       }
     }
@@ -103,7 +109,7 @@ class _ChecklistInteligenteScreenState
       if (mounted) {
         setState(() {
           _loading = false;
-          _erro = e.toString().replaceFirst("Exception: ", "");
+          _erro = e.toString().replaceFirst(RegExp(r'^[\w]*Exception:\s*'), "");
         });
       }
     }
@@ -321,6 +327,42 @@ class _ChecklistInteligenteScreenState
         if (_loadingHistorico) ...[
           const SizedBox(height: 32),
           const Center(child: CircularProgressIndicator()),
+        ] else if (_erroHistorico != null) ...[
+          const SizedBox(height: 32),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border:
+                  Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.wifi_off, color: Colors.orange[700], size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _erroHistorico!,
+                        style: TextStyle(color: Colors.orange[800], fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _carregarHistorico,
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text("Tentar novamente"),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ] else if (_historico != null && _historico!.isNotEmpty) ...[
           const SizedBox(height: 32),
           Text("Histórico de Gerações",
