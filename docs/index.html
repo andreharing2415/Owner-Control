@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mestre da Obra — Gestão de Obras na Palma da Mão</title>
+  <meta name="description" content="App mobile para gestão completa de obras. Controle cronograma, documentos, financeiro e checklists de qualquer lugar." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:ital,wght@0,400;0,600;0,700;1,400&family=Barlow+Condensed:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange:   #E8541A;
+      --orange-d: #C43F0E;
+      --cream:    #F4EFE6;
+      --ink:      #141210;
+      --concrete: #2B2925;
+      --mid:      #5A564F;
+      --line:     rgba(232,84,26,.18);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--ink);
+      color: var(--cream);
+      font-family: 'Barlow', sans-serif;
+      font-size: 17px;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── BLUEPRINT GRID ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── NOISE OVERLAY ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+      opacity: .5;
+    }
+
+    section, nav, footer { position: relative; z-index: 1; }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 24px 6vw;
+      border-bottom: 1px solid rgba(244,239,230,.08);
+    }
+
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.6rem;
+      letter-spacing: .08em;
+      color: var(--cream);
+      text-decoration: none;
+    }
+    .logo span { color: var(--orange); }
+
+    nav a.cta-nav {
+      background: var(--orange);
+      color: #fff;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: .9rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 10px 22px;
+      border-radius: 2px;
+      transition: background .2s;
+    }
+    nav a.cta-nav:hover { background: var(--orange-d); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 92vh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      align-items: center;
+      gap: 0;
+      padding: 80px 6vw 80px;
+    }
+
+    .hero-text { max-width: 560px; }
+
+    .eyebrow {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: .78rem;
+      font-weight: 700;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .eyebrow::before {
+      content: '';
+      display: block;
+      width: 32px;
+      height: 2px;
+      background: var(--orange);
+    }
+
+    h1 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(3.8rem, 7vw, 6.5rem);
+      line-height: .95;
+      letter-spacing: .01em;
+      color: var(--cream);
+      margin-bottom: 28px;
+    }
+    h1 em {
+      font-style: normal;
+      color: var(--orange);
+      display: block;
+    }
+
+    .hero-sub {
+      font-size: 1.1rem;
+      color: rgba(244,239,230,.65);
+      max-width: 420px;
+      margin-bottom: 44px;
+      line-height: 1.7;
+    }
+
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--orange);
+      color: #fff;
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 2px;
+      transition: background .2s, transform .15s;
+    }
+    .btn-primary:hover { background: var(--orange-d); transform: translateY(-2px); }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid rgba(244,239,230,.25);
+      color: var(--cream);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 16px 32px;
+      border-radius: 2px;
+      transition: border-color .2s, transform .15s;
+    }
+    .btn-secondary:hover { border-color: var(--orange); transform: translateY(-2px); }
+
+    /* ── PHONE MOCKUP ── */
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    .phone-wrap {
+      position: relative;
+      animation: float 4s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-18px); }
+    }
+
+    .phone {
+      width: 260px;
+      height: 530px;
+      background: var(--concrete);
+      border-radius: 40px;
+      border: 2px solid rgba(244,239,230,.12);
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,.4),
+        0 40px 80px rgba(0,0,0,.6),
+        inset 0 1px 0 rgba(255,255,255,.06);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .phone-notch {
+      width: 100px;
+      height: 28px;
+      background: var(--ink);
+      border-radius: 0 0 18px 18px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    .phone-screen {
+      padding: 12px 16px 20px;
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .app-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: .85rem;
+      letter-spacing: .06em;
+      color: var(--cream);
+    }
+
+    .app-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--orange);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .65rem;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .app-card {
+      background: rgba(244,239,230,.05);
+      border: 1px solid rgba(244,239,230,.08);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+
+    .app-card-label {
+      font-size: .6rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--orange);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .app-card-title {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: .95rem;
+      color: var(--cream);
+      margin-bottom: 8px;
+    }
+
+    .progress-bar-wrap {
+      background: rgba(244,239,230,.1);
+      border-radius: 2px;
+      height: 4px;
+      margin-bottom: 6px;
+    }
+    .progress-bar-fill {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--orange);
+    }
+
+    .app-card-meta {
+      font-size: .6rem;
+      color: rgba(244,239,230,.45);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .app-stat-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .app-stat {
+      background: rgba(244,239,230,.05);
+      border: 1px solid rgba(244,239,230,.08);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .app-stat-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      color: var(--orange);
+      line-height: 1;
+    }
+
+    .app-stat-lbl {
+      font-size: .55rem;
+      color: rgba(244,239,230,.4);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-top: 2px;
+    }
+
+    .app-checklist { display: flex; flex-direction: column; gap: 6px; }
+    .checklist-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .65rem;
+      color: rgba(244,239,230,.6);
+    }
+    .check-box {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(244,239,230,.2);
+      flex-shrink: 0;
+    }
+    .check-box.done { background: var(--orange); border-color: var(--orange); }
+
+    /* glow behind phone */
+    .phone-glow {
+      position: absolute;
+      width: 320px;
+      height: 320px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(232,84,26,.22) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      pointer-events: none;
+    }
+
+    /* ── STATS BAND ── */
+    .stats-band {
+      border-top: 1px solid rgba(244,239,230,.07);
+      border-bottom: 1px solid rgba(244,239,230,.07);
+      padding: 40px 6vw;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+    }
+
+    .stat-item { text-align: center; }
+
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 3rem;
+      color: var(--orange);
+      line-height: 1;
+      display: block;
+    }
+
+    .stat-desc {
+      font-size: .8rem;
+      color: rgba(244,239,230,.45);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      margin-top: 4px;
+    }
+
+    /* ── FEATURES ── */
+    .features {
+      padding: 100px 6vw;
+    }
+
+    .section-header {
+      margin-bottom: 64px;
+      max-width: 520px;
+    }
+
+    .section-header .eyebrow { margin-bottom: 16px; }
+
+    h2 {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(2.4rem, 4vw, 3.6rem);
+      line-height: 1;
+      color: var(--cream);
+      letter-spacing: .02em;
+    }
+
+    h2 span { color: var(--orange); }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+
+    .feature-card {
+      background: rgba(244,239,230,.03);
+      border: 1px solid rgba(244,239,230,.07);
+      padding: 36px 32px;
+      transition: background .2s, border-color .2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 3px;
+      height: 0;
+      background: var(--orange);
+      transition: height .3s;
+    }
+
+    .feature-card:hover { background: rgba(232,84,26,.05); border-color: rgba(232,84,26,.2); }
+    .feature-card:hover::before { height: 100%; }
+
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 20px;
+      display: block;
+    }
+
+    .feature-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: .04em;
+      color: var(--cream);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .feature-desc {
+      font-size: .9rem;
+      color: rgba(244,239,230,.5);
+      line-height: 1.7;
+    }
+
+    /* ── TECH ── */
+    .tech {
+      padding: 80px 6vw;
+      border-top: 1px solid rgba(244,239,230,.07);
+    }
+
+    .tech-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .tech h2 { margin-bottom: 20px; }
+
+    .tech p {
+      color: rgba(244,239,230,.55);
+      font-size: 1rem;
+      line-height: 1.8;
+      margin-bottom: 32px;
+    }
+
+    .tech-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .badge {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 7px 16px;
+      border: 1px solid rgba(244,239,230,.15);
+      border-radius: 2px;
+      color: rgba(244,239,230,.6);
+      transition: border-color .2s, color .2s;
+    }
+    .badge:hover { border-color: var(--orange); color: var(--orange); }
+
+    .arch-diagram {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .arch-layer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 24px;
+      background: rgba(244,239,230,.03);
+      border: 1px solid rgba(244,239,230,.08);
+      border-radius: 4px;
+      transition: border-color .2s;
+    }
+    .arch-layer:hover { border-color: rgba(232,84,26,.3); }
+
+    .arch-icon { font-size: 1.4rem; flex-shrink: 0; }
+
+    .arch-info {}
+    .arch-name {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      font-size: .9rem;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--cream);
+    }
+    .arch-detail {
+      font-size: .75rem;
+      color: rgba(244,239,230,.4);
+    }
+
+    .arch-connector {
+      text-align: center;
+      color: var(--orange);
+      font-size: .7rem;
+      opacity: .6;
+    }
+
+    /* ── CTA ── */
+    .cta-section {
+      padding: 100px 6vw;
+      text-align: center;
+      border-top: 1px solid rgba(244,239,230,.07);
+    }
+
+    .cta-section h2 {
+      font-size: clamp(2.8rem, 5vw, 5rem);
+      margin-bottom: 20px;
+    }
+
+    .cta-section p {
+      color: rgba(244,239,230,.5);
+      font-size: 1.1rem;
+      max-width: 420px;
+      margin: 0 auto 44px;
+    }
+
+    .cta-section .hero-actions { justify-content: center; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid rgba(244,239,230,.07);
+      padding: 32px 6vw;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    footer p {
+      font-size: .8rem;
+      color: rgba(244,239,230,.3);
+    }
+
+    footer a {
+      color: rgba(244,239,230,.4);
+      text-decoration: none;
+      font-size: .8rem;
+      transition: color .2s;
+    }
+    footer a:hover { color: var(--orange); }
+
+    /* ── ANIMATIONS ── */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      .hero {
+        grid-template-columns: 1fr;
+        text-align: center;
+        padding: 60px 6vw;
+        min-height: auto;
+        gap: 60px;
+      }
+      .hero-text { max-width: 100%; }
+      .hero-sub { max-width: 100%; }
+      .eyebrow { justify-content: center; }
+      .hero-actions { justify-content: center; }
+      .hero-visual { order: -1; }
+      .stats-band { grid-template-columns: repeat(2, 1fr); }
+      .features-grid { grid-template-columns: 1fr; }
+      .tech-inner { grid-template-columns: 1fr; gap: 48px; }
+    }
+
+    @media (max-width: 560px) {
+      .stats-band { grid-template-columns: 1fr 1fr; }
+      .phone { width: 220px; height: 450px; }
+      footer { flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="logo">Mestre<span>Obra</span></a>
+    <a href="https://github.com/andreharing2415/Owner-Control" class="cta-nav" target="_blank" rel="noopener">Ver no GitHub</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-text fade-up">
+      <p class="eyebrow">App Mobile para Construtores</p>
+      <h1>Gestão de<em>Obras na</em>Palma da Mão</h1>
+      <p class="hero-sub">Controle cronograma, documentos, financeiro e checklists de qualquer lugar. Com inteligência artificial integrada.</p>
+      <div class="hero-actions">
+        <a href="https://github.com/andreharing2415/Owner-Control" class="btn-primary" target="_blank" rel="noopener">
+          ⬇ Baixar App
+        </a>
+        <a href="#features" class="btn-secondary">
+          Ver Funcionalidades
+        </a>
+      </div>
+    </div>
+
+    <div class="hero-visual fade-up">
+      <div class="phone-wrap">
+        <div class="phone-glow"></div>
+        <div class="phone">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="app-header">
+              <span class="app-title">MESTRE DA OBRA</span>
+              <div class="app-avatar">JM</div>
+            </div>
+
+            <div class="app-stat-row">
+              <div class="app-stat">
+                <div class="app-stat-val">3</div>
+                <div class="app-stat-lbl">Obras Ativas</div>
+              </div>
+              <div class="app-stat">
+                <div class="app-stat-val">78%</div>
+                <div class="app-stat-lbl">Progresso</div>
+              </div>
+            </div>
+
+            <div class="app-card">
+              <div class="app-card-label">Obra Principal</div>
+              <div class="app-card-title">Residência Jardim Europa</div>
+              <div class="progress-bar-wrap">
+                <div class="progress-bar-fill" style="width: 72%"></div>
+              </div>
+              <div class="app-card-meta">
+                <span>Estrutura → Acabamento</span>
+                <span>72%</span>
+              </div>
+            </div>
+
+            <div class="app-card">
+              <div class="app-card-label">Checklist Hoje</div>
+              <div class="app-checklist">
+                <div class="checklist-item">
+                  <div class="check-box done"></div>
+                  Vistoria fundação concluída
+                </div>
+                <div class="checklist-item">
+                  <div class="check-box done"></div>
+                  Nota fiscal fornecedor OK
+                </div>
+                <div class="checklist-item">
+                  <div class="check-box"></div>
+                  Relatório semanal pendente
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <div class="stats-band fade-up">
+    <div class="stat-item">
+      <span class="stat-num">45+</span>
+      <p class="stat-desc">Endpoints na API</p>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">8</span>
+      <p class="stat-desc">Módulos Completos</p>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">IA</span>
+      <p class="stat-desc">Análise de Documentos</p>
+    </div>
+    <div class="stat-item">
+      <span class="stat-num">100%</span>
+      <p class="stat-desc">Flutter Nativo</p>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="section-header fade-up">
+      <p class="eyebrow">Funcionalidades</p>
+      <h2>Tudo que uma <span>Obra Precisa</span></h2>
+    </div>
+    <div class="features-grid">
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">🏗️</span>
+        <p class="feature-name">Gestão de Obras</p>
+        <p class="feature-desc">Cadastre e acompanhe múltiplos projetos com visão geral do status, progresso e equipe envolvida.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">📅</span>
+        <p class="feature-name">Cronograma de Etapas</p>
+        <p class="feature-desc">Controle detalhado das fases com percentual de avanço, datas e dependências entre etapas.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">💰</span>
+        <p class="feature-name">Controle Financeiro</p>
+        <p class="feature-desc">Lance despesas, acompanhe o orçamento e receba alertas de estouro. Curva S para análise de desempenho.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">🤖</span>
+        <p class="feature-name">Análise de Documentos com IA</p>
+        <p class="feature-desc">Upload de contratos, plantas e laudos com análise automática por IA para identificar riscos e inconsistências.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">✅</span>
+        <p class="feature-name">Checklist Inteligente</p>
+        <p class="feature-desc">Checklists de vistoria por etapa com registro de evidências fotográficas e histórico completo.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">👁️</span>
+        <p class="feature-name">Visual AI</p>
+        <p class="feature-desc">Análise visual de imagens da obra com inteligência artificial para identificar não conformidades em tempo real.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">👷</span>
+        <p class="feature-name">Gestão de Prestadores</p>
+        <p class="feature-desc">Cadastre e gerencie fornecedores e prestadores vinculados a cada obra, com histórico de serviços.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">📋</span>
+        <p class="feature-name">Normas Técnicas</p>
+        <p class="feature-desc">Consulte normas regulamentadoras relevantes para construção civil com buscas inteligentes e histórico.</p>
+      </div>
+
+      <div class="feature-card fade-up">
+        <span class="feature-icon">🔐</span>
+        <p class="feature-name">Autenticação Segura</p>
+        <p class="feature-desc">Login via JWT customizado ou Google Authentication. Dados protegidos com criptografia bcrypt.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- TECH -->
+  <section class="tech">
+    <div class="tech-inner">
+      <div class="fade-up">
+        <p class="eyebrow">Tecnologia</p>
+        <h2>Stack <span>Moderno</span> e Robusto</h2>
+        <p>Construído com as melhores tecnologias do mercado para garantir performance, escalabilidade e segurança em qualquer dispositivo.</p>
+        <div class="tech-badges">
+          <span class="badge">Flutter</span>
+          <span class="badge">FastAPI</span>
+          <span class="badge">Python</span>
+          <span class="badge">PostgreSQL</span>
+          <span class="badge">Supabase</span>
+          <span class="badge">Google Cloud Run</span>
+          <span class="badge">JWT Auth</span>
+          <span class="badge">Google Auth</span>
+          <span class="badge">REST API</span>
+          <span class="badge">Provider</span>
+        </div>
+      </div>
+
+      <div class="arch-diagram fade-up">
+        <div class="arch-layer">
+          <span class="arch-icon">📱</span>
+          <div class="arch-info">
+            <div class="arch-name">Mobile App</div>
+            <div class="arch-detail">Flutter · Android &amp; iOS · Provider state</div>
+          </div>
+        </div>
+        <div class="arch-connector">↕ HTTPS / REST</div>
+        <div class="arch-layer">
+          <span class="arch-icon">⚡</span>
+          <div class="arch-info">
+            <div class="arch-name">Backend API</div>
+            <div class="arch-detail">FastAPI · Python · Google Cloud Run</div>
+          </div>
+        </div>
+        <div class="arch-connector">↕ SQL / S3</div>
+        <div class="arch-layer">
+          <span class="arch-icon">🗄️</span>
+          <div class="arch-info">
+            <div class="arch-name">Banco &amp; Storage</div>
+            <div class="arch-detail">Supabase PostgreSQL · Supabase S3</div>
+          </div>
+        </div>
+        <div class="arch-connector">↕ OAuth / JWT</div>
+        <div class="arch-layer">
+          <span class="arch-icon">🔒</span>
+          <div class="arch-info">
+            <div class="arch-name">Autenticação</div>
+            <div class="arch-detail">JWT customizado · Google Authentication</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section fade-up">
+    <h2>Pronto para <span>Começar?</span></h2>
+    <p>Faça o download e leve o controle da sua obra para onde você for.</p>
+    <div class="hero-actions">
+      <a href="https://github.com/andreharing2415/Owner-Control" class="btn-primary" target="_blank" rel="noopener">
+        ⬇ Baixar App
+      </a>
+      <a href="https://github.com/andreharing2415/Owner-Control" class="btn-secondary" target="_blank" rel="noopener">
+        Ver Código Fonte
+      </a>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <p>© 2026 Mestre da Obra. Todos os direitos reservados.</p>
+    <div style="display:flex;gap:24px;">
+      <a href="https://github.com/andreharing2415/Owner-Control" target="_blank" rel="noopener">GitHub</a>
+      <a href="mailto:andrefharing@gmail.com">Contato</a>
+    </div>
+  </footer>
+
+  <script>
+    // Intersection Observer for fade-up animations
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => entry.target.classList.add('visible'), i * 80);
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
