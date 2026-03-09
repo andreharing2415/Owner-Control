@@ -14,9 +14,10 @@ const _etapasNormas = [
 ];
 
 class NormasScreen extends StatefulWidget {
-  const NormasScreen({super.key, this.etapaInicial, required this.api});
+  const NormasScreen({super.key, this.etapaInicial, this.etapaId, required this.api});
 
   final String? etapaInicial;
+  final String? etapaId;   // se fornecido, carrega normas do checklist desta etapa
   final ApiClient api;
 
   @override
@@ -29,6 +30,8 @@ class _NormasScreenState extends State<NormasScreen> {
   bool _buscando = false;
   NormaBuscarResponse? _resultado;
   String? _erro;
+  List<String>? _normasChecklist;
+  bool _carregandoNormasChecklist = false;
 
   @override
   void initState() {
@@ -37,6 +40,21 @@ class _NormasScreenState extends State<NormasScreen> {
         widget.etapaInicial != null && _etapasNormas.contains(widget.etapaInicial)
             ? widget.etapaInicial!
             : _etapasNormas.first;
+    if (widget.etapaId != null) {
+      _carregarNormasChecklist();
+    }
+  }
+
+  Future<void> _carregarNormasChecklist() async {
+    setState(() => _carregandoNormasChecklist = true);
+    try {
+      final normas = await widget.api.listarNormasChecklist(widget.etapaId!);
+      if (mounted) setState(() => _normasChecklist = normas);
+    } catch (_) {
+      // Falha silenciosa — não impede o uso da biblioteca
+    } finally {
+      if (mounted) setState(() => _carregandoNormasChecklist = false);
+    }
   }
 
   @override
@@ -138,6 +156,35 @@ class _NormasScreenState extends State<NormasScreen> {
               ],
             ),
           ),
+          if (widget.etapaId != null) ...[
+            if (_carregandoNormasChecklist)
+              const LinearProgressIndicator(),
+            if (_normasChecklist != null && _normasChecklist!.isNotEmpty)
+              Container(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest
+                    .withValues(alpha: 0.3),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Normas identificadas nesta etapa",
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _normasChecklist!.map((norma) => ActionChip(
+                        label: Text(norma, style: const TextStyle(fontSize: 12)),
+                        onPressed: () {
+                          _buscar();
+                        },
+                      )).toList(),
+                    ),
+                  ],
+                ),
+              ),
+          ],
           Expanded(
             child: _buscando
                 ? const Center(

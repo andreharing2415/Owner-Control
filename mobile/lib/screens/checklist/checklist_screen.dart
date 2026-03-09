@@ -1,11 +1,10 @@
-import "package:file_picker/file_picker.dart";
 import "package:flutter/material.dart";
-import "package:image_picker/image_picker.dart";
+import "package:intl/intl.dart";
 
 import "../../models/checklist_item.dart";
 import "../../models/etapa.dart";
 import "../../services/api_client.dart";
-import "evidencias_screen.dart";
+import "detalhe_item_screen.dart";
 
 class ChecklistScreen extends StatefulWidget {
   const ChecklistScreen({super.key, required this.etapa, required this.api});
@@ -18,73 +17,133 @@ class ChecklistScreen extends StatefulWidget {
 }
 
 class _ChecklistScreenState extends State<ChecklistScreen> {
-  final ImagePicker _imagePicker = ImagePicker();
   late Future<List<ChecklistItem>> _itensFuture;
+  late Etapa _etapa;
 
   @override
   void initState() {
     super.initState();
+    _etapa = widget.etapa;
     _itensFuture = widget.api.listarItens(widget.etapa.id);
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _itensFuture = widget.api.listarItens(widget.etapa.id);
+      _itensFuture = widget.api.listarItens(_etapa.id);
     });
+  }
+
+  // Agrupa e ordena itens: por grupo, depois por ordem dentro do grupo.
+  // Grupo "Geral" sempre por último.
+  Map<String, List<ChecklistItem>> _agrupar(List<ChecklistItem> itens) {
+    final map = <String, List<ChecklistItem>>{};
+    for (final item in itens) {
+      map.putIfAbsent(item.grupo, () => []).add(item);
+    }
+    for (final grupo in map.keys) {
+      map[grupo]!.sort((a, b) => a.ordem.compareTo(b.ordem));
+    }
+    // Ordenar grupos: "Geral" por último
+    final grupos = map.keys.toList()
+      ..sort((a, b) {
+        if (a == "Geral") return 1;
+        if (b == "Geral") return -1;
+        return a.compareTo(b);
+      });
+    return {for (final g in grupos) g: map[g]!};
   }
 
   Future<void> _criarItem() async {
     final tituloController = TextEditingController();
     final descricaoController = TextEditingController();
     bool critico = false;
+    String grupo = "Geral";
+    int ordem = 0;
+    bool buscandoGrupo = false;
 
     final created = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Novo item"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: tituloController,
-              decoration: const InputDecoration(labelText: "Título *"),
-              textCapitalization: TextCapitalization.sentences,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: descricaoController,
-              decoration: const InputDecoration(labelText: "Descrição"),
-              textCapitalization: TextCapitalization.sentences,
-            ),
-            StatefulBuilder(
-              builder: (context, setLocalState) => SwitchListTile(
-                title: const Text("Item crítico"),
-                subtitle: const Text("Exige evidência obrigatória"),
-                value: critico,
-                onChanged: (value) =>
-                    setLocalState(() => critico = value),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocalState) => AlertDialog(
+          title: const Text("Novo item"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: tituloController,
+                decoration: const InputDecoration(labelText: "Título *"),
+                textCapitalization: TextCapitalization.sentences,
+                onChanged: (_) async {
+                  final t = tituloController.text.trim();
+                  if (t.length < 5) return;
+                  setLocalState(() => buscandoGrupo = true);
+                  try {
+                    final sugestao = await widget.api.sugerirGrupoItem(
+                      etapaId: _etapa.id,
+                      titulo: t,
+                    );
+                    setLocalState(() {
+                      grupo = sugestao["grupo"] as String? ?? "Geral";
+                      ordem = sugestao["ordem"] as int? ?? 0;
+                      buscandoGrupo = false;
+                    });
+                  } catch (_) {
+                    setLocalState(() => buscandoGrupo = false);
+                  }
+                },
               ),
-            ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: descricaoController,
+                decoration: const InputDecoration(labelText: "Descrição"),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text("Grupo:", style: TextStyle(fontSize: 13)),
+                  const SizedBox(width: 8),
+                  buscandoGrupo
+                      ? const SizedBox(
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Chip(
+                          label: Text(grupo, style: const TextStyle(fontSize: 12)),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                ],
+              ),
+              StatefulBuilder(
+                builder: (context, ss) => SwitchListTile(
+                  title: const Text("Item crítico"),
+                  subtitle: const Text("Exige evidência obrigatória"),
+                  value: critico,
+                  onChanged: (v) => ss(() => critico = v),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancelar")),
+            ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Salvar")),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text("Cancelar")),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text("Salvar")),
-        ],
       ),
     );
 
     if (created == true && tituloController.text.trim().isNotEmpty) {
       try {
         await widget.api.criarItem(
-          etapaId: widget.etapa.id,
+          etapaId: _etapa.id,
           titulo: tituloController.text.trim(),
           descricao: descricaoController.text.trim(),
           critico: critico,
+          grupo: grupo,
+          ordem: ordem,
         );
         await _refresh();
       } catch (e) {
@@ -92,106 +151,6 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
           ScaffoldMessenger.of(context)
               .showSnackBar(SnackBar(content: Text("Erro: $e")));
         }
-      }
-    }
-  }
-
-  Future<void> _atualizarStatus(ChecklistItem item, String status) async {
-    try {
-      await widget.api.atualizarItem(itemId: item.id, status: status);
-      await _refresh();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Erro: $e")));
-      }
-    }
-  }
-
-  Future<void> _uploadEvidencia(ChecklistItem item) async {
-    final opcao = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text("Adicionar evidência"),
-        children: [
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, "camera"),
-            child: const Row(children: [
-              Icon(Icons.camera_alt),
-              SizedBox(width: 12),
-              Text("Tirar foto"),
-            ]),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, "galeria"),
-            child: const Row(children: [
-              Icon(Icons.photo_library),
-              SizedBox(width: 12),
-              Text("Escolher da galeria"),
-            ]),
-          ),
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, "arquivo"),
-            child: const Row(children: [
-              Icon(Icons.attach_file),
-              SizedBox(width: 12),
-              Text("Selecionar arquivo"),
-            ]),
-          ),
-        ],
-      ),
-    );
-
-    if (opcao == null) return;
-
-    try {
-      if (opcao == "camera") {
-        final image = await _imagePicker.pickImage(
-            source: ImageSource.camera, imageQuality: 85);
-        if (image == null) return;
-        await widget.api
-            .uploadEvidenciaImagem(itemId: item.id, image: image);
-      } else if (opcao == "galeria") {
-        final image = await _imagePicker.pickImage(
-            source: ImageSource.gallery, imageQuality: 85);
-        if (image == null) return;
-        await widget.api
-            .uploadEvidenciaImagem(itemId: item.id, image: image);
-      } else {
-        final result =
-            await FilePicker.platform.pickFiles(withReadStream: true);
-        if (result == null || result.files.isEmpty) return;
-        await widget.api
-            .uploadEvidencia(itemId: item.id, file: result.files.first);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Evidência enviada com sucesso.")),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao enviar evidência: $e")),
-        );
-      }
-    }
-  }
-
-  Future<void> _calcularScore() async {
-    try {
-      final score = await widget.api.calcularScore(widget.etapa.id);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text("Score da etapa: ${score.toStringAsFixed(1)}%")),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Erro: $e")));
       }
     }
   }
@@ -229,40 +188,114 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     }
   }
 
-  Color _statusItemColor(String status) {
+  Future<void> _editarPrazo() async {
+    DateTime? prazoPrevisto = _etapa.prazoPrevisto;
+    DateTime? prazoExecutado = _etapa.prazoExecutado;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModal) => Padding(
+          padding: EdgeInsets.only(
+            left: 24, right: 24, top: 24,
+            bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Prazo da etapa",
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              _DatePickerRow(
+                label: "Prazo previsto",
+                value: prazoPrevisto,
+                onChanged: (d) => setModal(() => prazoPrevisto = d),
+              ),
+              const SizedBox(height: 16),
+              _DatePickerRow(
+                label: "Data executado",
+                value: prazoExecutado,
+                onChanged: (d) => setModal(() => prazoExecutado = d),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    try {
+                      final etapaAtualizada =
+                          await widget.api.atualizarPrazoEtapa(
+                        etapaId: _etapa.id,
+                        prazoPrevisto: prazoPrevisto,
+                        prazoExecutado: prazoExecutado,
+                      );
+                      if (mounted) {
+                        setState(() => _etapa = etapaAtualizada);
+                        Navigator.pop(context);
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Erro: $e")));
+                      }
+                    }
+                  },
+                  child: const Text("Salvar prazo"),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
     switch (status) {
-      case "ok":
-        return Colors.green;
-      case "nao_conforme":
-        return Colors.red;
-      default:
-        return Colors.grey;
+      case "ok": return Colors.green;
+      case "nao_conforme": return Colors.red;
+      default: return Colors.grey;
     }
   }
 
-  IconData _statusItemIcon(String status) {
+  String _statusLabel(String status) {
     switch (status) {
-      case "ok":
-        return Icons.check_circle;
-      case "nao_conforme":
-        return Icons.cancel;
-      default:
-        return Icons.radio_button_unchecked;
+      case "ok": return "OK";
+      case "nao_conforme": return "Não conforme";
+      default: return "Pendente";
     }
   }
+
+  bool get _prazoPendente =>
+      _etapa.prazoPrevisto != null &&
+      _etapa.prazoPrevisto!.isBefore(DateTime.now()) &&
+      _etapa.prazoExecutado == null;
 
   @override
   Widget build(BuildContext context) {
+    final fmt = DateFormat("dd/MM/yy");
+    final prazoLabel = _etapa.prazoPrevisto != null
+        ? fmt.format(_etapa.prazoPrevisto!)
+        : null;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.etapa.nome),
+        title: Text(_etapa.nome),
         actions: [
-          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
           IconButton(
-            onPressed: _calcularScore,
-            icon: const Icon(Icons.assessment),
-            tooltip: "Calcular score",
+            onPressed: _editarPrazo,
+            icon: Badge(
+              isLabelVisible: _prazoPendente,
+              child: const Icon(Icons.calendar_today_outlined),
+            ),
+            tooltip: prazoLabel != null
+                ? "Prazo: $prazoLabel"
+                : "Definir prazo",
           ),
+          IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -292,128 +325,251 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               ),
             );
           }
+          final grupos = _agrupar(itens);
           return RefreshIndicator(
             onRefresh: _refresh,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: itens.length,
-              itemBuilder: (context, index) {
-                final item = itens[index];
-                return Dismissible(
-                  key: Key(item.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    margin: const EdgeInsets.only(bottom: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(Icons.delete, color: Colors.white),
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+              children: [
+                for (final entry in grupos.entries) ...[
+                  _GrupoHeader(
+                    nome: entry.key,
+                    itens: entry.value,
                   ),
-                  confirmDismiss: (_) => _confirmarRemocao(item),
-                  onDismissed: (_) => _deletarItem(item),
-                  child: Card(
-                  child: ListTile(
-                    leading: Icon(
-                      _statusItemIcon(item.status),
-                      color: _statusItemColor(item.status),
-                    ),
-                    title: Row(
-                      children: [
-                        Expanded(child: Text(item.titulo)),
-                        if (item.critico)
-                          Container(
-                            margin: const EdgeInsets.only(left: 4),
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              "Crítico",
-                              style: TextStyle(
-                                  color: Colors.red, fontSize: 11),
+                  const SizedBox(height: 4),
+                  for (final item in entry.value)
+                    _ItemCard(
+                      item: item,
+                      statusColor: _statusColor(item.status),
+                      statusLabel: _statusLabel(item.status),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => DetalheItemScreen(
+                              item: item,
+                              api: widget.api,
+                              etapaNome: _etapa.nome,
                             ),
                           ),
-                      ],
-                    ),
-                    subtitle:
-                        item.descricao != null ? Text(item.descricao!) : null,
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        switch (value) {
-                          case "pendente":
-                          case "ok":
-                          case "nao_conforme":
-                            _atualizarStatus(item, value);
-                          case "evidencia":
-                            _uploadEvidencia(item);
-                          case "ver_evidencias":
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => EvidenciasScreen(
-                                      item: item, api: widget.api)),
-                            );
+                        );
+                        await _refresh();
+                      },
+                      onDelete: () async {
+                        if (await _confirmarRemocao(item)) {
+                          await _deletarItem(item);
                         }
                       },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: "pendente",
-                          child: Row(children: [
-                            Icon(Icons.radio_button_unchecked, size: 18),
-                            SizedBox(width: 8),
-                            Text("Pendente")
-                          ]),
-                        ),
-                        const PopupMenuItem(
-                          value: "ok",
-                          child: Row(children: [
-                            Icon(Icons.check_circle,
-                                size: 18, color: Colors.green),
-                            SizedBox(width: 8),
-                            Text("OK")
-                          ]),
-                        ),
-                        const PopupMenuItem(
-                          value: "nao_conforme",
-                          child: Row(children: [
-                            Icon(Icons.cancel,
-                                size: 18, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text("Não conforme")
-                          ]),
-                        ),
-                        const PopupMenuDivider(),
-                        const PopupMenuItem(
-                          value: "evidencia",
-                          child: Row(children: [
-                            Icon(Icons.add_a_photo, size: 18),
-                            SizedBox(width: 8),
-                            Text("Adicionar evidência")
-                          ]),
-                        ),
-                        const PopupMenuItem(
-                          value: "ver_evidencias",
-                          child: Row(children: [
-                            Icon(Icons.photo_library, size: 18),
-                            SizedBox(width: 8),
-                            Text("Ver evidências")
-                          ]),
-                        ),
-                      ],
                     ),
-                  ),
-                ),
-                );
-              },
+                  const SizedBox(height: 8),
+                ],
+              ],
             ),
           );
         },
       ),
+    );
+  }
+}
+
+// ─── Widgets auxiliares ──────────────────────────────────────────────────────
+
+class _GrupoHeader extends StatelessWidget {
+  const _GrupoHeader({required this.nome, required this.itens});
+
+  final String nome;
+  final List<ChecklistItem> itens;
+
+  @override
+  Widget build(BuildContext context) {
+    final concluidos = itens.where((i) => i.status == "ok").length;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(
+            nome,
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            "$concluidos/${itens.length}",
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          const Expanded(child: Divider(indent: 8)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemCard extends StatelessWidget {
+  const _ItemCard({
+    required this.item,
+    required this.statusColor,
+    required this.statusLabel,
+    required this.onTap,
+    required this.onDelete,
+  });
+
+  final ChecklistItem item;
+  final Color statusColor;
+  final String statusLabel;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: Key(item.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 4),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      confirmDismiss: (_) async {
+        onDelete();
+        return false; // onDelete gerencia o dismiss
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 4),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.titulo,
+                          style: const TextStyle(fontWeight: FontWeight.w500)),
+                      if (item.descricao != null && item.descricao!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            item.descricao!,
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[600]),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: statusColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (item.critico) ...[
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          "Crítico",
+                          style: TextStyle(color: Colors.red, fontSize: 10),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == "remover") onDelete();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: "remover",
+                      child: Row(children: [
+                        Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text("Remover", style: TextStyle(color: Colors.red)),
+                      ]),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DatePickerRow extends StatelessWidget {
+  const _DatePickerRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final DateTime? value;
+  final ValueChanged<DateTime?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat("dd/MM/yyyy");
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            value != null ? "$label: ${fmt.format(value!)}" : label,
+            style: const TextStyle(fontSize: 14),
+          ),
+        ),
+        TextButton(
+          onPressed: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: value ?? DateTime.now(),
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2035),
+            );
+            if (picked != null) onChanged(picked);
+          },
+          child: Text(value != null ? "Alterar" : "Selecionar"),
+        ),
+        if (value != null)
+          IconButton(
+            icon: const Icon(Icons.clear, size: 18),
+            onPressed: () => onChanged(null),
+          ),
+      ],
     );
   }
 }
