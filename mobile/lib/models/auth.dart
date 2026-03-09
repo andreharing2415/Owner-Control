@@ -170,6 +170,14 @@ class ChecklistGeracaoItemModel {
         "descricao": descricao,
         "norma_referencia": normaReferencia,
         "critico": critico,
+        "grupo": caracteristicaOrigem.isNotEmpty
+            ? caracteristicaOrigem
+                .replaceAll('_', ' ')
+                .split(' ')
+                .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+                .join(' ')
+            : "Geral",
+        "ordem": 0,
       };
 }
 

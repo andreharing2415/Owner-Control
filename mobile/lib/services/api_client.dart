@@ -278,6 +278,8 @@ class ApiClient {
     required String titulo,
     String? descricao,
     bool critico = false,
+    String grupo = "Geral",
+    int ordem = 0,
   }) async {
     final response = await _post(
       "/api/etapas/$etapaId/checklist-items",
@@ -286,6 +288,8 @@ class ApiClient {
         if (descricao != null && descricao.isNotEmpty) "descricao": descricao,
         "critico": critico,
         "status": "pendente",
+        "grupo": grupo,
+        "ordem": ordem,
       },
     );
     if (response.statusCode != 200) {
@@ -302,6 +306,7 @@ class ApiClient {
     String? status,
     bool? critico,
     String? observacao,
+    String? grupo,
   }) async {
     final response = await _patch(
       "/api/checklist-items/$itemId",
@@ -311,6 +316,7 @@ class ApiClient {
         if (status != null) "status": status,
         if (critico != null) "critico": critico,
         if (observacao != null) "observacao": observacao,
+        if (grupo != null) "grupo": grupo,
       },
     );
     if (response.statusCode != 200) {
@@ -334,6 +340,48 @@ class ApiClient {
     }
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return (data["score"] as num?)?.toDouble() ?? 0.0;
+  }
+
+  Future<Etapa> atualizarPrazoEtapa({
+    required String etapaId,
+    DateTime? prazoPrevisto,
+    DateTime? prazoExecutado,
+  }) async {
+    final body = <String, dynamic>{};
+    if (prazoPrevisto != null) {
+      body["prazo_previsto"] = prazoPrevisto.toIso8601String().split("T").first;
+    }
+    if (prazoExecutado != null) {
+      body["prazo_executado"] = prazoExecutado.toIso8601String().split("T").first;
+    }
+    final response = await _patch("/api/etapas/$etapaId/prazo", body: body);
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao atualizar prazo da etapa");
+    }
+    return Etapa.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<List<String>> listarNormasChecklist(String etapaId) async {
+    final response = await _get("/api/etapas/$etapaId/checklist-normas");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao carregar normas do checklist");
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return (data["normas"] as List<dynamic>).cast<String>();
+  }
+
+  Future<Map<String, dynamic>> sugerirGrupoItem({
+    required String etapaId,
+    required String titulo,
+  }) async {
+    final response = await _post(
+      "/api/etapas/$etapaId/checklist-items/sugerir-grupo",
+      body: {"titulo": titulo},
+    );
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao sugerir grupo");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
   // ─── Evidências ────────────────────────────────────────────────────────────
