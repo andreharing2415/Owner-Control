@@ -147,17 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  SvgPicture.asset(
-                    "assets/images/logo_icone.svg",
-                    width: 100,
-                    height: 100,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    "Mestre da Obra",
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SvgPicture.asset(
+                      "assets/images/logo_horizontal.svg",
+                      height: 48,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(

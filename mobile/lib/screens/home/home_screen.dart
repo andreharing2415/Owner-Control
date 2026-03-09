@@ -11,10 +11,8 @@ import '../../services/api_client.dart';
 import '../obras/obras_screen.dart';
 import '../etapas/etapas_screen.dart';
 import '../normas/normas_screen.dart';
-import '../financeiro/financeiro_screen.dart';
 import '../documentos/documentos_screen.dart';
 import '../prestadores/prestadores_screen.dart';
-import '../checklist_inteligente/checklist_inteligente_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -109,7 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Row(
               children: [
-                SvgPicture.asset('assets/images/logo_icone.svg', height: 28),
+                SvgPicture.asset('assets/images/icone.svg', height: 28),
                 const SizedBox(width: 8),
                 const Text("Mestre da Obra"),
               ],
@@ -170,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset('assets/images/logo_icone.svg', width: 130),
+            SvgPicture.asset('assets/images/icone.svg', width: 130),
             const SizedBox(height: 28),
             Text(
               "Bem-vindo ao Mestre da Obra",
@@ -254,21 +252,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_) =>
                       EtapasScreen(obra: obra, api: _api)),
             ).then((_) => _carregarDashboard(obra)),
-            onNormas: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => NormasScreen(api: _api)),
-            ),
-            onTodasObras: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ObrasScreen()),
-            ),
-            onFinanceiro: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => FinanceiroScreen(
-                      obraId: obra.id, api: _api)),
-            ),
             onDocumentos: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -279,12 +262,6 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               MaterialPageRoute(
                   builder: (_) => PrestadoresScreen(api: _api)),
-            ),
-            onChecklistIA: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => ChecklistInteligenteScreen(
-                      obraId: obra.id, api: _api)),
             ),
           ),
           if (_itensPendentes.isNotEmpty) ...[
@@ -519,21 +496,13 @@ class _OrcamentoCard extends StatelessWidget {
 class _AcoesRapidasCard extends StatelessWidget {
   const _AcoesRapidasCard({
     required this.onVerEtapas,
-    required this.onNormas,
-    required this.onTodasObras,
-    required this.onFinanceiro,
     required this.onDocumentos,
     required this.onPrestadores,
-    required this.onChecklistIA,
   });
 
   final VoidCallback onVerEtapas;
-  final VoidCallback onNormas;
-  final VoidCallback onTodasObras;
-  final VoidCallback onFinanceiro;
   final VoidCallback onDocumentos;
   final VoidCallback onPrestadores;
-  final VoidCallback onChecklistIA;
 
   @override
   Widget build(BuildContext context) {
@@ -558,34 +527,14 @@ class _AcoesRapidasCard extends StatelessWidget {
                   label: const Text("Ver Etapas"),
                 ),
                 OutlinedButton.icon(
-                  onPressed: onFinanceiro,
-                  icon: const Icon(Icons.attach_money, size: 18),
-                  label: const Text("Financeiro"),
-                ),
-                OutlinedButton.icon(
                   onPressed: onDocumentos,
                   icon: const Icon(Icons.description, size: 18),
                   label: const Text("Documentos"),
                 ),
                 OutlinedButton.icon(
-                  onPressed: onNormas,
-                  icon: const Icon(Icons.menu_book_outlined, size: 18),
-                  label: const Text("Normas"),
-                ),
-                OutlinedButton.icon(
                   onPressed: onPrestadores,
                   icon: const Icon(Icons.people_outline, size: 18),
                   label: const Text("Prestadores"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onChecklistIA,
-                  icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text("Checklist IA"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onTodasObras,
-                  icon: const Icon(Icons.home_work_outlined, size: 18),
-                  label: const Text("Todas as Obras"),
                 ),
               ],
             ),
@@ -602,9 +551,14 @@ class _ItensPendentesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final criticos = itens.where((i) => i.critico).toList();
-    final normais = itens.where((i) => !i.critico).toList();
-    final exibir = [...criticos, ...normais].take(5).toList();
+    final ordenados = [...itens]..sort((a, b) {
+        if (a.critico != b.critico) return a.critico ? -1 : 1;
+        if (a.criadoEm != null && b.criadoEm != null) {
+          return a.criadoEm!.compareTo(b.criadoEm!);
+        }
+        return 0;
+      });
+    final exibir = ordenados.take(5).toList();
 
     return Card(
       child: Padding(
