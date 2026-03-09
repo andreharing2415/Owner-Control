@@ -162,15 +162,17 @@ class _PurchaseButtonState extends State<_PurchaseButton> {
   Future<void> _purchase() async {
     setState(() => _loading = true);
     try {
-      final success = await RevenueCatService.purchase();
+      final api = context.read<SubscriptionProvider>().api;
+      final launched = await StripeService.checkout(api);
       if (!mounted) return;
-      if (success) {
-        await context.read<SubscriptionProvider>().sync();
-        await context.read<SubscriptionProvider>().load();
-        if (mounted) Navigator.pop(context, true);
+      if (launched) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Abrindo pagamento... Volte ao app após concluir.")),
+        );
+        Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Compra cancelada ou indisponivel.")),
+          const SnackBar(content: Text("Não foi possível abrir o checkout.")),
         );
       }
     } catch (e) {
@@ -214,26 +216,24 @@ class _RestoreButtonState extends State<_RestoreButton> {
   Future<void> _restore() async {
     setState(() => _loading = true);
     try {
-      final restored = await RevenueCatService.restore();
+      final sub = context.read<SubscriptionProvider>();
+      await sub.sync();
+      await sub.load();
       if (!mounted) return;
-      if (restored) {
-        await context.read<SubscriptionProvider>().sync();
-        await context.read<SubscriptionProvider>().load();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Assinatura restaurada!")),
-          );
-          Navigator.pop(context, true);
-        }
+      if (sub.isDono) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Assinatura confirmada!")),
+        );
+        Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Nenhuma assinatura encontrada.")),
+          const SnackBar(content: Text("Nenhuma assinatura ativa encontrada.")),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao restaurar: $e")),
+          SnackBar(content: Text("Erro: $e")),
         );
       }
     } finally {
@@ -251,7 +251,7 @@ class _RestoreButtonState extends State<_RestoreButton> {
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Text("Restaurar compras"),
+          : const Text("Já assinei"),
     );
   }
 }

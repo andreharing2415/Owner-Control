@@ -50,10 +50,13 @@ PLAN_CONFIG = {
     },
 }
 
-# RevenueCat product_id → plan mapping
-PRODUCT_TO_PLAN = {
+# Stripe price_id → plan mapping
+PRICE_TO_PLAN = {
     "dono_da_obra_monthly": "dono_da_obra",
 }
+
+# Will be set dynamically after Stripe Price is created
+STRIPE_PRICE_ID: str | None = None
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

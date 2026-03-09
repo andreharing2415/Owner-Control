@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 # Carrega .env do diretório raiz do servidor
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
@@ -96,7 +96,7 @@ from .schemas import (
 )
 from .auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user
 from .subscription import (
-    PLAN_CONFIG, PRODUCT_TO_PLAN, get_plan_config, require_paid, require_dono,
+    PLAN_CONFIG, get_plan_config, require_paid, require_dono,
     check_and_increment_usage, get_usage_count, check_obra_access,
     check_obra_limit, check_convite_limit,
 )
@@ -2015,145 +2015,253 @@ def get_subscription_info(
     )
 
 
+@app.post("/api/subscription/create-checkout")
+def create_checkout_session(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Cria uma sessão Stripe Checkout para assinatura Dono da Obra."""
+    import stripe
+
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+    if not stripe.api_key:
+        raise HTTPException(status_code=500, detail="STRIPE_SECRET_KEY não configurado")
+
+    price_id = os.getenv("STRIPE_PRICE_ID")
+    if not price_id:
+        raise HTTPException(status_code=500, detail="STRIPE_PRICE_ID não configurado")
+
+    # Check if user already has a Stripe customer ID
+    sub = session.exec(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).first()
+
+    checkout_params = {
+        "mode": "subscription",
+        "line_items": [{"price": price_id, "quantity": 1}],
+        "success_url": os.getenv("STRIPE_SUCCESS_URL", "https://mestreobra-backend-530484413221.us-central1.run.app/api/subscription/success?session_id={CHECKOUT_SESSION_ID}"),
+        "cancel_url": os.getenv("STRIPE_CANCEL_URL", "https://mestreobra-backend-530484413221.us-central1.run.app/api/subscription/cancel"),
+        "client_reference_id": str(current_user.id),
+        "metadata": {"user_id": str(current_user.id)},
+    }
+
+    if sub and sub.revenuecat_customer_id:
+        # revenuecat_customer_id agora guarda stripe_customer_id
+        checkout_params["customer"] = sub.revenuecat_customer_id
+    else:
+        checkout_params["customer_email"] = current_user.email
+
+    try:
+        checkout_session = stripe.checkout.Session.create(**checkout_params)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro Stripe: {exc}")
+
+    return {"checkout_url": checkout_session.url, "session_id": checkout_session.id}
+
+
+@app.get("/api/subscription/success")
+def subscription_success(session_id: str):
+    """Redirect page after successful Stripe Checkout."""
+    html = """
+    <html><head><meta charset='utf-8'><title>Assinatura confirmada</title></head>
+    <body style='display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;background:#f0f4f8'>
+    <div style='text-align:center;padding:40px;background:white;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1)'>
+    <h1 style='color:#4f46e5'>Assinatura confirmada!</h1>
+    <p style='font-size:18px;color:#555'>Volte ao app Mestre da Obra para aproveitar todos os recursos.</p>
+    <p style='margin-top:20px;font-size:14px;color:#999'>Você pode fechar esta janela.</p>
+    </div></body></html>
+    """
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/subscription/cancel")
+def subscription_cancel():
+    """Redirect page after cancelled Stripe Checkout."""
+    from fastapi.responses import HTMLResponse
+    html = """
+    <html><head><meta charset='utf-8'><title>Assinatura cancelada</title></head>
+    <body style='display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;background:#f0f4f8'>
+    <div style='text-align:center;padding:40px;background:white;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.1)'>
+    <h1 style='color:#666'>Assinatura não concluída</h1>
+    <p style='font-size:18px;color:#555'>Volte ao app e tente novamente quando quiser.</p>
+    </div></body></html>
+    """
+    return HTMLResponse(content=html)
+
+
 @app.post("/api/subscription/sync")
 def sync_subscription(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Fallback: consulta RevenueCat REST API e atualiza assinatura localmente."""
-    import httpx
+    """Consulta Stripe para verificar status da assinatura."""
+    import stripe
 
-    api_key = os.getenv("REVENUECAT_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="REVENUECAT_API_KEY não configurado")
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+    if not stripe.api_key:
+        raise HTTPException(status_code=500, detail="STRIPE_SECRET_KEY não configurado")
+
+    sub = session.exec(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).first()
+
+    if not sub or not sub.revenuecat_customer_id:
+        return {"plan": current_user.plan}
 
     try:
-        resp = httpx.get(
-            f"https://api.revenuecat.com/v1/subscribers/{current_user.id}",
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=10,
+        # revenuecat_customer_id stores stripe_customer_id
+        subscriptions = stripe.Subscription.list(
+            customer=sub.revenuecat_customer_id,
+            status="active",
+            limit=1,
         )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Erro ao consultar RevenueCat: {exc}")
-
-    subscriber = data.get("subscriber", {})
-    entitlements = subscriber.get("entitlements", {})
-    premium = entitlements.get("premium", {})
-
-    if premium and premium.get("expires_date"):
-        from dateutil.parser import parse as parse_dt
-        expires = parse_dt(premium["expires_date"])
-        product_id = premium.get("product_identifier", "")
-        plan = PRODUCT_TO_PLAN.get(product_id, "gratuito")
-
-        if expires > datetime.utcnow():
-            current_user.plan = plan
+        if subscriptions.data:
+            stripe_sub = subscriptions.data[0]
+            current_user.plan = "dono_da_obra"
+            sub.plan = "dono_da_obra"
+            sub.status = "active"
+            sub.expires_at = datetime.utcfromtimestamp(stripe_sub.current_period_end)
         else:
             current_user.plan = "gratuito"
-
-        # Upsert subscription
-        sub = session.exec(
-            select(Subscription).where(Subscription.user_id == current_user.id)
-        ).first()
-        if not sub:
-            sub = Subscription(user_id=current_user.id)
-            session.add(sub)
-        sub.plan = current_user.plan
-        sub.product_id = product_id
-        sub.expires_at = expires
-        sub.status = "active" if expires > datetime.utcnow() else "expired"
-        sub.store = premium.get("store")
-        sub.updated_at = datetime.utcnow()
-    else:
-        current_user.plan = "gratuito"
+            sub.plan = "gratuito"
+            sub.status = "expired"
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro Stripe: {exc}")
 
     current_user.updated_at = datetime.utcnow()
+    sub.updated_at = datetime.utcnow()
     session.add(current_user)
     session.commit()
 
     return {"plan": current_user.plan}
 
 
-@app.post("/api/webhooks/revenuecat")
-def revenuecat_webhook(
-    request_body: dict,
+@app.post("/api/webhooks/stripe")
+async def stripe_webhook(
+    request: Request,
     session: Session = Depends(get_session),
 ):
-    """Webhook handler para eventos do RevenueCat."""
-    from fastapi import Request
+    """Webhook handler para eventos do Stripe."""
+    import stripe
 
-    webhook_secret = os.getenv("REVENUECAT_WEBHOOK_SECRET")
-    # RevenueCat envia o secret no header Authorization
-    # Validação será feita via middleware ou aqui com header manual
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-    event = request_body.get("event", {})
-    event_type = event.get("type", "")
-    app_user_id = event.get("app_user_id", "")
-    product_id = event.get("product_id", "")
-    store = event.get("store", "")
-    expiration = event.get("expiration_at_ms")
-    expires_at = datetime.utcfromtimestamp(expiration / 1000) if expiration else None
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        raise HTTPException(status_code=400, detail="Assinatura do webhook inválida")
+
+    event_type = event["type"]
+    data_object = event["data"]["object"]
 
     # Log do evento
     rc_event = RevenueCatEvent(
         event_type=event_type,
-        app_user_id=app_user_id,
-        product_id=product_id,
-        store=store,
+        app_user_id=data_object.get("client_reference_id", data_object.get("customer", "")),
+        product_id=data_object.get("id", ""),
+        store="stripe",
         event_timestamp=datetime.utcnow(),
-        expiration_at=expires_at,
-        raw_payload=json.dumps(request_body),
+        raw_payload=json.dumps(event, default=str),
     )
     session.add(rc_event)
 
-    # Processar evento
-    try:
-        user = session.get(User, UUID(app_user_id))
-    except (ValueError, TypeError):
-        user = None
+    if event_type == "checkout.session.completed":
+        user_id = data_object.get("client_reference_id")
+        customer_id = data_object.get("customer")
+        stripe_sub_id = data_object.get("subscription")
 
-    if user:
-        plan = PRODUCT_TO_PLAN.get(product_id, "gratuito")
+        if user_id:
+            try:
+                user = session.get(User, UUID(user_id))
+            except (ValueError, TypeError):
+                user = None
+
+            if user:
+                user.plan = "dono_da_obra"
+                user.updated_at = datetime.utcnow()
+                session.add(user)
+
+                sub = session.exec(
+                    select(Subscription).where(Subscription.user_id == user.id)
+                ).first()
+                if not sub:
+                    sub = Subscription(user_id=user.id)
+                    session.add(sub)
+
+                sub.plan = "dono_da_obra"
+                sub.status = "active"
+                sub.revenuecat_customer_id = customer_id  # stores stripe customer_id
+                sub.store = "stripe"
+                sub.product_id = stripe_sub_id
+                sub.original_purchase_date = datetime.utcnow()
+                sub.updated_at = datetime.utcnow()
+
+                # Fetch subscription details for expiry
+                if stripe_sub_id:
+                    try:
+                        stripe_sub = stripe.Subscription.retrieve(stripe_sub_id)
+                        sub.expires_at = datetime.utcfromtimestamp(stripe_sub.current_period_end)
+                    except Exception:
+                        pass
+
+                rc_event.processed = True
+
+    elif event_type in ("customer.subscription.updated", "customer.subscription.created"):
+        customer_id = data_object.get("customer")
+        status_val = data_object.get("status")
 
         sub = session.exec(
-            select(Subscription).where(Subscription.user_id == user.id)
+            select(Subscription).where(Subscription.revenuecat_customer_id == customer_id)
         ).first()
-        if not sub:
-            sub = Subscription(user_id=user.id)
-            session.add(sub)
 
-        if event_type in ("INITIAL_PURCHASE", "RENEWAL"):
-            user.plan = plan
-            sub.plan = plan
-            sub.status = "active"
-            sub.product_id = product_id
-            sub.store = store
-            sub.expires_at = expires_at
-            if event_type == "INITIAL_PURCHASE":
-                sub.original_purchase_date = datetime.utcnow()
-        elif event_type == "CANCELLATION":
-            sub.status = "cancelled"
-        elif event_type == "EXPIRATION":
-            user.plan = "gratuito"
-            sub.plan = "gratuito"
+        if sub:
+            user = session.get(User, sub.user_id)
+            if status_val == "active":
+                sub.status = "active"
+                sub.plan = "dono_da_obra"
+                sub.expires_at = datetime.utcfromtimestamp(data_object.get("current_period_end", 0))
+                if user:
+                    user.plan = "dono_da_obra"
+                    user.updated_at = datetime.utcnow()
+                    session.add(user)
+            elif status_val == "past_due":
+                sub.status = "grace_period"
+            elif status_val in ("canceled", "unpaid"):
+                sub.status = "cancelled"
+            sub.updated_at = datetime.utcnow()
+            rc_event.processed = True
+
+    elif event_type == "customer.subscription.deleted":
+        customer_id = data_object.get("customer")
+        sub = session.exec(
+            select(Subscription).where(Subscription.revenuecat_customer_id == customer_id)
+        ).first()
+        if sub:
+            user = session.get(User, sub.user_id)
             sub.status = "expired"
-            # Remover convites quando assinatura expira
-            _revogar_convites_por_expiracao(session, user.id)
-        elif event_type == "BILLING_ISSUE":
+            sub.plan = "gratuito"
+            sub.updated_at = datetime.utcnow()
+            if user:
+                user.plan = "gratuito"
+                user.updated_at = datetime.utcnow()
+                session.add(user)
+                _revogar_convites_por_expiracao(session, user.id)
+            rc_event.processed = True
+
+    elif event_type == "invoice.payment_failed":
+        customer_id = data_object.get("customer")
+        sub = session.exec(
+            select(Subscription).where(Subscription.revenuecat_customer_id == customer_id)
+        ).first()
+        if sub:
             sub.status = "grace_period"
-            sub.grace_period_expires_at = expires_at
-        elif event_type == "PRODUCT_CHANGE":
-            user.plan = plan
-            sub.plan = plan
-            sub.product_id = product_id
-
-        sub.updated_at = datetime.utcnow()
-        user.updated_at = datetime.utcnow()
-        session.add(user)
-
-        rc_event.processed = True
+            sub.updated_at = datetime.utcnow()
+            rc_event.processed = True
 
     session.commit()
     return {"ok": True}

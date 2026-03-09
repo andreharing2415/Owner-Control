@@ -25,7 +25,6 @@ dependencies:
   local_auth: ^2.3.0
   flutter_secure_storage: ^9.2.2
   intl: ^0.20.2
-  purchases_flutter: ^8.0.0
   app_links: ^6.3.3
   syncfusion_flutter_pdfviewer: ^28.2.7
 

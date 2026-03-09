@@ -1023,6 +1023,14 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> createCheckoutSession() async {
+    final response = await _post("/api/subscription/create-checkout");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao criar sessão de checkout");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   // ─── Convites ─────────────────────────────────────────────────────────────
 
   Future<ObraConvite> criarConvite({
