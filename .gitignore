@@ -27,3 +27,4 @@ keystores/
 # Claude
 .claude/worktrees/
 .claude/settings.local.json
+.playwright-mcp/
