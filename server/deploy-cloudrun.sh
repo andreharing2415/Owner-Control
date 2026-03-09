@@ -33,7 +33,7 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com --quiet 2>/d
 # 3. Build da imagem e push (Cloud Build)
 echo "[3/4] Build da imagem (Cloud Build)..."
 IMAGE="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
-gcloud builds submit --tag "$IMAGE" -f "$SCRIPT_DIR/Dockerfile" "$SCRIPT_DIR"
+gcloud builds submit --tag "$IMAGE" "$SCRIPT_DIR"
 
 # 4. Deploy no Cloud Run
 echo "[4/4] Deploy no Cloud Run..."
