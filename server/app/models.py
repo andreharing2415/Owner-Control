@@ -11,7 +11,8 @@ class User(SQLModel, table=True):
     """Usuário proprietário da plataforma."""
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     email: str = Field(unique=True, index=True)
-    password_hash: str
+    password_hash: Optional[str] = Field(default=None)
+    google_id: Optional[str] = Field(default=None, unique=True, index=True)
     nome: str
     telefone: Optional[str] = None
     role: str = Field(default="owner")  # "owner" | "admin"
