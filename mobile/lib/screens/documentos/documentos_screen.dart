@@ -358,8 +358,9 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
                             context,
                             MaterialPageRoute(
                               builder: (_) => PdfViewerScreen(
-                                url: projeto.arquivoUrl,
+                                projetoId: projeto.id,
                                 fileName: projeto.arquivoNome,
+                                api: widget.api,
                               ),
                             ),
                           ),

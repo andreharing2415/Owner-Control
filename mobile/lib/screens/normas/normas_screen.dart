@@ -47,6 +47,10 @@ class _NormasScreenState extends State<NormasScreen> {
     if (widget.etapaId != null) {
       _carregarNormasChecklist();
     }
+    // Auto-search when coming from checklist with a pre-selected stage
+    if (widget.etapaInicial != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _buscar());
+    }
   }
 
   Future<void> _carregarNormasChecklist() async {

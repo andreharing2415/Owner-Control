@@ -732,6 +732,14 @@ class ApiClient {
     }
   }
 
+  Future<List<int>> downloadProjetoPdf(String projetoId) async {
+    final response = await _get("/api/projetos/$projetoId/pdf");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao baixar PDF (${response.statusCode})");
+    }
+    return response.bodyBytes;
+  }
+
   Future<void> analisarProjeto(String projetoId) async {
     final response = await _post("/api/projetos/$projetoId/analisar");
     if (response.statusCode != 200) {

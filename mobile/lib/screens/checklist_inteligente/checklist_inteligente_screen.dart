@@ -254,10 +254,13 @@ class _ChecklistInteligenteScreenState
         title: const Text("Checklist Inteligente"),
         actions: [
           if (_log != null && _log!.isConcluido && _itens.isNotEmpty)
-            FilledButton.icon(
-              onPressed: _aplicar,
-              icon: const Icon(Icons.check),
-              label: const Text("Aplicar"),
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilledButton.icon(
+                onPressed: _aplicar,
+                icon: const Icon(Icons.check),
+                label: const Text("Aplicar"),
+              ),
             ),
         ],
       ),

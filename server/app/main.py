@@ -18,7 +18,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlmodel import Session, select
 
 from .db import get_session, init_db
@@ -1135,6 +1135,28 @@ def obter_projeto(
     if not projeto:
         raise HTTPException(status_code=404, detail="Projeto nao encontrado")
     return projeto
+
+
+@app.get("/api/projetos/{projeto_id}/pdf")
+def download_projeto_pdf(
+    projeto_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Serve o PDF do projeto via proxy (resolve CORS com storage)."""
+    projeto = session.get(ProjetoDoc, projeto_id)
+    if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto nao encontrado")
+    bucket = os.getenv("S3_BUCKET")
+    if not bucket:
+        raise HTTPException(status_code=500, detail="S3_BUCKET nao configurado")
+    object_key = extract_object_key(projeto.arquivo_url, bucket)
+    pdf_bytes = download_by_url(projeto.arquivo_url, bucket, object_key)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{projeto.arquivo_nome}"'},
+    )
 
 
 @app.delete("/api/projetos/{projeto_id}")
