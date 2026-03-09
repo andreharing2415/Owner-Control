@@ -72,12 +72,17 @@ from .schemas import (
     UserRead,
     TokenResponse,
     TokenRefreshRequest,
+    GoogleLoginRequest,
+    GoogleTokenResponse,
+    UpdateProfileRequest,
     EtapaPrazoUpdate,
     EtapaNormasChecklistRead,
     SugerirGrupoRequest,
     SugerirGrupoResponse,
 )
 from .auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user
+from google.oauth2 import id_token as google_id_token
+from google.auth.transport import requests as google_requests
 from .storage import ensure_bucket, upload_file, download_file, download_by_url, extract_object_key
 from .pdf import render_obra_pdf
 from .seed_checklists import get_itens_padrao
@@ -161,21 +166,23 @@ def registrar_usuario(payload: UserRegister, session: Session = Depends(get_sess
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=create_refresh_token(str(user.id)),
-        user=UserRead.model_validate(user),
+        user=UserRead.from_user(user),
     )
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 def login(payload: UserLogin, session: Session = Depends(get_session)):
     user = session.exec(select(User).where(User.email == payload.email.lower().strip())).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user or not user.password_hash:
+        raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Email ou senha incorretos")
     if not user.ativo:
         raise HTTPException(status_code=403, detail="Conta desativada")
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=create_refresh_token(str(user.id)),
-        user=UserRead.model_validate(user),
+        user=UserRead.from_user(user),
     )
 
 
@@ -190,13 +197,84 @@ def refresh_token(payload: TokenRefreshRequest, session: Session = Depends(get_s
     return TokenResponse(
         access_token=create_access_token(str(user.id)),
         refresh_token=create_refresh_token(str(user.id)),
-        user=UserRead.model_validate(user),
+        user=UserRead.from_user(user),
     )
 
 
 @app.get("/api/auth/me", response_model=UserRead)
 def me(current_user: User = Depends(get_current_user)):
-    return UserRead.model_validate(current_user)
+    return UserRead.from_user(current_user)
+
+
+@app.post("/api/auth/google", response_model=GoogleTokenResponse)
+def login_google(payload: GoogleLoginRequest, session: Session = Depends(get_session)):
+    """Verifica um Google ID Token e retorna JWT próprio."""
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not google_client_id:
+        raise HTTPException(status_code=500, detail="Google login nao configurado")
+    try:
+        info = google_id_token.verify_oauth2_token(
+            payload.id_token,
+            google_requests.Request(),
+            google_client_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Token Google invalido: {e}")
+
+    google_sub = info["sub"]
+    email = info.get("email", "").lower().strip()
+    nome_google = info.get("name", "")
+
+    user = session.exec(select(User).where(User.google_id == google_sub)).first()
+    is_new_user = False
+
+    if not user and email:
+        user = session.exec(select(User).where(User.email == email)).first()
+        if user:
+            user.google_id = google_sub
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+
+    if not user:
+        is_new_user = True
+        user = User(
+            email=email,
+            password_hash=None,
+            google_id=google_sub,
+            nome=nome_google or email.split("@")[0],
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    if not user.ativo:
+        raise HTTPException(status_code=403, detail="Conta desativada")
+
+    return GoogleTokenResponse(
+        access_token=create_access_token(str(user.id)),
+        refresh_token=create_refresh_token(str(user.id)),
+        user=UserRead.from_user(user),
+        is_new_user=is_new_user,
+    )
+
+
+@app.patch("/api/auth/me", response_model=UserRead)
+def atualizar_perfil(
+    payload: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    """Atualiza nome e/ou telefone do usuário autenticado."""
+    if payload.nome is not None:
+        current_user.nome = payload.nome.strip()
+    if payload.telefone is not None:
+        current_user.telefone = payload.telefone.strip() or None
+    current_user.updated_at = datetime.utcnow()
+    session.add(current_user)
+    session.commit()
+    session.refresh(current_user)
+    return UserRead.from_user(current_user)
 
 
 # ─── Helpers de ownership ────────────────────────────────────────────────────

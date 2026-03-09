@@ -29,7 +29,20 @@ class UserRead(SQLModel):
     nome: str
     telefone: Optional[str] = None
     role: str
+    has_password: bool = True
     created_at: datetime
+
+    @classmethod
+    def from_user(cls, user: Any) -> "UserRead":
+        return cls(
+            id=user.id,
+            email=user.email,
+            nome=user.nome,
+            telefone=user.telefone,
+            role=user.role,
+            has_password=user.password_hash is not None,
+            created_at=user.created_at,
+        )
 
 
 class TokenResponse(SQLModel):
@@ -41,6 +54,23 @@ class TokenResponse(SQLModel):
 
 class TokenRefreshRequest(SQLModel):
     refresh_token: str
+
+
+class GoogleLoginRequest(SQLModel):
+    id_token: str
+
+
+class GoogleTokenResponse(SQLModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserRead
+    is_new_user: bool
+
+
+class UpdateProfileRequest(SQLModel):
+    nome: Optional[str] = None
+    telefone: Optional[str] = None
 
 
 # ─── Core ────────────────────────────────────────────────────────────────────
