@@ -46,6 +46,12 @@ class Risco {
     this.acaoProprietario,
     this.perguntasParaProfissional,
     this.documentosAExigir,
+    this.dadoProjeto,
+    this.verificacoes,
+    this.perguntaEngenheiro,
+    this.registroProprietario,
+    this.resultadoCruzamento,
+    this.statusVerificacao = "pendente",
   });
 
   final String id;
@@ -60,6 +66,13 @@ class Risco {
   final String? acaoProprietario;
   final List<Map<String, String>>? perguntasParaProfissional;
   final List<String>? documentosAExigir;
+  // 3 Camadas
+  final Map<String, dynamic>? dadoProjeto;
+  final List<Map<String, dynamic>>? verificacoes;
+  final Map<String, dynamic>? perguntaEngenheiro;
+  final Map<String, dynamic>? registroProprietario;
+  final Map<String, dynamic>? resultadoCruzamento;
+  final String statusVerificacao;
 
   factory Risco.fromJson(Map<String, dynamic> json) {
     List<Map<String, String>>? parsePerguntas(dynamic raw) {
@@ -98,6 +111,38 @@ class Risco {
       return null;
     }
 
+    Map<String, dynamic>? parseJsonObj(dynamic raw) {
+      if (raw == null) return null;
+      if (raw is String) {
+        try {
+          final parsed = jsonDecode(raw);
+          if (parsed is Map) return Map<String, dynamic>.from(parsed);
+        } catch (_) {}
+        return null;
+      }
+      if (raw is Map) return Map<String, dynamic>.from(raw);
+      return null;
+    }
+
+    List<Map<String, dynamic>>? parseJsonList(dynamic raw) {
+      if (raw == null) return null;
+      if (raw is String) {
+        try {
+          final parsed = jsonDecode(raw);
+          if (parsed is List) {
+            return parsed
+                .map((e) => Map<String, dynamic>.from(e as Map))
+                .toList();
+          }
+        } catch (_) {}
+        return null;
+      }
+      if (raw is List) {
+        return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      return null;
+    }
+
     return Risco(
       id: json["id"] as String,
       projetoId: json["projeto_id"] as String,
@@ -113,6 +158,12 @@ class Risco {
       perguntasParaProfissional:
           parsePerguntas(json["perguntas_para_profissional"]),
       documentosAExigir: parseDocs(json["documentos_a_exigir"]),
+      dadoProjeto: parseJsonObj(json["dado_projeto"]),
+      verificacoes: parseJsonList(json["verificacoes"]),
+      perguntaEngenheiro: parseJsonObj(json["pergunta_engenheiro"]),
+      registroProprietario: parseJsonObj(json["registro_proprietario"]),
+      resultadoCruzamento: parseJsonObj(json["resultado_cruzamento"]),
+      statusVerificacao: json["status_verificacao"] as String? ?? "pendente",
     );
   }
 }

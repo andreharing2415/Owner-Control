@@ -4,6 +4,7 @@ import "package:local_auth/local_auth.dart";
 
 import "../models/auth.dart";
 import "../services/api_client.dart";
+import "../services/revenuecat_service.dart";
 import "../services/secure_storage.dart";
 
 class AuthProvider extends ChangeNotifier {
@@ -36,6 +37,7 @@ class AuthProvider extends ChangeNotifier {
       if (tokens != null) {
         api.setTokens(access: tokens.access, refresh: tokens.refresh);
         _user = await api.getMe();
+        await RevenueCatService.init(_user!.id);
       }
     } catch (_) {
       api.clearTokens();
@@ -52,6 +54,7 @@ class AuthProvider extends ChangeNotifier {
     await SecureStorage.saveTokens(tokens.accessToken, tokens.refreshToken);
     api.setTokens(access: tokens.accessToken, refresh: tokens.refreshToken);
     _user = await api.getMe();
+    await RevenueCatService.init(_user!.id);
     notifyListeners();
   }
 
@@ -70,6 +73,7 @@ class AuthProvider extends ChangeNotifier {
     await SecureStorage.saveTokens(tokens.accessToken, tokens.refreshToken);
     api.setTokens(access: tokens.accessToken, refresh: tokens.refreshToken);
     _user = await api.getMe();
+    await RevenueCatService.init(_user!.id);
     notifyListeners();
   }
 
@@ -88,6 +92,7 @@ class AuthProvider extends ChangeNotifier {
     await SecureStorage.saveTokens(result.accessToken, result.refreshToken);
     api.setTokens(access: result.accessToken, refresh: result.refreshToken);
     _user = result.user;
+    await RevenueCatService.init(_user!.id);
     notifyListeners();
     return result.isNewUser;
   }
@@ -133,12 +138,14 @@ class AuthProvider extends ChangeNotifier {
 
     api.setTokens(access: tokens.access, refresh: tokens.refresh);
     _user = await api.getMe();
+    await RevenueCatService.init(_user!.id);
     notifyListeners();
   }
 
   // ─── Logout ────────────────────────────────────────────────────────────────
 
   Future<void> logout() async {
+    await RevenueCatService.logout();
     api.clearTokens();
     _user = null;
     await SecureStorage.clearTokens();

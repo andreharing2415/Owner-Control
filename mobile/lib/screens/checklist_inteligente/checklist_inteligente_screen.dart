@@ -1,9 +1,13 @@
 import "dart:async";
 
 import "package:flutter/material.dart";
+import "package:provider/provider.dart";
 
 import "../../models/auth.dart";
+import "../../providers/auth_provider.dart";
+import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
+import "../subscription/paywall_screen.dart";
 
 class ChecklistInteligenteScreen extends StatefulWidget {
   const ChecklistInteligenteScreen({
@@ -215,6 +219,35 @@ class _ChecklistInteligenteScreenState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final user = context.read<AuthProvider>().user;
+    final isConvidado = user?.isConvidado ?? false;
+
+    // Convidado: completely blocked
+    if (isConvidado) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Checklist Inteligente")),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text("Recurso indisponível",
+                    style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  "O Checklist Inteligente está disponível apenas para o proprietário da obra.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -235,6 +268,11 @@ class _ChecklistInteligenteScreenState
   }
 
   Widget _buildMainView(ThemeData theme) {
+    final sub = context.watch<SubscriptionProvider>();
+    final lifetimeLimit = sub.checklistInteligenteLifetimeLimit;
+    final used = sub.checklistInteligenteUsed;
+    final reachedLimit = lifetimeLimit != null && used >= lifetimeLimit;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -256,6 +294,39 @@ class _ChecklistInteligenteScreenState
                 style: theme.textTheme.bodyMedium
                     ?.copyWith(color: Colors.grey[600]),
               ),
+              // Lifetime usage counter for free plan
+              if (lifetimeLimit != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: reachedLimit
+                        ? Colors.red.withValues(alpha: 0.1)
+                        : Colors.blue.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        reachedLimit ? Icons.block : Icons.bar_chart,
+                        size: 16,
+                        color: reachedLimit ? Colors.red : Colors.blue,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        "$used/$lifetimeLimit geração(ões) usada(s)",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: reachedLimit ? Colors.red : Colors.blue[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               Container(
                 padding:
@@ -283,23 +354,36 @@ class _ChecklistInteligenteScreenState
                 ),
               ),
               const SizedBox(height: 20),
-              FilledButton.icon(
-                onPressed: _loading ? null : _iniciar,
-                icon: _loading
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.auto_awesome),
-                label: Text(
-                    _loading ? "Iniciando..." : "Gerar Checklist com IA"),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 16),
-                ),
-              ),
+              reachedLimit
+                  ? FilledButton.icon(
+                      onPressed: () => PaywallScreen.show(context,
+                          message:
+                              "Você atingiu o limite de gerações do plano gratuito"),
+                      icon: const Icon(Icons.lock),
+                      label: const Text("Limite atingido — Assinar"),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.grey,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 16),
+                      ),
+                    )
+                  : FilledButton.icon(
+                      onPressed: _loading ? null : _iniciar,
+                      icon: _loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.auto_awesome),
+                      label: Text(
+                          _loading ? "Iniciando..." : "Gerar Checklist com IA"),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32, vertical: 16),
+                      ),
+                    ),
             ],
           ),
         ),

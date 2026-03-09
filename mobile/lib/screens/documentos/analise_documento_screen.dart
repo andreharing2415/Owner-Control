@@ -72,6 +72,45 @@ class _AnaliseDocumentoScreenState extends State<AnaliseDocumentoScreen> {
     }
   }
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case "conforme":
+        return Colors.green;
+      case "divergente":
+        return Colors.red;
+      case "duvida":
+        return Colors.amber;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case "conforme":
+        return Icons.check_circle;
+      case "divergente":
+        return Icons.error;
+      case "duvida":
+        return Icons.help;
+      default:
+        return Icons.pending;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case "conforme":
+        return "Conforme";
+      case "divergente":
+        return "Divergente";
+      case "duvida":
+        return "Dúvida";
+      default:
+        return "Pendente";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -194,7 +233,10 @@ class _AnaliseDocumentoScreenState extends State<AnaliseDocumentoScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => DetalheRiscoScreen(risco: risco),
+                            builder: (_) => DetalheRiscoScreen(
+                              risco: risco,
+                              api: widget.api,
+                            ),
                           ),
                         );
                       },
@@ -235,6 +277,38 @@ class _AnaliseDocumentoScreenState extends State<AnaliseDocumentoScreen> {
                                   ),
                                 ],
                                 const Spacer(),
+                                // Status badge de verificação
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _statusColor(risco.statusVerificacao)
+                                        .withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _statusIcon(risco.statusVerificacao),
+                                        size: 12,
+                                        color: _statusColor(
+                                            risco.statusVerificacao),
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        _statusLabel(risco.statusVerificacao),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: _statusColor(
+                                              risco.statusVerificacao),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
                                 Text(
                                   "${risco.confianca}%",
                                   style: Theme.of(context)

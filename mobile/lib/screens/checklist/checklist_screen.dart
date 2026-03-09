@@ -1,9 +1,13 @@
 import "package:flutter/material.dart";
 import "package:intl/intl.dart";
+import "package:provider/provider.dart";
 
 import "../../models/checklist_item.dart";
 import "../../models/etapa.dart";
+import "../../providers/auth_provider.dart";
+import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
+import "../subscription/paywall_screen.dart";
 import "detalhe_item_screen.dart";
 
 class ChecklistScreen extends StatefulWidget {
@@ -298,9 +302,26 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
           IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _criarItem,
-        child: const Icon(Icons.add),
+      floatingActionButton: Builder(
+        builder: (context) {
+          final sub = context.watch<SubscriptionProvider>();
+          final user = context.read<AuthProvider>().user;
+          final isConvidado = user?.isConvidado ?? false;
+          // Convidado pode criar, Dono pode criar, Free não pode
+          final canCreate = isConvidado || sub.canCreateChecklistItems;
+          if (!canCreate) {
+            return FloatingActionButton(
+              onPressed: () => PaywallScreen.show(context,
+                  message: "Crie itens no checklist com o plano Dono da Obra"),
+              backgroundColor: Colors.grey,
+              child: const Icon(Icons.lock),
+            );
+          }
+          return FloatingActionButton(
+            onPressed: _criarItem,
+            child: const Icon(Icons.add),
+          );
+        },
       ),
       body: FutureBuilder<List<ChecklistItem>>(
         future: _itensFuture,
@@ -338,27 +359,36 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                   ),
                   const SizedBox(height: 4),
                   for (final item in entry.value)
-                    _ItemCard(
-                      item: item,
-                      statusColor: _statusColor(item.status),
-                      statusLabel: _statusLabel(item.status),
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => DetalheItemScreen(
-                              item: item,
-                              api: widget.api,
-                              etapaNome: _etapa.nome,
-                            ),
-                          ),
+                    Builder(
+                      builder: (context) {
+                        final sub = context.read<SubscriptionProvider>();
+                        final canDelete = sub.isDono;
+                        return _ItemCard(
+                          item: item,
+                          statusColor: _statusColor(item.status),
+                          statusLabel: _statusLabel(item.status),
+                          canDelete: canDelete,
+                          onTap: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DetalheItemScreen(
+                                  item: item,
+                                  api: widget.api,
+                                  etapaNome: _etapa.nome,
+                                ),
+                              ),
+                            );
+                            await _refresh();
+                          },
+                          onDelete: canDelete
+                              ? () async {
+                                  if (await _confirmarRemocao(item)) {
+                                    await _deletarItem(item);
+                                  }
+                                }
+                              : null,
                         );
-                        await _refresh();
-                      },
-                      onDelete: () async {
-                        if (await _confirmarRemocao(item)) {
-                          await _deletarItem(item);
-                        }
                       },
                     ),
                   const SizedBox(height: 8),
@@ -412,17 +442,109 @@ class _ItemCard extends StatelessWidget {
     required this.statusColor,
     required this.statusLabel,
     required this.onTap,
-    required this.onDelete,
+    this.onDelete,
+    this.canDelete = true,
   });
 
   final ChecklistItem item;
   final Color statusColor;
   final String statusLabel;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final VoidCallback? onDelete;
+  final bool canDelete;
 
   @override
   Widget build(BuildContext context) {
+    final card = Card(
+      margin: const EdgeInsets.only(bottom: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(item.titulo,
+                        style: const TextStyle(fontWeight: FontWeight.w500)),
+                    if (item.descricao != null && item.descricao!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          item.descricao!,
+                          style: TextStyle(
+                              fontSize: 12, color: Colors.grey[600]),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: statusColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (item.critico) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        "Crítico",
+                        style: TextStyle(color: Colors.red, fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              if (canDelete)
+                PopupMenuButton<String>(
+                  onSelected: (v) {
+                    if (v == "remover") onDelete?.call();
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: "remover",
+                      child: Row(children: [
+                        Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text("Remover", style: TextStyle(color: Colors.red)),
+                      ]),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (!canDelete) return card;
+
     return Dismissible(
       key: Key(item.id),
       direction: DismissDirection.endToStart,
@@ -437,95 +559,10 @@ class _ItemCard extends StatelessWidget {
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       confirmDismiss: (_) async {
-        onDelete();
-        return false; // onDelete gerencia o dismiss
+        onDelete?.call();
+        return false;
       },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 4),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.titulo,
-                          style: const TextStyle(fontWeight: FontWeight.w500)),
-                      if (item.descricao != null && item.descricao!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            item.descricao!,
-                            style: TextStyle(
-                                fontSize: 12, color: Colors.grey[600]),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: statusColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (item.critico) ...[
-                      const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          "Crítico",
-                          style: TextStyle(color: Colors.red, fontSize: 10),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                PopupMenuButton<String>(
-                  onSelected: (v) {
-                    if (v == "remover") onDelete();
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: "remover",
-                      child: Row(children: [
-                        Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text("Remover", style: TextStyle(color: Colors.red)),
-                      ]),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      child: card,
     );
   }
 }

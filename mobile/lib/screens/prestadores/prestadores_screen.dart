@@ -1,7 +1,11 @@
 import "package:flutter/material.dart";
+import "package:provider/provider.dart";
 
 import "../../models/prestador.dart";
+import "../../providers/auth_provider.dart";
+import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
+import "../subscription/paywall_screen.dart";
 import "detalhe_prestador_screen.dart";
 
 class PrestadoresScreen extends StatefulWidget {
@@ -216,6 +220,39 @@ class _PrestadoresScreenState extends State<PrestadoresScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final user = context.read<AuthProvider>().user;
+    final isConvidado = user?.isConvidado ?? false;
+
+    // Convidado: completely blocked
+    if (isConvidado) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Prestadores")),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text("Recurso indisponível",
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  "Os Prestadores estão disponíveis apenas para o proprietário da obra.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final sub = context.watch<SubscriptionProvider>();
+    final prestadoresLimit = sub.prestadoresLimit;
+    final showContact = sub.prestadoresShowContact;
 
     return Scaffold(
       appBar: AppBar(
@@ -378,12 +415,65 @@ class _PrestadoresScreenState extends State<PrestadoresScreen> {
                     ),
                   );
                 }
+                final isTruncated = prestadoresLimit != null &&
+                    prestadores.length > prestadoresLimit;
+                final visibleCount = isTruncated
+                    ? prestadoresLimit
+                    : prestadores.length;
+                // +1 for upgrade banner if truncated
+                final itemCount = isTruncated
+                    ? visibleCount + 1
+                    : visibleCount;
+
                 return RefreshIndicator(
                   onRefresh: _refresh,
                   child: ListView.builder(
                     padding: const EdgeInsets.all(12),
-                    itemCount: prestadores.length,
+                    itemCount: itemCount,
                     itemBuilder: (context, index) {
+                      // Upgrade banner at the end
+                      if (isTruncated && index == visibleCount) {
+                        return Card(
+                          color: Colors.amber.withValues(alpha: 0.1),
+                          child: InkWell(
+                            onTap: () => PaywallScreen.show(context,
+                                message:
+                                    "Veja todos os ${prestadores.length} prestadores"),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.workspace_premium,
+                                      color: Colors.amber),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          "Veja todos os prestadores",
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.bold),
+                                        ),
+                                        Text(
+                                          "Exibindo $visibleCount de ${prestadores.length}. Assine para ver todos com contato.",
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[600]),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.chevron_right),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
                       final p = prestadores[index];
                       return Card(
                         child: ListTile(
@@ -410,6 +500,25 @@ class _PrestadoresScreenState extends State<PrestadoresScreen> {
                                     color: colorScheme.onSurfaceVariant,
                                   ),
                                 ),
+                              // Contact hidden for free plan
+                              if (!showContact &&
+                                  (p.telefone != null || p.email != null))
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.lock_outline,
+                                          size: 12, color: Colors.grey[400]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "Contato disponível no plano Dono",
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[500]),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
                           trailing: Column(
@@ -427,19 +536,23 @@ class _PrestadoresScreenState extends State<PrestadoresScreen> {
                                 ),
                             ],
                           ),
-                          isThreeLine: p.regiao != null,
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DetalhePrestadorScreen(
-                                  prestadorId: p.id,
-                                  api: widget.api,
-                                ),
-                              ),
-                            );
-                            _refresh();
-                          },
+                          isThreeLine: p.regiao != null || !showContact,
+                          onTap: showContact
+                              ? () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => DetalhePrestadorScreen(
+                                        prestadorId: p.id,
+                                        api: widget.api,
+                                      ),
+                                    ),
+                                  );
+                                  _refresh();
+                                }
+                              : () => PaywallScreen.show(context,
+                                  message:
+                                      "Veja o contato completo dos prestadores"),
                         ),
                       );
                     },

@@ -8,6 +8,7 @@ import "package:image_picker/image_picker.dart";
 
 import "../models/auth.dart";
 import "../models/checklist_item.dart";
+import "../models/convite.dart";
 import "../models/documento.dart";
 import "../models/etapa.dart";
 import "../models/evidencia.dart";
@@ -15,6 +16,7 @@ import "../models/financeiro.dart";
 import "../models/norma.dart";
 import "../models/obra.dart";
 import "../models/prestador.dart";
+import "../models/subscription.dart";
 import "../models/visual_ai.dart";
 
 const apiBaseUrl = String.fromEnvironment(
@@ -22,12 +24,24 @@ const apiBaseUrl = String.fromEnvironment(
   defaultValue: "https://mestreobra-backend-530484413221.us-central1.run.app",
 );
 
+/// Exception thrown when a 403 (feature gate) response is received.
+class FeatureGateException implements Exception {
+  FeatureGateException(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
   String? _accessToken;
   String? _refreshToken;
+
+  /// Callback invoked when a 403 is received (feature gate).
+  /// The UI layer sets this to show a paywall dialog.
+  void Function(String message)? onFeatureGate;
 
   bool get isAuthenticated => _accessToken != null;
 
@@ -735,6 +749,24 @@ class ApiClient {
         jsonDecode(response.body) as Map<String, dynamic>);
   }
 
+  Future<Risco> registrarVerificacaoRisco({
+    required String riscoId,
+    String? valorMedido,
+    required String status,
+    List<String>? fotoIds,
+  }) async {
+    final response = await _post("/api/riscos/$riscoId/verificar", body: {
+      "status": status,
+      if (valorMedido != null) "valor_medido": valorMedido,
+      if (fotoIds != null) "foto_ids": fotoIds,
+    });
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao registrar verificação");
+    }
+    return Risco.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   // ─── Visual AI ─────────────────────────────────────────────────────────────
 
   Future<AnaliseVisual> enviarAnaliseVisual({
@@ -970,6 +1002,127 @@ class ApiClient {
     return data
         .map((e) =>
             ChecklistInteligenteLog.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  // ─── Subscription ─────────────────────────────────────────────────────────
+
+  Future<SubscriptionInfo> getSubscriptionInfo() async {
+    final response = await _get("/api/subscription/me");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao obter informações da assinatura");
+    }
+    return SubscriptionInfo.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<void> syncSubscription() async {
+    final response = await _post("/api/subscription/sync");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao sincronizar assinatura");
+    }
+  }
+
+  // ─── Convites ─────────────────────────────────────────────────────────────
+
+  Future<ObraConvite> criarConvite({
+    required String obraId,
+    required String email,
+    required String papel,
+  }) async {
+    final response = await _post("/api/obras/$obraId/convites", body: {
+      "email": email,
+      "papel": papel,
+    });
+    if (response.statusCode == 403) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body["detail"] as String? ?? "Recurso restrito";
+      onFeatureGate?.call(msg);
+      throw FeatureGateException(msg);
+    }
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao criar convite");
+    }
+    return ObraConvite.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<List<ObraConvite>> listarConvites(String obraId) async {
+    final response = await _get("/api/obras/$obraId/convites");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar convites");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => ObraConvite.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> removerConvite(String conviteId) async {
+    final response = await _delete("/api/convites/$conviteId");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao remover convite");
+    }
+  }
+
+  Future<Map<String, dynamic>> aceitarConvite({
+    required String token,
+    required String nome,
+  }) async {
+    final response = await _post("/api/convites/aceitar", body: {
+      "token": token,
+      "nome": nome,
+    });
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao aceitar convite");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<List<ObraConvidada>> listarObrasConvidadas() async {
+    final response = await _get("/api/convites/minhas-obras");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar obras convidadas");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) => ObraConvidada.fromJson(item as Map<String, dynamic>))
+        .toList();
+  }
+
+  // ─── Comentários em Etapas ────────────────────────────────────────────────
+
+  Future<EtapaComentario> criarComentario({
+    required String etapaId,
+    required String texto,
+  }) async {
+    final response = await _post("/api/etapas/$etapaId/comentarios", body: {
+      "texto": texto,
+    });
+    if (response.statusCode == 403) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body["detail"] as String? ?? "Recurso restrito";
+      onFeatureGate?.call(msg);
+      throw FeatureGateException(msg);
+    }
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao criar comentário");
+    }
+    return EtapaComentario.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<List<EtapaComentario>> listarComentarios(String etapaId) async {
+    final response = await _get("/api/etapas/$etapaId/comentarios");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar comentários");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data
+        .map((item) =>
+            EtapaComentario.fromJson(item as Map<String, dynamic>))
         .toList();
   }
 

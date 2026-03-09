@@ -1,6 +1,8 @@
 import "package:flutter/material.dart";
+import "package:provider/provider.dart";
 
 import "../../models/financeiro.dart";
+import "../../providers/auth_provider.dart";
 import "../../services/api_client.dart";
 import "alertas_config_screen.dart";
 import "curva_s_screen.dart";
@@ -102,6 +104,34 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isConvidado = context.read<AuthProvider>().user?.isConvidado ?? false;
+
+    // Convidado: completely blocked
+    if (isConvidado) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Financeiro")),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text("Recurso indisponível",
+                    style: theme.textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  "O módulo Financeiro está disponível apenas para o proprietário da obra.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(

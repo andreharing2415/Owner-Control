@@ -57,19 +57,44 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
       "norma_referencia": "norma aplicavel (ex: NBR 6118:2023, NR-18) ou null",
       "norma_url": "URL para consulta da norma (site da ABNT, planalto.gov.br, etc.) ou null se nao souber a URL exata",
       "traducao_leigo": "o que isso significa para voce como proprietario, em linguagem simples, sem termos tecnicos (max 300 chars)",
-      "acao_proprietario": "instrucao direta do que pedir ao engenheiro/arquiteto, sem linguagem tecnica. Ex: 'Peca ao engenheiro que revise a protecao do ferro na fundacao para que dure mais tempo sem enferrujar' (max 300 chars)",
+      "acao_proprietario": "instrucao direta do que pedir ao engenheiro/arquiteto, sem linguagem tecnica (max 300 chars)",
+      "dado_projeto": {
+        "descricao": "descricao do elemento do projeto (ex: 'Parede estrutural do quarto 1')",
+        "especificacao": "especificacao tecnica extraida do documento (ex: 'Espessura 19cm, bloco ceramico 14x19x29')",
+        "fonte": "onde no documento esta a informacao (ex: 'Planta Estrutural - Folha 3')",
+        "valor_referencia": "valor numerico ou parametro de referencia para comparacao (ex: '19cm')"
+      },
+      "verificacoes": [
+        {
+          "instrucao": "instrucao simples para o proprietario verificar na obra (ex: 'Meca a espessura da parede com trena')",
+          "tipo": "medicao | visual | documento",
+          "valor_esperado": "valor ou condicao esperada (ex: 'minimo 19cm')",
+          "como_medir": "passo a passo pratico de como verificar (ex: 'Posicione a trena na lateral da parede, sem reboco')"
+        }
+      ],
+      "pergunta_engenheiro": {
+        "contexto": "contexto para o proprietario usar ao abordar o engenheiro (ex: 'Notei que a parede esta com [X]cm, mas o projeto indica 19cm')",
+        "pergunta": "pergunta colaborativa e respeitosa (ex: 'Houve alguma alteracao ou ajuste tecnico?')",
+        "tom": "colaborativo"
+      },
       "perguntas_para_profissional": [
         {
           "pergunta": "pergunta pronta que o proprietario deve fazer ao engenheiro",
-          "resposta_esperada": "resumo da mensagem-chave que deve estar na resposta do engenheiro para indicar que esta ok. Nao precisa ser a frase exata, mas o conceito"
+          "resposta_esperada": "resumo da mensagem-chave que deve estar na resposta do engenheiro"
         }
       ],
-      "documentos_a_exigir": ["documento ou laudo que o proprietario deve cobrar. Ex: 'Revisao do projeto estrutural com ART atualizada', 'Laudo de sondagem do solo', 'Solicite ART/RRT para esta atividade'. Liste apenas quando aplicavel"],
+      "documentos_a_exigir": ["documento ou laudo que o proprietario deve cobrar"],
       "requer_validacao_profissional": true | false,
       "confianca": numero 0-100
     }
   ]
 }
+
+REGRAS PARA OS CAMPOS DE 3 CAMADAS:
+- dado_projeto: SOMENTE preencha se encontrar dados concretos e verificaveis no documento. Se nao houver dado especifico, use null.
+- verificacoes: SOMENTE gere verificacoes que o proprietario consiga fazer sozinho (medir, olhar, comparar documento). Nao gere verificacoes vagas.
+- pergunta_engenheiro: tom SEMPRE colaborativo e respeitoso. O proprietario pergunta, nao cobra.
+- confianca < 50: NAO gere o risco. Filtre riscos vagos ou genericos.
 
 Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
 

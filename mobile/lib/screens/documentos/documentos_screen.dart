@@ -1,10 +1,14 @@
 import "dart:async";
 
 import "package:flutter/material.dart";
+import "package:provider/provider.dart";
 
 import "../../models/documento.dart";
+import "../../providers/auth_provider.dart";
+import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
 import "analise_documento_screen.dart";
+import "pdf_viewer_screen.dart";
 import "../checklist_inteligente/checklist_inteligente_screen.dart";
 
 // Conditional import for web file picking
@@ -243,19 +247,36 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
         title: const Text("Documentos"),
         actions: [
           IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: "Checklist IA",
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChecklistInteligenteScreen(
+                    obraId: widget.obraId, api: widget.api),
+              ),
+            ),
+          ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _uploading ? null : _uploadPdf,
-        icon: _uploading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.upload_file),
-        label: Text(_uploading ? "Enviando..." : "Upload PDF"),
+      floatingActionButton: Builder(
+        builder: (context) {
+          final user = context.read<AuthProvider>().user;
+          if (user != null && user.isConvidado) return const SizedBox.shrink();
+          return FloatingActionButton.extended(
+            onPressed: _uploading ? null : _uploadPdf,
+            icon: _uploading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : const Icon(Icons.upload_file),
+            label: Text(_uploading ? "Enviando..." : "Upload PDF"),
+          );
+        },
       ),
       body: FutureBuilder<List<ProjetoDoc>>(
         future: _projetosFuture,
@@ -333,12 +354,28 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         GestureDetector(
-                          onTap: () => _deletarProjeto(projeto),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PdfViewerScreen(
+                                url: projeto.arquivoUrl,
+                                fileName: projeto.arquivoNome,
+                              ),
+                            ),
+                          ),
                           child: const Padding(
                             padding: EdgeInsets.all(8),
-                            child: Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                            child: Icon(Icons.visibility, size: 22),
                           ),
                         ),
+                        if (context.read<SubscriptionProvider>().canDeleteDoc)
+                          GestureDetector(
+                            onTap: () => _deletarProjeto(projeto),
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                            ),
+                          ),
                         if (projeto.status == "concluido")
                           const Icon(Icons.chevron_right),
                       ],

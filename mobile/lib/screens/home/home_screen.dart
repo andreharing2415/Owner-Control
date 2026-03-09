@@ -7,12 +7,16 @@ import '../../models/etapa.dart';
 import '../../models/checklist_item.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/obra_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../services/api_client.dart';
+import '../convites/convites_screen.dart';
 import '../obras/obras_screen.dart';
 import '../etapas/etapas_screen.dart';
 import '../normas/normas_screen.dart';
 import '../documentos/documentos_screen.dart';
+import '../financeiro/financeiro_screen.dart';
 import '../prestadores/prestadores_screen.dart';
+import '../subscription/paywall_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -107,51 +111,119 @@ class _HomeScreenState extends State<HomeScreen> {
           appBar: AppBar(
             title: Row(
               children: [
-                SvgPicture.asset('assets/images/icone.svg', height: 28),
+                SvgPicture.asset('assets/images/logo_horizontal.svg', height: 28),
                 const SizedBox(width: 8),
-                const Text("Mestre da Obra"),
+                Consumer<SubscriptionProvider>(
+                  builder: (context, sub, _) {
+                    final user = context.read<AuthProvider>().user;
+                    if (user != null && user.isConvidado) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          "Convidado",
+                          style: TextStyle(fontSize: 10, color: Colors.blue.shade700),
+                        ),
+                      );
+                    }
+                    if (sub.isDono) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.workspace_premium, size: 12, color: Colors.amber.shade700),
+                            const SizedBox(width: 2),
+                            Text(
+                              "Dono",
+                              style: TextStyle(fontSize: 10, color: Colors.amber.shade700, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
             actions: [
-              if (obra != null)
+              if (obra != null) ...[
+                // Convidado doesn't see normas, convites, etc.
+                if (!(context.read<AuthProvider>().user?.isConvidado ?? false)) ...[
+                  IconButton(
+                    icon: const Icon(Icons.people_outline),
+                    tooltip: "Convites",
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ConvitesScreen(
+                              obraId: obra.id, obraNome: obra.nome)),
+                    ),
+                  ),
+                ],
                 IconButton(
                   icon: const Icon(Icons.swap_horiz),
                   tooltip: "Trocar obra",
                   onPressed: _selecionarObra,
                 ),
-              IconButton(
-                icon: const Icon(Icons.menu_book_outlined),
-                tooltip: "Normas Técnicas",
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => NormasScreen(api: _api)),
+              ],
+              if (!(context.read<AuthProvider>().user?.isConvidado ?? false))
+                IconButton(
+                  icon: const Icon(Icons.menu_book_outlined),
+                  tooltip: "Normas Técnicas",
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => NormasScreen(api: _api)),
+                  ),
                 ),
-              ),
               PopupMenuButton<String>(
                 onSelected: (value) {
                   if (value == "logout") {
                     context.read<AuthProvider>().logout();
+                  } else if (value == "upgrade") {
+                    PaywallScreen.show(context);
                   }
                 },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    enabled: false,
-                    child: Text(
-                      context.read<AuthProvider>().user?.nome ?? "",
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                itemBuilder: (context) {
+                  final user = context.read<AuthProvider>().user;
+                  final sub = context.read<SubscriptionProvider>();
+                  return [
+                    PopupMenuItem(
+                      enabled: false,
+                      child: Text(
+                        user?.nome ?? "",
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: "logout",
-                    child: Row(children: [
-                      Icon(Icons.logout, size: 18),
-                      SizedBox(width: 8),
-                      Text("Sair"),
-                    ]),
-                  ),
-                ],
+                    if (sub.isGratuito && !(user?.isConvidado ?? false))
+                      const PopupMenuItem(
+                        value: "upgrade",
+                        child: Row(children: [
+                          Icon(Icons.workspace_premium, size: 18, color: Colors.amber),
+                          SizedBox(width: 8),
+                          Text("Assinar Plano Dono"),
+                        ]),
+                      ),
+                    const PopupMenuDivider(),
+                    const PopupMenuItem(
+                      value: "logout",
+                      child: Row(children: [
+                        Icon(Icons.logout, size: 18),
+                        SizedBox(width: 8),
+                        Text("Sair"),
+                      ]),
+                    ),
+                  ];
+                },
               ),
             ],
           ),
@@ -168,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset('assets/images/icone.svg', width: 130),
+            SvgPicture.asset('assets/images/logo.svg', width: 200),
             const SizedBox(height: 28),
             Text(
               "Bem-vindo ao Mestre da Obra",
@@ -240,12 +312,24 @@ class _HomeScreenState extends State<HomeScreen> {
             itensCriticosPendentes: _itensCriticosPendentes,
             totalItensPendentes: _itensPendentes.length,
           ),
-          if (obra.orcamento != null) ...[
+          // Convidado: sem financeiro
+          if (obra.orcamento != null &&
+              !(context.read<AuthProvider>().user?.isConvidado ?? false)) ...[
             const SizedBox(height: 14),
-            _OrcamentoCard(orcamento: obra.orcamento!),
+            _OrcamentoCard(
+              orcamento: obra.orcamento!,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) =>
+                        FinanceiroScreen(obraId: obra.id, api: _api)),
+              ),
+            ),
           ],
           const SizedBox(height: 14),
           _AcoesRapidasCard(
+            isConvidado:
+                context.read<AuthProvider>().user?.isConvidado ?? false,
             onVerEtapas: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -457,8 +541,9 @@ class _KpiCard extends StatelessWidget {
 }
 
 class _OrcamentoCard extends StatelessWidget {
-  const _OrcamentoCard({required this.orcamento});
+  const _OrcamentoCard({required this.orcamento, required this.onTap});
   final double orcamento;
+  final VoidCallback onTap;
 
   String _formatarValor(double v) {
     final str = v.toStringAsFixed(2);
@@ -480,14 +565,22 @@ class _OrcamentoCard extends StatelessWidget {
         leading:
             const Icon(Icons.attach_money, color: Colors.green, size: 28),
         title: const Text("Orçamento da Obra"),
-        trailing: Text(
-          _formatarValor(orcamento),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            color: Colors.green,
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _formatarValor(orcamento),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: Colors.green,
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right, color: Colors.grey),
+          ],
         ),
+        onTap: onTap,
       ),
     );
   }
@@ -498,11 +591,13 @@ class _AcoesRapidasCard extends StatelessWidget {
     required this.onVerEtapas,
     required this.onDocumentos,
     required this.onPrestadores,
+    this.isConvidado = false,
   });
 
   final VoidCallback onVerEtapas;
   final VoidCallback onDocumentos;
   final VoidCallback onPrestadores;
+  final bool isConvidado;
 
   @override
   Widget build(BuildContext context) {
@@ -526,14 +621,16 @@ class _AcoesRapidasCard extends StatelessWidget {
                   icon: const Icon(Icons.list_alt, size: 18),
                   label: const Text("Ver Etapas"),
                 ),
-                OutlinedButton.icon(
-                  onPressed: onDocumentos,
-                  icon: const Icon(Icons.description, size: 18),
-                  label: const Text("Documentos"),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onPrestadores,
-                  icon: const Icon(Icons.people_outline, size: 18),
+                if (!isConvidado)
+                  OutlinedButton.icon(
+                    onPressed: onDocumentos,
+                    icon: const Icon(Icons.description, size: 18),
+                    label: const Text("Documentos"),
+                  ),
+                if (!isConvidado)
+                  OutlinedButton.icon(
+                    onPressed: onPrestadores,
+                    icon: const Icon(Icons.people_outline, size: 18),
                   label: const Text("Prestadores"),
                 ),
               ],

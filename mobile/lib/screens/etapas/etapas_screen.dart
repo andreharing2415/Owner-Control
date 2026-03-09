@@ -3,10 +3,15 @@ import "package:flutter/material.dart";
 import "package:open_filex/open_filex.dart";
 import "package:path_provider/path_provider.dart";
 
+import "package:provider/provider.dart";
+
+import "../../models/convite.dart";
 import "../../models/etapa.dart";
 import "../../models/obra.dart";
+import "../../providers/auth_provider.dart";
 import "../../services/api_client.dart";
 import "../checklist/checklist_screen.dart";
+import "../checklist_inteligente/checklist_inteligente_screen.dart";
 import "../normas/normas_screen.dart";
 import "../visual_ai/visual_ai_screen.dart";
 
@@ -88,6 +93,21 @@ class _EtapasScreenState extends State<EtapasScreen> {
     }
   }
 
+  void _mostrarComentarios(Etapa etapa) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => _ComentariosSheet(
+        etapaId: etapa.id,
+        etapaNome: etapa.nome,
+        api: widget.api,
+      ),
+    );
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case "concluida":
@@ -106,15 +126,28 @@ class _EtapasScreenState extends State<EtapasScreen> {
         title: Text(widget.obra.nome),
         actions: [
           IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
-          IconButton(
-            icon: const Icon(Icons.menu_book_outlined),
-            tooltip: "Biblioteca Normativa",
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => NormasScreen(api: widget.api)),
+          if (!(context.read<AuthProvider>().user?.isConvidado ?? false)) ...[
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: "Checklist IA",
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChecklistInteligenteScreen(
+                      obraId: widget.obra.id, api: widget.api),
+                ),
+              ),
             ),
-          ),
+            IconButton(
+              icon: const Icon(Icons.menu_book_outlined),
+              tooltip: "Biblioteca Normativa",
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (_) => NormasScreen(api: widget.api)),
+              ),
+            ),
+          ],
           _exportando
               ? const Padding(
                   padding: EdgeInsets.all(12),
@@ -217,36 +250,53 @@ class _EtapasScreenState extends State<EtapasScreen> {
                                     etapa: etapa, api: widget.api),
                               ),
                             );
+                          case "comentarios":
+                            _mostrarComentarios(etapa);
                         }
                       },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                            value: "checklist",
-                            child: Text("Ver checklist")),
-                        const PopupMenuItem(
-                            value: "status",
-                            child: Text("Atualizar status")),
-                        const PopupMenuItem(
-                          value: "normas",
-                          child: Row(
-                            children: [
-                              Icon(Icons.menu_book_outlined, size: 18),
-                              SizedBox(width: 8),
-                              Text("Normas aplicáveis"),
-                            ],
+                      itemBuilder: (context) {
+                        final isConvidado = context.read<AuthProvider>().user?.isConvidado ?? false;
+                        return [
+                          const PopupMenuItem(
+                              value: "checklist",
+                              child: Text("Ver checklist")),
+                          const PopupMenuItem(
+                              value: "status",
+                              child: Text("Atualizar status")),
+                          const PopupMenuItem(
+                            value: "comentarios",
+                            child: Row(
+                              children: [
+                                Icon(Icons.comment_outlined, size: 18),
+                                SizedBox(width: 8),
+                                Text("Comentários"),
+                              ],
+                            ),
                           ),
-                        ),
-                        const PopupMenuItem(
-                          value: "visual_ai",
-                          child: Row(
-                            children: [
-                              Icon(Icons.camera_enhance, size: 18),
-                              SizedBox(width: 8),
-                              Text("Análise Visual IA"),
-                            ],
-                          ),
-                        ),
-                      ],
+                          if (!isConvidado) ...[
+                            const PopupMenuItem(
+                              value: "normas",
+                              child: Row(
+                                children: [
+                                  Icon(Icons.menu_book_outlined, size: 18),
+                                  SizedBox(width: 8),
+                                  Text("Normas aplicáveis"),
+                                ],
+                              ),
+                            ),
+                            const PopupMenuItem(
+                              value: "visual_ai",
+                              child: Row(
+                                children: [
+                                  Icon(Icons.camera_enhance, size: 18),
+                                  SizedBox(width: 8),
+                                  Text("Análise Visual IA"),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ];
+                      },
                     ),
                     onTap: () {
                       Navigator.push(
@@ -263,6 +313,216 @@ class _EtapasScreenState extends State<EtapasScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+// ─── Comentários Bottom Sheet ─────────────────────────────────────────────
+
+class _ComentariosSheet extends StatefulWidget {
+  const _ComentariosSheet({
+    required this.etapaId,
+    required this.etapaNome,
+    required this.api,
+  });
+
+  final String etapaId;
+  final String etapaNome;
+  final ApiClient api;
+
+  @override
+  State<_ComentariosSheet> createState() => _ComentariosSheetState();
+}
+
+class _ComentariosSheetState extends State<_ComentariosSheet> {
+  final _textCtrl = TextEditingController();
+  List<EtapaComentario> _comentarios = [];
+  bool _loading = true;
+  bool _enviando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
+
+  @override
+  void dispose() {
+    _textCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _carregar() async {
+    try {
+      final lista = await widget.api.listarComentarios(widget.etapaId);
+      if (mounted) setState(() { _comentarios = lista; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _enviar() async {
+    final texto = _textCtrl.text.trim();
+    if (texto.isEmpty) return;
+
+    setState(() => _enviando = true);
+    try {
+      final novo = await widget.api.criarComentario(
+        etapaId: widget.etapaId,
+        texto: texto,
+      );
+      _textCtrl.clear();
+      if (mounted) {
+        setState(() {
+          _comentarios.insert(0, novo);
+          _enviando = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _enviando = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) {
+        return Column(
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.comment_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Comentários — ${widget.etapaNome}",
+                      style: Theme.of(context).textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(),
+            // List
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _comentarios.isEmpty
+                      ? Center(
+                          child: Text(
+                            "Nenhum comentário ainda",
+                            style: TextStyle(color: Colors.grey[500]),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _comentarios.length,
+                          itemBuilder: (context, index) {
+                            final c = _comentarios[index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 6),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CircleAvatar(
+                                    radius: 14,
+                                    child: Text(
+                                      c.userNome.isNotEmpty
+                                          ? c.userNome[0].toUpperCase()
+                                          : "?",
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          c.userNome.isNotEmpty
+                                              ? c.userNome
+                                              : "Usuário",
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(c.texto,
+                                            style:
+                                                const TextStyle(fontSize: 13)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+            ),
+            // Input
+            const Divider(height: 1),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                8,
+                8 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _textCtrl,
+                      decoration: const InputDecoration(
+                        hintText: "Escreva um comentário...",
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        isDense: true,
+                      ),
+                      maxLines: 3,
+                      minLines: 1,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _enviar(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    onPressed: _enviando ? null : _enviar,
+                    icon: _enviando
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.send),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

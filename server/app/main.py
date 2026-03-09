@@ -22,7 +22,13 @@ from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
 from .db import get_session, init_db
-from .models import User, Obra, Etapa, ChecklistItem, Evidencia, NormaLog, NormaResultado, OrcamentoEtapa, Despesa, AlertaConfig, ProjetoDoc, Risco, AnaliseVisual, Achado, DeviceToken, Prestador, Avaliacao, ChecklistGeracaoLog, ChecklistGeracaoItem
+from .models import (
+    User, Obra, Etapa, ChecklistItem, Evidencia, NormaLog, NormaResultado,
+    OrcamentoEtapa, Despesa, AlertaConfig, ProjetoDoc, Risco, AnaliseVisual,
+    Achado, DeviceToken, Prestador, Avaliacao, ChecklistGeracaoLog,
+    ChecklistGeracaoItem, Subscription, UsageTracking, RevenueCatEvent,
+    ObraConvite, EtapaComentario,
+)
 from .enums import EtapaStatus, ChecklistStatus, CategoriaPrestador, SubcategoriaPrestadorServico, SubcategoriaMateriais
 from .schemas import (
     ObraCreate,
@@ -49,6 +55,7 @@ from .schemas import (
     DeviceTokenRead,
     ProjetoDocRead,
     RiscoRead,
+    RegistrarVerificacaoRequest,
     ProjetoAnaliseRead,
     AnaliseVisualRead,
     AchadoRead,
@@ -79,8 +86,20 @@ from .schemas import (
     EtapaNormasChecklistRead,
     SugerirGrupoRequest,
     SugerirGrupoResponse,
+    SubscriptionInfoResponse,
+    ConviteCreateRequest,
+    ConviteRead,
+    ConviteAceitarRequest,
+    ObraConvidadaRead,
+    ComentarioCreateRequest,
+    ComentarioRead,
 )
 from .auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user
+from .subscription import (
+    PLAN_CONFIG, PRODUCT_TO_PLAN, get_plan_config, require_paid, require_dono,
+    check_and_increment_usage, get_usage_count, check_obra_access,
+    check_obra_limit, check_convite_limit,
+)
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
 from .storage import ensure_bucket, upload_file, download_file, download_by_url, extract_object_key
@@ -91,6 +110,7 @@ from .documentos import analisar_documento
 from .visual_ai import analisar_imagem
 from .push import enviar_push_multiplos
 from .checklist_inteligente import gerar_checklist_stream, processar_checklist_background
+from .email_service import enviar_email_convite
 
 
 APP_NAME = "O Mestre da Obra API"
@@ -287,6 +307,25 @@ def _verify_obra_ownership(obra_id: UUID, user: User, session: Session) -> Obra:
     return obra
 
 
+def _verify_obra_access(obra_id: UUID, user: User, session: Session) -> tuple[Obra, str]:
+    """Verifica acesso à obra (dono ou convidado). Retorna (Obra, role)."""
+    obra = session.get(Obra, obra_id)
+    if not obra:
+        raise HTTPException(status_code=404, detail="Obra nao encontrada")
+    if obra.user_id == user.id:
+        return obra, "dono"
+    convite = session.exec(
+        select(ObraConvite).where(
+            ObraConvite.obra_id == obra_id,
+            ObraConvite.convidado_id == user.id,
+            ObraConvite.status == "aceito",
+        )
+    ).first()
+    if convite:
+        return obra, "convidado"
+    raise HTTPException(status_code=404, detail="Obra nao encontrada")
+
+
 def _verify_etapa_ownership(etapa_id: UUID, user: User, session: Session) -> Etapa:
     """Verifica que a etapa existe e sua obra pertence ao usuário."""
     etapa = session.get(Etapa, etapa_id)
@@ -296,10 +335,39 @@ def _verify_etapa_ownership(etapa_id: UUID, user: User, session: Session) -> Eta
     return etapa
 
 
+def _verify_etapa_access(etapa_id: UUID, user: User, session: Session) -> tuple[Etapa, str]:
+    """Verifica acesso à etapa (dono ou convidado). Retorna (Etapa, role)."""
+    etapa = session.get(Etapa, etapa_id)
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa nao encontrada")
+    _, role = _verify_obra_access(etapa.obra_id, user, session)
+    return etapa, role
+
+
+def _notificar_dono_atualizacao(session: Session, obra_id: UUID, nome_convidado: str) -> None:
+    """Envia push notification ao dono da obra quando convidado faz atualização."""
+    try:
+        obra = session.get(Obra, obra_id)
+        if not obra or not obra.user_id:
+            return
+        tokens = session.exec(
+            select(DeviceToken).where(DeviceToken.obra_id == obra_id)
+        ).all()
+        if tokens:
+            enviar_push_multiplos(
+                tokens=[t.token for t in tokens],
+                titulo="Obra atualizada",
+                corpo=f"O andamento da sua obra foi atualizado por {nome_convidado}",
+            )
+    except Exception as exc:
+        logger.warning("Falha ao enviar push de atualização: %s", exc)
+
+
 # ─── Obras ───────────────────────────────────────────────────────────────────
 
 @app.post("/api/obras", response_model=ObraRead)
 def criar_obra(payload: ObraCreate, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> Obra:
+    check_obra_limit(session, current_user)
     obra = Obra(user_id=current_user.id, **payload.model_dump())
     session.add(obra)
     session.commit()
@@ -363,7 +431,7 @@ def exportar_pdf(obra_id: UUID, session: Session = Depends(get_session), current
 
 @app.get("/api/etapas/{etapa_id}/checklist-items", response_model=List[ChecklistItemRead])
 def listar_itens(etapa_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> list[ChecklistItem]:
-    _verify_etapa_ownership(etapa_id, current_user, session)
+    _verify_etapa_access(etapa_id, current_user, session)
     return session.exec(select(ChecklistItem).where(ChecklistItem.etapa_id == etapa_id)).all()
 
 
@@ -374,11 +442,17 @@ def criar_item(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> ChecklistItem:
-    etapa = _verify_etapa_ownership(etapa_id, current_user, session)
+    etapa, role = _verify_etapa_access(etapa_id, current_user, session)
+    # Free users não podem criar itens; convidados podem
+    if role == "dono" and not get_plan_config(current_user).get("can_create_checklist_items"):
+        raise HTTPException(status_code=403, detail="Recurso disponível apenas para assinantes")
     item = ChecklistItem(etapa_id=etapa_id, **payload.model_dump(mode="json"))
     session.add(item)
     session.commit()
     session.refresh(item)
+    # Notificar dono se quem criou é convidado
+    if role == "convidado":
+        _notificar_dono_atualizacao(session, etapa.obra_id, current_user.nome)
     return item
 
 
@@ -392,7 +466,7 @@ def atualizar_item(
     item = session.get(ChecklistItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item nao encontrado")
-    _verify_etapa_ownership(item.etapa_id, current_user, session)
+    etapa, role = _verify_etapa_access(item.etapa_id, current_user, session)
     updates = payload.model_dump(exclude_unset=True, mode="json")
     for key, value in updates.items():
         setattr(item, key, value)
@@ -400,6 +474,8 @@ def atualizar_item(
     session.add(item)
     session.commit()
     session.refresh(item)
+    if role == "convidado":
+        _notificar_dono_atualizacao(session, etapa.obra_id, current_user.nome)
     return item
 
 
@@ -534,7 +610,7 @@ def listar_evidencias(item_id: UUID, session: Session = Depends(get_session), cu
     item = session.get(ChecklistItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item nao encontrado")
-    _verify_etapa_ownership(item.etapa_id, current_user, session)
+    _verify_etapa_access(item.etapa_id, current_user, session)
     return session.exec(select(Evidencia).where(Evidencia.checklist_item_id == item_id)).all()
 
 
@@ -548,7 +624,7 @@ def upload_evidencia(
     item = session.get(ChecklistItem, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Item nao encontrado")
-    _verify_etapa_ownership(item.etapa_id, current_user, session)
+    etapa, role = _verify_etapa_access(item.etapa_id, current_user, session)
     bucket = os.getenv("S3_BUCKET")
     if not bucket:
         raise HTTPException(status_code=500, detail="S3_BUCKET nao configurado")
@@ -567,6 +643,8 @@ def upload_evidencia(
     session.add(evidencia)
     session.commit()
     session.refresh(evidencia)
+    if role == "convidado":
+        _notificar_dono_atualizacao(session, etapa.obra_id, current_user.nome)
     return evidencia
 
 
@@ -630,6 +708,14 @@ def buscar_normas_endpoint(
     for nr in normas_db:
         session.refresh(nr)
 
+    # Truncar resultados para plano gratuito
+    normas_read = [NormaResultadoRead.model_validate(nr) for nr in normas_db]
+    config = get_plan_config(current_user)
+    normas_limit = config.get("normas_results_limit")
+    total_normas = len(normas_read)
+    if normas_limit is not None:
+        normas_read = normas_read[:normas_limit]
+
     return NormaBuscarResponse(
         log_id=norma_log.id,
         etapa_nome=payload.etapa_nome,
@@ -639,8 +725,9 @@ def buscar_normas_endpoint(
             "Este resultado é informativo e NÃO substitui parecer técnico de profissional habilitado.",
         ),
         data_consulta=resultado.get("data_consulta", datetime.utcnow().isoformat()),
-        normas=[NormaResultadoRead.model_validate(nr) for nr in normas_db],
+        normas=normas_read,
         checklist_dinamico=resultado.get("checklist_dinamico", []),
+        total_normas=total_normas,
     )
 
 
@@ -986,6 +1073,24 @@ def upload_projeto(
 ) -> ProjetoDoc:
     """Faz upload de um PDF de projeto e cria o registro para análise."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
+    config = get_plan_config(current_user)
+    # Gate: limite de uploads
+    if config["max_doc_uploads"] is not None:
+        doc_count = len(session.exec(
+            select(ProjetoDoc).where(ProjetoDoc.obra_id == obra_id)
+        ).all())
+        if doc_count >= config["max_doc_uploads"]:
+            raise HTTPException(status_code=403, detail="Limite de documentos atingido para seu plano")
+    # Gate: limite de tamanho
+    if config["max_doc_size_mb"] is not None:
+        file.file.seek(0, os.SEEK_END)
+        size_mb = file.file.tell() / (1024 * 1024)
+        file.file.seek(0)
+        if size_mb > config["max_doc_size_mb"]:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Arquivo excede o limite de {config['max_doc_size_mb']}MB para seu plano",
+            )
     bucket = os.getenv("S3_BUCKET")
     if not bucket:
         raise HTTPException(status_code=500, detail="S3_BUCKET nao configurado")
@@ -1039,6 +1144,8 @@ def deletar_projeto(
     current_user: User = Depends(get_current_user),
 ):
     """Remove um projeto PDF e seus riscos associados."""
+    if not get_plan_config(current_user).get("can_delete_doc"):
+        raise HTTPException(status_code=403, detail="Exclusão de documentos disponível apenas para assinantes")
     projeto = session.get(ProjetoDoc, projeto_id)
     if not projeto:
         raise HTTPException(status_code=404, detail="Projeto nao encontrado")
@@ -1120,6 +1227,9 @@ def analisar_projeto(
         for risco_data in resultado.get("riscos", []):
             perguntas = risco_data.get("perguntas_para_profissional")
             documentos = risco_data.get("documentos_a_exigir")
+            dado_projeto = risco_data.get("dado_projeto")
+            verificacoes = risco_data.get("verificacoes")
+            pergunta_eng = risco_data.get("pergunta_engenheiro")
             risco = Risco(
                 projeto_id=projeto_id,
                 descricao=risco_data.get("descricao", ""),
@@ -1132,6 +1242,9 @@ def analisar_projeto(
                 documentos_a_exigir=json.dumps(documentos, ensure_ascii=False) if documentos else None,
                 requer_validacao_profissional=bool(risco_data.get("requer_validacao_profissional", False)),
                 confianca=int(risco_data.get("confianca", 50)),
+                dado_projeto=json.dumps(dado_projeto, ensure_ascii=False) if dado_projeto else None,
+                verificacoes=json.dumps(verificacoes, ensure_ascii=False) if verificacoes else None,
+                pergunta_engenheiro=json.dumps(pergunta_eng, ensure_ascii=False) if pergunta_eng else None,
             )
             session.add(risco)
 
@@ -1176,6 +1289,71 @@ def obter_analise(
     )
 
 
+@app.post("/api/riscos/{risco_id}/verificar", response_model=RiscoRead)
+def registrar_verificacao(
+    risco_id: UUID,
+    body: RegistrarVerificacaoRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> RiscoRead:
+    """Registra verificação do proprietário e cruza com dados do projeto via IA."""
+    risco = session.get(Risco, risco_id)
+    if not risco:
+        raise HTTPException(status_code=404, detail="Risco nao encontrado")
+
+    # Salva registro do proprietário
+    registro = {
+        "valor_medido": body.valor_medido,
+        "status": body.status,
+        "foto_ids": body.foto_ids or [],
+        "data_verificacao": datetime.utcnow().isoformat(),
+    }
+    risco.registro_proprietario = json.dumps(registro, ensure_ascii=False)
+    risco.status_verificacao = body.status
+
+    # Cruzamento inteligente com dados do projeto
+    dado_projeto = json.loads(risco.dado_projeto) if risco.dado_projeto else None
+    if dado_projeto and body.valor_medido:
+        valor_ref = dado_projeto.get("valor_referencia", "")
+        especificacao = dado_projeto.get("especificacao", "")
+        descricao_proj = dado_projeto.get("descricao", "")
+
+        if body.status == "conforme":
+            resultado = {
+                "conclusao": "conforme",
+                "resumo": f"A verificacao esta de acordo com o projeto ({especificacao}).",
+                "acao": None,
+                "urgencia": "baixa",
+            }
+        elif body.status == "divergente":
+            resultado = {
+                "conclusao": "divergente",
+                "resumo": (
+                    f"{descricao_proj}: medido {body.valor_medido}, "
+                    f"projeto indica {valor_ref}."
+                ),
+                "acao": "Pergunte ao engenheiro usando a sugestao abaixo.",
+                "urgencia": "alta",
+            }
+        else:
+            resultado = {
+                "conclusao": "duvida",
+                "resumo": (
+                    f"Duvida sobre {descricao_proj}. "
+                    f"Valor de referencia: {valor_ref}."
+                ),
+                "acao": "Converse com o engenheiro para esclarecer.",
+                "urgencia": "media",
+            }
+        risco.resultado_cruzamento = json.dumps(resultado, ensure_ascii=False)
+
+    risco.updated_at = datetime.utcnow()
+    session.add(risco)
+    session.commit()
+    session.refresh(risco)
+    return RiscoRead.model_validate(risco)
+
+
 # ─── Fase 4 — Visual AI ───────────────────────────────────────────────────────
 
 @app.post("/api/etapas/{etapa_id}/analise-visual", response_model=AnaliseVisualComAchadosRead)
@@ -1190,6 +1368,10 @@ def analisar_visual(
     Armazena no S3, envia ao Claude Vision e persiste os achados.
     """
     etapa = _verify_etapa_ownership(etapa_id, current_user, session)
+    config = get_plan_config(current_user)
+    check_and_increment_usage(
+        session, current_user.id, "ai_visual", config["ai_visual_monthly_limit"]
+    )
 
     bucket = os.getenv("S3_BUCKET")
     if not bucket:
@@ -1388,6 +1570,15 @@ def listar_prestadores(
 
     # Ordenar por nota (melhores primeiro), sem nota por último
     resultado.sort(key=lambda r: (r.nota_geral is None, -(r.nota_geral or 0)))
+
+    # Gate: limitar quantidade e ocultar contato para plano gratuito
+    config = get_plan_config(current_user)
+    if config["prestadores_limit"] is not None:
+        resultado = resultado[:config["prestadores_limit"]]
+    if not config["prestadores_show_contact"]:
+        for r in resultado:
+            r.telefone = None
+            r.email = None
     return resultado
 
 
@@ -1594,6 +1785,13 @@ def iniciar_checklist_inteligente(
     Retorna imediatamente o log_id para acompanhamento.
     """
     obra = _verify_obra_ownership(obra_id, current_user, session)
+    config = get_plan_config(current_user)
+    # Para checklist inteligente, o limite é lifetime (sem período mensal)
+    check_and_increment_usage(
+        session, current_user.id, "checklist_inteligente",
+        config["checklist_inteligente_lifetime_limit"],
+        period="lifetime",
+    )
 
     # Check if there's already one processing
     existing = session.exec(
@@ -1760,3 +1958,475 @@ def historico_checklist_inteligente(
         .where(ChecklistGeracaoLog.obra_id == obra_id)
         .order_by(ChecklistGeracaoLog.created_at.desc())
     ).all()
+
+
+# ─── Monetização — Subscription ──────────────────────────────────────────────
+
+@app.get("/api/subscription/me", response_model=SubscriptionInfoResponse)
+def get_subscription_info(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna plano atual, configuração de limites e uso do mês."""
+    config = get_plan_config(current_user)
+    period = datetime.utcnow().strftime("%Y-%m")
+
+    usages = session.exec(
+        select(UsageTracking).where(
+            UsageTracking.user_id == current_user.id,
+            UsageTracking.period.in_([period, "lifetime"]),
+        )
+    ).all()
+    usage_map = {u.feature: u.count for u in usages}
+
+    obra_count = len(session.exec(
+        select(Obra).where(Obra.user_id == current_user.id)
+    ).all())
+
+    doc_count = 0
+    obras = session.exec(select(Obra).where(Obra.user_id == current_user.id)).all()
+    for obra in obras:
+        doc_count += len(session.exec(
+            select(ProjetoDoc).where(ProjetoDoc.obra_id == obra.id)
+        ).all())
+
+    convite_count = 0
+    for obra in obras:
+        convite_count += len(session.exec(
+            select(ObraConvite).where(
+                ObraConvite.obra_id == obra.id,
+                ObraConvite.status.in_(["pendente", "aceito"]),
+            )
+        ).all())
+
+    subscription = session.exec(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).first()
+
+    return SubscriptionInfoResponse(
+        plan=current_user.plan,
+        plan_config=config,
+        usage=usage_map,
+        obra_count=obra_count,
+        doc_count=doc_count,
+        convite_count=convite_count,
+        expires_at=subscription.expires_at if subscription else None,
+        status=subscription.status if subscription else "active",
+    )
+
+
+@app.post("/api/subscription/sync")
+def sync_subscription(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Fallback: consulta RevenueCat REST API e atualiza assinatura localmente."""
+    import httpx
+
+    api_key = os.getenv("REVENUECAT_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="REVENUECAT_API_KEY não configurado")
+
+    try:
+        resp = httpx.get(
+            f"https://api.revenuecat.com/v1/subscribers/{current_user.id}",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro ao consultar RevenueCat: {exc}")
+
+    subscriber = data.get("subscriber", {})
+    entitlements = subscriber.get("entitlements", {})
+    premium = entitlements.get("premium", {})
+
+    if premium and premium.get("expires_date"):
+        from dateutil.parser import parse as parse_dt
+        expires = parse_dt(premium["expires_date"])
+        product_id = premium.get("product_identifier", "")
+        plan = PRODUCT_TO_PLAN.get(product_id, "gratuito")
+
+        if expires > datetime.utcnow():
+            current_user.plan = plan
+        else:
+            current_user.plan = "gratuito"
+
+        # Upsert subscription
+        sub = session.exec(
+            select(Subscription).where(Subscription.user_id == current_user.id)
+        ).first()
+        if not sub:
+            sub = Subscription(user_id=current_user.id)
+            session.add(sub)
+        sub.plan = current_user.plan
+        sub.product_id = product_id
+        sub.expires_at = expires
+        sub.status = "active" if expires > datetime.utcnow() else "expired"
+        sub.store = premium.get("store")
+        sub.updated_at = datetime.utcnow()
+    else:
+        current_user.plan = "gratuito"
+
+    current_user.updated_at = datetime.utcnow()
+    session.add(current_user)
+    session.commit()
+
+    return {"plan": current_user.plan}
+
+
+@app.post("/api/webhooks/revenuecat")
+def revenuecat_webhook(
+    request_body: dict,
+    session: Session = Depends(get_session),
+):
+    """Webhook handler para eventos do RevenueCat."""
+    from fastapi import Request
+
+    webhook_secret = os.getenv("REVENUECAT_WEBHOOK_SECRET")
+    # RevenueCat envia o secret no header Authorization
+    # Validação será feita via middleware ou aqui com header manual
+
+    event = request_body.get("event", {})
+    event_type = event.get("type", "")
+    app_user_id = event.get("app_user_id", "")
+    product_id = event.get("product_id", "")
+    store = event.get("store", "")
+    expiration = event.get("expiration_at_ms")
+    expires_at = datetime.utcfromtimestamp(expiration / 1000) if expiration else None
+
+    # Log do evento
+    rc_event = RevenueCatEvent(
+        event_type=event_type,
+        app_user_id=app_user_id,
+        product_id=product_id,
+        store=store,
+        event_timestamp=datetime.utcnow(),
+        expiration_at=expires_at,
+        raw_payload=json.dumps(request_body),
+    )
+    session.add(rc_event)
+
+    # Processar evento
+    try:
+        user = session.get(User, UUID(app_user_id))
+    except (ValueError, TypeError):
+        user = None
+
+    if user:
+        plan = PRODUCT_TO_PLAN.get(product_id, "gratuito")
+
+        sub = session.exec(
+            select(Subscription).where(Subscription.user_id == user.id)
+        ).first()
+        if not sub:
+            sub = Subscription(user_id=user.id)
+            session.add(sub)
+
+        if event_type in ("INITIAL_PURCHASE", "RENEWAL"):
+            user.plan = plan
+            sub.plan = plan
+            sub.status = "active"
+            sub.product_id = product_id
+            sub.store = store
+            sub.expires_at = expires_at
+            if event_type == "INITIAL_PURCHASE":
+                sub.original_purchase_date = datetime.utcnow()
+        elif event_type == "CANCELLATION":
+            sub.status = "cancelled"
+        elif event_type == "EXPIRATION":
+            user.plan = "gratuito"
+            sub.plan = "gratuito"
+            sub.status = "expired"
+            # Remover convites quando assinatura expira
+            _revogar_convites_por_expiracao(session, user.id)
+        elif event_type == "BILLING_ISSUE":
+            sub.status = "grace_period"
+            sub.grace_period_expires_at = expires_at
+        elif event_type == "PRODUCT_CHANGE":
+            user.plan = plan
+            sub.plan = plan
+            sub.product_id = product_id
+
+        sub.updated_at = datetime.utcnow()
+        user.updated_at = datetime.utcnow()
+        session.add(user)
+
+        rc_event.processed = True
+
+    session.commit()
+    return {"ok": True}
+
+
+def _revogar_convites_por_expiracao(session: Session, user_id: UUID) -> None:
+    """Remove convites ativos quando dono perde assinatura."""
+    obras = session.exec(select(Obra).where(Obra.user_id == user_id)).all()
+    for obra in obras:
+        convites = session.exec(
+            select(ObraConvite).where(
+                ObraConvite.obra_id == obra.id,
+                ObraConvite.status.in_(["pendente", "aceito"]),
+            )
+        ).all()
+        for c in convites:
+            c.status = "removido"
+            c.accepted_at = None
+            session.add(c)
+
+
+# ─── Monetização — Convites ──────────────────────────────────────────────────
+
+@app.post("/api/obras/{obra_id}/convites", response_model=ConviteRead)
+def criar_convite(
+    obra_id: UUID,
+    payload: ConviteCreateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Dono cria convite para profissional acessar a obra."""
+    obra = _verify_obra_ownership(obra_id, current_user, session)
+    check_convite_limit(session, current_user, obra_id)
+
+    # Verificar se já existe convite ativo para este e-mail nesta obra
+    existing = session.exec(
+        select(ObraConvite).where(
+            ObraConvite.obra_id == obra_id,
+            ObraConvite.email == payload.email.lower().strip(),
+            ObraConvite.status.in_(["pendente", "aceito"]),
+        )
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Já existe um convite ativo para este e-mail")
+
+    import secrets
+    from datetime import timedelta
+    token = secrets.token_urlsafe(32)
+
+    convite = ObraConvite(
+        obra_id=obra_id,
+        dono_id=current_user.id,
+        email=payload.email.lower().strip(),
+        papel=payload.papel,
+        token=token,
+        token_expires_at=datetime.utcnow() + timedelta(days=7),
+    )
+    session.add(convite)
+    session.commit()
+    session.refresh(convite)
+
+    # Enviar e-mail com magic link
+    enviar_email_convite(
+        destinatario=convite.email,
+        obra_nome=obra.nome,
+        dono_nome=current_user.nome,
+        papel=convite.papel,
+        token=token,
+    )
+
+    return ConviteRead(
+        id=convite.id,
+        obra_id=convite.obra_id,
+        email=convite.email,
+        papel=convite.papel,
+        status=convite.status,
+        created_at=convite.created_at,
+        accepted_at=convite.accepted_at,
+    )
+
+
+@app.get("/api/obras/{obra_id}/convites", response_model=List[ConviteRead])
+def listar_convites(
+    obra_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Dono lista convites de uma obra."""
+    obra = _verify_obra_ownership(obra_id, current_user, session)
+    convites = session.exec(
+        select(ObraConvite).where(
+            ObraConvite.obra_id == obra_id,
+            ObraConvite.status.in_(["pendente", "aceito"]),
+        ).order_by(ObraConvite.created_at.desc())
+    ).all()
+
+    result = []
+    for c in convites:
+        convidado_nome = None
+        if c.convidado_id:
+            convidado = session.get(User, c.convidado_id)
+            convidado_nome = convidado.nome if convidado else None
+        result.append(ConviteRead(
+            id=c.id,
+            obra_id=c.obra_id,
+            email=c.email,
+            papel=c.papel,
+            status=c.status,
+            convidado_nome=convidado_nome,
+            created_at=c.created_at,
+            accepted_at=c.accepted_at,
+        ))
+    return result
+
+
+@app.delete("/api/convites/{convite_id}")
+def remover_convite(
+    convite_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Dono remove convidado (acesso revogado instantaneamente)."""
+    convite = session.get(ObraConvite, convite_id)
+    if not convite:
+        raise HTTPException(status_code=404, detail="Convite não encontrado")
+    if convite.dono_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    convite.status = "removido"
+    session.add(convite)
+    session.commit()
+    return {"ok": True}
+
+
+@app.post("/api/convites/aceitar")
+def aceitar_convite(
+    payload: ConviteAceitarRequest,
+    session: Session = Depends(get_session),
+):
+    """Convidado aceita convite via token do magic link. Cria conta se não existe."""
+    convite = session.exec(
+        select(ObraConvite).where(
+            ObraConvite.token == payload.token,
+            ObraConvite.status == "pendente",
+        )
+    ).first()
+    if not convite:
+        raise HTTPException(status_code=404, detail="Convite não encontrado ou já utilizado")
+
+    if convite.token_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="Link expirado. Solicite um novo convite ao proprietário.")
+
+    # Buscar ou criar conta do convidado
+    user = session.exec(
+        select(User).where(User.email == convite.email)
+    ).first()
+
+    if not user:
+        # Criar conta simplificada (sem senha, role convidado)
+        user = User(
+            email=convite.email,
+            nome=payload.nome,
+            role="convidado",
+            plan="gratuito",
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    convite.convidado_id = user.id
+    convite.status = "aceito"
+    convite.accepted_at = datetime.utcnow()
+    session.add(convite)
+    session.commit()
+
+    return {
+        "access_token": create_access_token(str(user.id)),
+        "refresh_token": create_refresh_token(str(user.id)),
+        "user": UserRead.from_user(user).model_dump(),
+        "obra_id": str(convite.obra_id),
+    }
+
+
+@app.get("/api/convites/minhas-obras", response_model=List[ObraConvidadaRead])
+def listar_obras_convidadas(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Convidado lista obras onde foi convidado."""
+    convites = session.exec(
+        select(ObraConvite).where(
+            ObraConvite.convidado_id == current_user.id,
+            ObraConvite.status == "aceito",
+        )
+    ).all()
+
+    result = []
+    for c in convites:
+        obra = session.get(Obra, c.obra_id)
+        dono = session.get(User, c.dono_id)
+        if obra:
+            result.append(ObraConvidadaRead(
+                obra_id=obra.id,
+                obra_nome=obra.nome,
+                dono_nome=dono.nome if dono else "",
+                papel=c.papel,
+                convite_id=c.id,
+            ))
+    return result
+
+
+# ─── Comentários em Etapas ───────────────────────────────────────────────────
+
+@app.post("/api/etapas/{etapa_id}/comentarios", response_model=ComentarioRead)
+def criar_comentario(
+    etapa_id: UUID,
+    payload: ComentarioCreateRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Dono ou convidado cria comentário em uma etapa."""
+    etapa, role = _verify_etapa_access(etapa_id, current_user, session)
+
+    # Free users não podem comentar
+    if role == "dono" and not get_plan_config(current_user).get("can_create_comentarios"):
+        raise HTTPException(status_code=403, detail="Comentários disponíveis apenas para assinantes")
+
+    comentario = EtapaComentario(
+        etapa_id=etapa_id,
+        user_id=current_user.id,
+        texto=payload.texto,
+    )
+    session.add(comentario)
+    session.commit()
+    session.refresh(comentario)
+
+    if role == "convidado":
+        _notificar_dono_atualizacao(session, etapa.obra_id, current_user.nome)
+
+    return ComentarioRead(
+        id=comentario.id,
+        etapa_id=comentario.etapa_id,
+        user_id=comentario.user_id,
+        user_nome=current_user.nome,
+        texto=comentario.texto,
+        created_at=comentario.created_at,
+    )
+
+
+@app.get("/api/etapas/{etapa_id}/comentarios", response_model=List[ComentarioRead])
+def listar_comentarios(
+    etapa_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Lista comentários de uma etapa."""
+    _verify_etapa_access(etapa_id, current_user, session)
+
+    comentarios = session.exec(
+        select(EtapaComentario)
+        .where(EtapaComentario.etapa_id == etapa_id)
+        .order_by(EtapaComentario.created_at.desc())
+    ).all()
+
+    result = []
+    for c in comentarios:
+        user = session.get(User, c.user_id)
+        result.append(ComentarioRead(
+            id=c.id,
+            etapa_id=c.etapa_id,
+            user_id=c.user_id,
+            user_nome=user.nome if user else "",
+            texto=c.texto,
+            created_at=c.created_at,
+        ))
+    return result

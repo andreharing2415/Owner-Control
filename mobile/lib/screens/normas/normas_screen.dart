@@ -1,7 +1,11 @@
 import "package:flutter/material.dart";
+import "package:provider/provider.dart";
 
 import "../../models/norma.dart";
+import "../../providers/auth_provider.dart";
+import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
+import "../subscription/paywall_screen.dart";
 import "normas_historico_screen.dart";
 
 const _etapasNormas = [
@@ -86,6 +90,36 @@ class _NormasScreenState extends State<NormasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final user = context.read<AuthProvider>().user;
+    final isConvidado = user?.isConvidado ?? false;
+
+    // Convidado: completely blocked
+    if (isConvidado) {
+      return Scaffold(
+        appBar: AppBar(title: const Text("Biblioteca Normativa")),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 64, color: Colors.grey),
+                const SizedBox(height: 16),
+                Text("Recurso indisponível",
+                    style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(
+                  "A Biblioteca Normativa está disponível apenas para o proprietário da obra.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey[600]),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Biblioteca Normativa"),
@@ -237,7 +271,10 @@ class _NormasScreenState extends State<NormasScreen> {
                               ],
                             ),
                           )
-                        : _NormasResultadoView(resultado: _resultado!),
+                        : _NormasResultadoView(
+                            resultado: _resultado!,
+                            maxResults: context.read<SubscriptionProvider>().normasResultsLimit,
+                          ),
           ),
         ],
       ),
@@ -246,9 +283,10 @@ class _NormasScreenState extends State<NormasScreen> {
 }
 
 class _NormasResultadoView extends StatelessWidget {
-  const _NormasResultadoView({required this.resultado});
+  const _NormasResultadoView({required this.resultado, this.maxResults});
 
   final NormaBuscarResponse resultado;
+  final int? maxResults;
 
   Color _confiancaColor(int nivel) {
     if (nivel >= 75) return Colors.green;
@@ -271,6 +309,12 @@ class _NormasResultadoView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final totalNormas = resultado.normas.length;
+    final isTruncated = maxResults != null && totalNormas > maxResults!;
+    final normasVisiveis = isTruncated
+        ? resultado.normas.take(maxResults!).toList()
+        : resultado.normas;
+
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -289,7 +333,7 @@ class _NormasResultadoView extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      "${resultado.normas.length} normas — ${resultado.etapaNome}",
+                      "$totalNormas normas — ${resultado.etapaNome}",
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -324,7 +368,7 @@ class _NormasResultadoView extends StatelessWidget {
         const Text("Normas encontradas",
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         const SizedBox(height: 6),
-        ...resultado.normas.map((norma) => Card(
+        ...normasVisiveis.map((norma) => Card(
               margin: const EdgeInsets.only(bottom: 10),
               child: Padding(
                 padding: const EdgeInsets.all(14),
@@ -458,6 +502,43 @@ class _NormasResultadoView extends StatelessWidget {
                 ),
               ),
             )),
+        // Upgrade banner when results are truncated
+        if (isTruncated) ...[
+          const SizedBox(height: 8),
+          Card(
+            color: Colors.amber.withValues(alpha: 0.1),
+            child: InkWell(
+              onTap: () => PaywallScreen.show(context,
+                  message: "Veja todas as $totalNormas normas encontradas"),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.workspace_premium, color: Colors.amber),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Veja todas as normas",
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            "Exibindo $maxResults de $totalNormas normas. Assine para ver todas.",
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
         if (resultado.checklistDinamico.isNotEmpty) ...[
           const SizedBox(height: 8),
           const Text("Checklist gerado pela IA",

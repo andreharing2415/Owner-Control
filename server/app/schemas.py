@@ -29,6 +29,7 @@ class UserRead(SQLModel):
     nome: str
     telefone: Optional[str] = None
     role: str
+    plan: str = "gratuito"
     has_password: bool = True
     created_at: datetime
 
@@ -40,6 +41,7 @@ class UserRead(SQLModel):
             nome=user.nome,
             telefone=user.telefone,
             role=user.role,
+            plan=getattr(user, "plan", "gratuito"),
             has_password=user.password_hash is not None,
             created_at=user.created_at,
         )
@@ -206,6 +208,7 @@ class NormaBuscarResponse(SQLModel):
     data_consulta: str
     normas: List[NormaResultadoRead]
     checklist_dinamico: List[Any] = []
+    total_normas: int = 0  # total antes de truncar (para UI mostrar "X de Y")
 
 
 class EtapaNormasChecklistRead(SQLModel):
@@ -318,7 +321,27 @@ class RiscoRead(SQLModel):
     documentos_a_exigir: Optional[str] = None
     requer_validacao_profissional: bool
     confianca: int
+    # 3 Camadas
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    registro_proprietario: Optional[str] = None
+    resultado_cruzamento: Optional[str] = None
+    status_verificacao: str = "pendente"
     created_at: datetime
+
+
+class RegistrarVerificacaoRequest(SQLModel):
+    valor_medido: Optional[str] = None
+    status: str  # "conforme" | "divergente" | "duvida"
+    foto_ids: Optional[List[str]] = None
+
+
+class ResultadoCruzamento(SQLModel):
+    conclusao: str  # "conforme" | "divergente" | "duvida"
+    resumo: str
+    acao: Optional[str] = None
+    urgencia: str = "media"  # "alta" | "media" | "baixa"
 
 
 class ProjetoAnaliseRead(SQLModel):
@@ -533,3 +556,72 @@ class ChecklistGeracaoItemRead(SQLModel):
 class ChecklistGeracaoStatusRead(SQLModel):
     log: ChecklistGeracaoLogRead
     itens: List[ChecklistGeracaoItemRead]
+
+
+# ─── Monetização — Subscription ──────────────────────────────────────────────
+
+class SubscriptionRead(SQLModel):
+    plan: str
+    status: str
+    expires_at: Optional[datetime] = None
+    store: Optional[str] = None
+    product_id: Optional[str] = None
+
+
+class SubscriptionInfoResponse(SQLModel):
+    """Resposta completa de /api/subscription/me."""
+    plan: str
+    plan_config: dict
+    usage: dict  # {"ai_visual": 0, "checklist_inteligente": 0, ...}
+    obra_count: int
+    doc_count: int
+    convite_count: int = 0
+    expires_at: Optional[datetime] = None
+    status: str = "active"
+
+
+# ─── Monetização — Convites ──────────────────────────────────────────────────
+
+class ConviteCreateRequest(SQLModel):
+    email: str
+    papel: str  # "arquiteto" | "engenheiro" | "empreiteiro"
+
+
+class ConviteRead(SQLModel):
+    id: UUID
+    obra_id: UUID
+    email: str
+    papel: str
+    status: str
+    convidado_nome: Optional[str] = None
+    created_at: datetime
+    accepted_at: Optional[datetime] = None
+
+
+class ConviteAceitarRequest(SQLModel):
+    token: str
+    nome: str  # nome do convidado (para criar conta simplificada)
+
+
+class ObraConvidadaRead(SQLModel):
+    """Obra vista pelo convidado."""
+    obra_id: UUID
+    obra_nome: str
+    dono_nome: str
+    papel: str
+    convite_id: UUID
+
+
+# ─── Comentários em Etapas ───────────────────────────────────────────────────
+
+class ComentarioCreateRequest(SQLModel):
+    texto: str
+
+
+class ComentarioRead(SQLModel):
+    id: UUID
+    etapa_id: UUID
+    user_id: UUID
+    user_nome: str = ""
+    texto: str
+    created_at: datetime

@@ -27,6 +27,7 @@ class User {
     required this.nome,
     this.telefone,
     required this.role,
+    this.plan = "gratuito",
     this.hasPassword = true,
   });
 
@@ -35,7 +36,12 @@ class User {
   final String nome;
   final String? telefone;
   final String role;
+  final String plan;
   final bool hasPassword;
+
+  bool get isConvidado => role == "convidado";
+  bool get isDono => plan == "dono_da_obra";
+  bool get isGratuito => plan == "gratuito";
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
@@ -44,6 +50,7 @@ class User {
       nome: json["nome"] as String,
       telefone: json["telefone"] as String?,
       role: json["role"] as String? ?? "owner",
+      plan: json["plan"] as String? ?? "gratuito",
       hasPassword: json["has_password"] as bool? ?? true,
     );
   }
