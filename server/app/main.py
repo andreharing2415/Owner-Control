@@ -72,6 +72,10 @@ from .schemas import (
     UserRead,
     TokenResponse,
     TokenRefreshRequest,
+    EtapaPrazoUpdate,
+    EtapaNormasChecklistRead,
+    SugerirGrupoRequest,
+    SugerirGrupoResponse,
 )
 from .auth import hash_password, verify_password, create_access_token, create_refresh_token, decode_token, get_current_user
 from .storage import ensure_bucket, upload_file, download_file, download_by_url, extract_object_key
@@ -367,6 +371,84 @@ def atualizar_status_etapa(
     session.commit()
     session.refresh(etapa)
     return etapa
+
+
+@app.patch("/api/etapas/{etapa_id}/prazo", response_model=EtapaRead)
+def atualizar_prazo_etapa(
+    etapa_id: UUID,
+    payload: EtapaPrazoUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> EtapaRead:
+    etapa = session.get(Etapa, etapa_id)
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa nao encontrada")
+    obra = session.get(Obra, etapa.obra_id)
+    if not obra or obra.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    if payload.prazo_previsto is not None:
+        etapa.prazo_previsto = payload.prazo_previsto
+    if payload.prazo_executado is not None:
+        etapa.prazo_executado = payload.prazo_executado
+    etapa.updated_at = datetime.utcnow()
+    session.add(etapa)
+    session.commit()
+    session.refresh(etapa)
+    return EtapaRead.model_validate(etapa)
+
+
+@app.get("/api/etapas/{etapa_id}/checklist-normas", response_model=EtapaNormasChecklistRead)
+def listar_normas_checklist_etapa(
+    etapa_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> EtapaNormasChecklistRead:
+    etapa = session.get(Etapa, etapa_id)
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa nao encontrada")
+    obra = session.get(Obra, etapa.obra_id)
+    if not obra or obra.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    itens = session.exec(
+        select(ChecklistItem).where(
+            ChecklistItem.etapa_id == etapa_id,
+            ChecklistItem.norma_referencia != None,
+        )
+    ).all()
+    normas = sorted({i.norma_referencia for i in itens if i.norma_referencia})
+    return EtapaNormasChecklistRead(etapa_id=etapa_id, normas=list(normas))
+
+
+@app.post("/api/etapas/{etapa_id}/checklist-items/sugerir-grupo", response_model=SugerirGrupoResponse)
+def sugerir_grupo_item(
+    etapa_id: UUID,
+    payload: SugerirGrupoRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> SugerirGrupoResponse:
+    etapa = session.get(Etapa, etapa_id)
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa nao encontrada")
+    obra = session.get(Obra, etapa.obra_id)
+    if not obra or obra.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    itens = session.exec(
+        select(ChecklistItem).where(ChecklistItem.etapa_id == etapa_id)
+    ).all()
+    grupos_ordens: dict[str, int] = {}
+    for item in itens:
+        grupos_ordens[item.grupo] = max(grupos_ordens.get(item.grupo, 0), item.ordem)
+    titulo_lower = payload.titulo.lower()
+    for grupo in grupos_ordens:
+        if grupo.lower() != "geral" and grupo.lower() in titulo_lower:
+            return SugerirGrupoResponse(
+                grupo=grupo,
+                ordem=grupos_ordens[grupo] + 1,
+            )
+    return SugerirGrupoResponse(
+        grupo="Geral",
+        ordem=grupos_ordens.get("Geral", 0) + 1,
+    )
 
 
 @app.get("/api/checklist-items/{item_id}/evidencias", response_model=List[EvidenciaRead])
@@ -1551,6 +1633,10 @@ def aplicar_checklist_inteligente(
         if not etapa_id:
             continue
 
+        # Capitalizar grupo da caracteristica_origem (ex: "piscina" -> "Piscina")
+        grupo = getattr(item_data, "grupo", "Geral") or "Geral"
+        grupo = grupo.replace("_", " ").title()
+
         novo_item = ChecklistItem(
             etapa_id=etapa_id,
             titulo=item_data.titulo,
@@ -1559,6 +1645,8 @@ def aplicar_checklist_inteligente(
             norma_referencia=item_data.norma_referencia,
             origem="ia",
             status=ChecklistStatus.PENDENTE.value,
+            grupo=grupo,
+            ordem=getattr(item_data, "ordem", 0),
         )
         session.add(novo_item)
         itens_criados.append(novo_item)
