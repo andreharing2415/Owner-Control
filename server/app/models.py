@@ -41,6 +41,8 @@ class Etapa(SQLModel, table=True):
     ordem: int
     status: str = Field(default="pendente")
     score: Optional[float] = None
+    prazo_previsto: Optional[date] = None
+    prazo_executado: Optional[date] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -55,6 +57,8 @@ class ChecklistItem(SQLModel, table=True):
     observacao: Optional[str] = None
     norma_referencia: Optional[str] = None          # ex: "NBR 5410:2004"
     origem: str = Field(default="padrao")            # "padrao" | "ia"
+    grupo: str = Field(default="Geral")              # ex: "Piscina", "Churrasqueira"
+    ordem: int = Field(default=0)                    # ordenação cronológica dentro do grupo
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

@@ -67,6 +67,8 @@ class EtapaRead(SQLModel):
     ordem: int
     status: EtapaStatus
     score: Optional[float] = None
+    prazo_previsto: Optional[date] = None
+    prazo_executado: Optional[date] = None
     created_at: datetime
     updated_at: datetime
 
@@ -79,6 +81,8 @@ class ChecklistItemCreate(SQLModel):
     observacao: Optional[str] = None
     norma_referencia: Optional[str] = None
     origem: str = "padrao"
+    grupo: str = "Geral"
+    ordem: int = 0
 
 
 class ChecklistItemRead(SQLModel):
@@ -91,6 +95,8 @@ class ChecklistItemRead(SQLModel):
     observacao: Optional[str] = None
     norma_referencia: Optional[str] = None
     origem: str
+    grupo: str
+    ordem: int
     created_at: datetime
     updated_at: datetime
 
@@ -102,10 +108,17 @@ class ChecklistItemUpdate(SQLModel):
     critico: Optional[bool] = None
     observacao: Optional[str] = None
     norma_referencia: Optional[str] = None
+    grupo: Optional[str] = None
+    ordem: Optional[int] = None
 
 
 class EtapaStatusUpdate(SQLModel):
     status: EtapaStatus
+
+
+class EtapaPrazoUpdate(SQLModel):
+    prazo_previsto: Optional[date] = None
+    prazo_executado: Optional[date] = None
 
 
 class EvidenciaRead(SQLModel):
@@ -163,6 +176,20 @@ class NormaBuscarResponse(SQLModel):
     data_consulta: str
     normas: List[NormaResultadoRead]
     checklist_dinamico: List[Any] = []
+
+
+class EtapaNormasChecklistRead(SQLModel):
+    etapa_id: UUID
+    normas: List[str]  # lista de norma_referencia distintas
+
+
+class SugerirGrupoRequest(SQLModel):
+    titulo: str
+
+
+class SugerirGrupoResponse(SQLModel):
+    grupo: str
+    ordem: int
 
 
 # ─── Fase 2 — Governança Financeira ──────────────────────────────────────────
@@ -425,6 +452,8 @@ class ItemParaAplicar(SQLModel):
     descricao: str
     norma_referencia: Optional[str] = None
     critico: bool = False
+    grupo: str = "Geral"
+    ordem: int = 0
 
 
 class AplicarChecklistRequest(SQLModel):
