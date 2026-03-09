@@ -3,6 +3,7 @@ import "package:flutter_svg/flutter_svg.dart";
 import "package:provider/provider.dart";
 
 import "../../providers/auth_provider.dart";
+import "complete_profile_screen.dart";
 import "registro_screen.dart";
 
 class LoginScreen extends StatefulWidget {
@@ -18,13 +19,26 @@ class _LoginScreenState extends State<LoginScreen> {
   final _senhaController = TextEditingController();
   bool _carregando = false;
   bool _senhaVisivel = false;
+  bool _biometriaHabilitada = false;
   String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarBiometria();
+  }
 
   @override
   void dispose() {
     _emailController.dispose();
     _senhaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _verificarBiometria() async {
+    final auth = context.read<AuthProvider>();
+    final habilitada = await auth.isBiometricsEnabled();
+    if (mounted) setState(() => _biometriaHabilitada = habilitada);
   }
 
   Future<void> _login() async {
@@ -38,12 +52,86 @@ class _LoginScreenState extends State<LoginScreen> {
             email: _emailController.text.trim(),
             password: _senhaController.text,
           );
+      if (mounted) await _verificarEProporBiometria();
     } catch (e) {
       if (mounted) {
         setState(() => _erro = e.toString().replaceFirst("Exception: ", ""));
       }
     } finally {
       if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  Future<void> _loginGoogle() async {
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
+    try {
+      final isNewUser = await context.read<AuthProvider>().loginWithGoogle();
+      if (!mounted) return;
+      if (isNewUser) {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CompleteProfileScreen()),
+        );
+      }
+      if (mounted) await _verificarEProporBiometria();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _erro = e.toString().replaceFirst("Exception: ", ""));
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  Future<void> _loginBiometria() async {
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
+    try {
+      await context.read<AuthProvider>().loginWithBiometrics();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _erro = e.toString().replaceFirst("Exception: ", ""));
+      }
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  Future<void> _verificarEProporBiometria() async {
+    final auth = context.read<AuthProvider>();
+    final disponivel = await auth.isBiometricsAvailable();
+    final jaRespondeu = await auth.wasBiometricsPrompted();
+    if (!disponivel || jaRespondeu || !mounted) return;
+
+    await auth.markBiometricsPrompted();
+    if (!mounted) return;
+
+    final ativar = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Login mais rápido"),
+        content: const Text(
+          "Deseja usar biometria (digital ou reconhecimento facial) para entrar sem digitar senha?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("Não agora"),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Ativar"),
+          ),
+        ],
+      ),
+    );
+    if (ativar == true && mounted) {
+      await auth.setBiometricsEnabled(true);
     }
   }
 
@@ -85,9 +173,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
+                        color: Colors.red.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                       ),
                       child: Text(_erro!,
                           style: const TextStyle(color: Colors.red, fontSize: 13)),
@@ -146,6 +234,44 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text("Entrar"),
                     ),
                   ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      const Expanded(child: Divider()),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text("ou",
+                            style: TextStyle(color: Colors.grey[600])),
+                      ),
+                      const Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: _carregando ? null : _loginGoogle,
+                      icon: Image.asset(
+                        "assets/images/google_logo.png",
+                        width: 20,
+                        height: 20,
+                      ),
+                      label: const Text("Entrar com Google"),
+                    ),
+                  ),
+                  if (_biometriaHabilitada) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: _carregando ? null : _loginBiometria,
+                        icon: const Icon(Icons.fingerprint),
+                        label: const Text("Entrar com biometria"),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => Navigator.push(

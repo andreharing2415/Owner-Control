@@ -204,6 +204,32 @@ class ApiClient {
     return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
+  Future<GoogleAuthResult> loginWithGoogle(String idToken) async {
+    final response = await _client.post(
+      _uri("/api/auth/google"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"id_token": idToken}),
+    );
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao autenticar com Google");
+    }
+    return GoogleAuthResult.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<User> updateProfile({String? nome, String? telefone}) async {
+    final body = <String, dynamic>{};
+    if (nome != null) body["nome"] = nome;
+    if (telefone != null) body["telefone"] = telefone;
+    final response = await _patch("/api/auth/me", body: body);
+    if (response.statusCode != 200) {
+      final b = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(b["detail"] ?? "Erro ao atualizar perfil");
+    }
+    return User.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   // ─── Obras ─────────────────────────────────────────────────────────────────
 
   Future<List<Obra>> listarObras() async {

@@ -27,6 +27,7 @@ class User {
     required this.nome,
     this.telefone,
     required this.role,
+    this.hasPassword = true,
   });
 
   final String id;
@@ -34,6 +35,7 @@ class User {
   final String nome;
   final String? telefone;
   final String role;
+  final bool hasPassword;
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
@@ -42,6 +44,30 @@ class User {
       nome: json["nome"] as String,
       telefone: json["telefone"] as String?,
       role: json["role"] as String? ?? "owner",
+      hasPassword: json["has_password"] as bool? ?? true,
+    );
+  }
+}
+
+class GoogleAuthResult {
+  GoogleAuthResult({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.user,
+    required this.isNewUser,
+  });
+
+  final String accessToken;
+  final String refreshToken;
+  final User user;
+  final bool isNewUser;
+
+  factory GoogleAuthResult.fromJson(Map<String, dynamic> json) {
+    return GoogleAuthResult(
+      accessToken: json["access_token"] as String,
+      refreshToken: json["refresh_token"] as String,
+      user: User.fromJson(json["user"] as Map<String, dynamic>),
+      isNewUser: json["is_new_user"] as bool? ?? false,
     );
   }
 }

@@ -1,9 +1,10 @@
-import "dart:convert";
 import "package:flutter/foundation.dart";
-import "package:shared_preferences/shared_preferences.dart";
+import "package:google_sign_in/google_sign_in.dart";
+import "package:local_auth/local_auth.dart";
 
 import "../models/auth.dart";
 import "../services/api_client.dart";
+import "../services/secure_storage.dart";
 
 class AuthProvider extends ChangeNotifier {
   AuthProvider({required this.api});
@@ -16,28 +17,40 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _user != null;
   bool get loading => _loading;
 
-  static const _tokenKey = "auth_tokens";
+  final _googleSignIn = GoogleSignIn(
+    scopes: ["email", "profile"],
+    serverClientId: const String.fromEnvironment(
+      "GOOGLE_CLIENT_ID",
+      defaultValue: "530484413221-ce3hk4ahk234gq35s8tll80u8v9pbde8.apps.googleusercontent.com",
+    ),
+  );
+  final _localAuth = LocalAuthentication();
+
+  // ─── Init ──────────────────────────────────────────────────────────────────
 
   Future<void> init() async {
     _loading = true;
     notifyListeners();
     try {
-      final tokens = await _loadTokens();
+      final tokens = await SecureStorage.loadTokens();
       if (tokens != null) {
-        api.setTokens(access: tokens["access"]!, refresh: tokens["refresh"]!);
+        api.setTokens(access: tokens.access, refresh: tokens.refresh);
         _user = await api.getMe();
       }
     } catch (_) {
       api.clearTokens();
-      await _clearTokens();
+      await SecureStorage.clearTokens();
     }
     _loading = false;
     notifyListeners();
   }
 
+  // ─── Email / Senha ─────────────────────────────────────────────────────────
+
   Future<void> login({required String email, required String password}) async {
     final tokens = await api.login(email: email, password: password);
-    await _saveTokens(tokens.accessToken, tokens.refreshToken);
+    await SecureStorage.saveTokens(tokens.accessToken, tokens.refreshToken);
+    api.setTokens(access: tokens.accessToken, refresh: tokens.refreshToken);
     _user = await api.getMe();
     notifyListeners();
   }
@@ -54,43 +67,82 @@ class AuthProvider extends ChangeNotifier {
       nome: nome,
       telefone: telefone,
     );
-    await _saveTokens(tokens.accessToken, tokens.refreshToken);
+    await SecureStorage.saveTokens(tokens.accessToken, tokens.refreshToken);
+    api.setTokens(access: tokens.accessToken, refresh: tokens.refreshToken);
     _user = await api.getMe();
     notifyListeners();
   }
 
-  Future<void> logout() async {
-    api.clearTokens();
-    _user = null;
-    await _clearTokens();
+  // ─── Google ────────────────────────────────────────────────────────────────
+
+  /// Retorna `true` se for usuário novo (precisa completar perfil).
+  Future<bool> loginWithGoogle() async {
+    final googleUser = await _googleSignIn.signIn();
+    if (googleUser == null) throw Exception("Login cancelado");
+
+    final auth = await googleUser.authentication;
+    final idToken = auth.idToken;
+    if (idToken == null) throw Exception("Não foi possível obter token Google");
+
+    final result = await api.loginWithGoogle(idToken);
+    await SecureStorage.saveTokens(result.accessToken, result.refreshToken);
+    api.setTokens(access: result.accessToken, refresh: result.refreshToken);
+    _user = result.user;
+    notifyListeners();
+    return result.isNewUser;
+  }
+
+  Future<void> updateProfile({String? nome, String? telefone}) async {
+    _user = await api.updateProfile(nome: nome, telefone: telefone);
     notifyListeners();
   }
 
-  Future<void> _saveTokens(String access, String refresh) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        _tokenKey, jsonEncode({"access": access, "refresh": refresh}));
-  }
+  // ─── Biometria ─────────────────────────────────────────────────────────────
 
-  Future<Map<String, String>?> _loadTokens() async {
+  Future<bool> isBiometricsAvailable() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_tokenKey);
-      if (raw == null) return null;
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-      return {
-        "access": data["access"] as String,
-        "refresh": data["refresh"] as String,
-      };
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final isSupported = await _localAuth.isDeviceSupported();
+      return canCheck && isSupported;
     } catch (_) {
-      return null;
+      return false;
     }
   }
 
-  Future<void> _clearTokens() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_tokenKey);
-    } catch (_) {}
+  Future<bool> isBiometricsEnabled() => SecureStorage.isBiometricsEnabled();
+  Future<bool> wasBiometricsPrompted() => SecureStorage.wasBiometricsPrompted();
+  Future<void> markBiometricsPrompted() => SecureStorage.markBiometricsPrompted();
+
+  Future<void> setBiometricsEnabled(bool enabled) async {
+    await SecureStorage.setBiometricsEnabled(enabled);
+    notifyListeners();
+  }
+
+  Future<void> loginWithBiometrics() async {
+    final authenticated = await _localAuth.authenticate(
+      localizedReason: "Use sua biometria para entrar no Mestre da Obra",
+      options: const AuthenticationOptions(
+        stickyAuth: true,
+        biometricOnly: true,
+      ),
+    );
+    if (!authenticated) throw Exception("Autenticação biométrica cancelada");
+
+    final tokens = await SecureStorage.loadTokens();
+    if (tokens == null) throw Exception("Nenhuma sessão salva");
+
+    api.setTokens(access: tokens.access, refresh: tokens.refresh);
+    _user = await api.getMe();
+    notifyListeners();
+  }
+
+  // ─── Logout ────────────────────────────────────────────────────────────────
+
+  Future<void> logout() async {
+    api.clearTokens();
+    _user = null;
+    await SecureStorage.clearTokens();
+    await _googleSignIn.signOut().catchError((_) => null);
+    notifyListeners();
   }
 }
