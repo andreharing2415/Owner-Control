@@ -6,6 +6,8 @@ class Etapa {
     required this.ordem,
     required this.status,
     this.score,
+    this.prazoPrevisto,
+    this.prazoExecutado,
   });
 
   final String id;
@@ -14,6 +16,8 @@ class Etapa {
   final int ordem;
   final String status;
   final double? score;
+  final DateTime? prazoPrevisto;
+  final DateTime? prazoExecutado;
 
   factory Etapa.fromJson(Map<String, dynamic> json) {
     return Etapa(
@@ -23,6 +27,12 @@ class Etapa {
       ordem: json["ordem"] as int,
       status: json["status"] as String,
       score: (json["score"] as num?)?.toDouble(),
+      prazoPrevisto: json["prazo_previsto"] != null
+          ? DateTime.parse(json["prazo_previsto"] as String)
+          : null,
+      prazoExecutado: json["prazo_executado"] != null
+          ? DateTime.parse(json["prazo_executado"] as String)
+          : null,
     );
   }
 }

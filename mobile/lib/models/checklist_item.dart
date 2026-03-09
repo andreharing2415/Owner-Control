@@ -7,6 +7,10 @@ class ChecklistItem {
     required this.status,
     required this.critico,
     this.observacao,
+    this.normaReferencia,
+    this.grupo = 'Geral',
+    this.ordem = 0,
+    this.criadoEm,
   });
 
   final String id;
@@ -16,6 +20,10 @@ class ChecklistItem {
   final String status;
   final bool critico;
   final String? observacao;
+  final String? normaReferencia;
+  final String grupo;
+  final int ordem;
+  final DateTime? criadoEm;
 
   factory ChecklistItem.fromJson(Map<String, dynamic> json) {
     return ChecklistItem(
@@ -26,6 +34,12 @@ class ChecklistItem {
       status: json["status"] as String? ?? "pendente",
       critico: json["critico"] as bool? ?? false,
       observacao: json["observacao"] as String?,
+      normaReferencia: json["norma_referencia"] as String?,
+      grupo: json["grupo"] as String? ?? "Geral",
+      ordem: json["ordem"] as int? ?? 0,
+      criadoEm: json["created_at"] != null
+          ? DateTime.tryParse(json["created_at"] as String)
+          : null,
     );
   }
 }
