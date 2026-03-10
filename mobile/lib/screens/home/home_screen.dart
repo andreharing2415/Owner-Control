@@ -16,6 +16,7 @@ import '../normas/normas_screen.dart';
 import '../documentos/documentos_screen.dart';
 import '../financeiro/financeiro_screen.dart';
 import '../prestadores/prestadores_screen.dart';
+import '../conta/minha_conta_screen.dart';
 import '../subscription/paywall_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -321,6 +322,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: const Text("Minha Conta"),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const MinhaContaScreen(),
+                      ),
+                    );
+                  },
+                ),
                 ListTile(
                   leading: const Icon(Icons.logout),
                   title: const Text("Sair"),

@@ -2208,6 +2208,92 @@ def sync_subscription(
     return {"plan": current_user.plan}
 
 
+@app.post("/api/subscription/cancel-subscription")
+def cancel_subscription(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Cancela a assinatura do usuário no final do período atual."""
+    import stripe
+
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+    if not stripe.api_key:
+        raise HTTPException(status_code=500, detail="STRIPE_SECRET_KEY não configurado")
+
+    sub = session.exec(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).first()
+
+    if not sub or sub.status != "active" or not sub.product_id:
+        raise HTTPException(status_code=400, detail="Nenhuma assinatura ativa encontrada")
+
+    try:
+        stripe.Subscription.modify(sub.product_id, cancel_at_period_end=True)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Erro Stripe: {exc}")
+
+    sub.status = "cancelled"
+    sub.updated_at = datetime.utcnow()
+    session.add(sub)
+    session.commit()
+
+    return {
+        "message": "Assinatura cancelada. Acesso mantido até o final do período.",
+        "expires_at": sub.expires_at.isoformat() if sub.expires_at else None,
+    }
+
+
+@app.delete("/api/auth/me")
+def delete_account(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Exclui a conta do usuário: anonimiza dados pessoais, mantém dados de obra."""
+    import stripe
+
+    # 1. Cancel Stripe subscription if active
+    sub = session.exec(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).first()
+
+    if sub and sub.status == "active" and sub.product_id:
+        stripe_key = os.getenv("STRIPE_SECRET_KEY")
+        if stripe_key:
+            stripe.api_key = stripe_key
+            try:
+                stripe.Subscription.modify(sub.product_id, cancel_at_period_end=True)
+            except Exception:
+                pass  # Best effort — don't block deletion
+        sub.status = "cancelled"
+        sub.updated_at = datetime.utcnow()
+        session.add(sub)
+
+    # 2. Anonymize user data
+    current_user.nome = "Usuário removido"
+    current_user.email = f"{current_user.id}@deleted.local"
+    current_user.telefone = None
+    current_user.google_id = None
+    current_user.password_hash = None
+    current_user.ativo = False
+    current_user.plan = "gratuito"
+    current_user.updated_at = datetime.utcnow()
+    session.add(current_user)
+
+    # 3. Cancel pending invites where user is owner
+    pending_convites = session.exec(
+        select(ObraConvite).where(
+            ObraConvite.dono_id == current_user.id,
+            ObraConvite.status == "pendente",
+        )
+    ).all()
+    for convite in pending_convites:
+        convite.status = "removido"
+        session.add(convite)
+
+    session.commit()
+    return {"message": "Conta excluída com sucesso"}
+
+
 @app.post("/api/webhooks/stripe")
 async def stripe_webhook(
     request: Request,

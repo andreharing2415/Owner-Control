@@ -61,6 +61,24 @@ class SubscriptionProvider extends ChangeNotifier {
     }
   }
 
+  Future<Map<String, dynamic>> cancelSubscription() async {
+    _loading = true;
+    _error = null;
+    notifyListeners();
+    try {
+      final result = await api.cancelSubscription();
+      await load(); // Reload subscription info
+      return result;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      rethrow;
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
+  }
+
   void clear() {
     _info = null;
     _error = null;

@@ -1034,6 +1034,23 @@ class ApiClient {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> cancelSubscription() async {
+    final response = await _post("/api/subscription/cancel-subscription");
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao cancelar assinatura");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<void> deleteAccount() async {
+    final response = await _delete("/api/auth/me");
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao excluir conta");
+    }
+  }
+
   // ─── Convites ─────────────────────────────────────────────────────────────
 
   Future<ObraConvite> criarConvite({
