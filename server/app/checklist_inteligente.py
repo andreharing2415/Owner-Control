@@ -198,6 +198,11 @@ REGRAS OBRIGATORIAS:
 9. NUNCA apresente como parecer tecnico
 10. Para cada item, inclua MEDIDAS MINIMAS exigidas pela norma e uma EXPLICACAO \
 para leigo do que significa na pratica
+11. Para cada item, gere os 3 blocos de orientacao ao proprietario:
+    - dado_projeto: dados concretos que o proprietario deve encontrar no projeto
+    - verificacoes: lista de verificacoes praticas que o proprietario pode fazer na obra
+    - pergunta_engenheiro: pergunta colaborativa para o engenheiro caso algo pareca diferente
+    - documentos_a_exigir: documentos que o proprietario deve solicitar
 
 As 6 etapas da obra sao:
 - Planejamento e Projeto
@@ -221,8 +226,28 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
       "requer_validacao_profissional": true | false,
       "confianca": numero 0-100,
       "como_verificar": "instrucao pratica em 1-2 frases de COMO o proprietario verifica este item",
-      "medidas_minimas": "exigencias normativas concretas. Ex: 'Cerca minima 1,10m de altura ao redor da piscina, alarme de acesso obrigatorio, capa de protecao quando nao em uso' ou null se nao houver",
-      "explicacao_leigo": "explicacao em linguagem simples do POR QUE este item e importante e O QUE pode acontecer se nao for cumprido (max 200 chars)"
+      "medidas_minimas": "exigencias normativas concretas ou null",
+      "explicacao_leigo": "explicacao simples do POR QUE e importante (max 200 chars)",
+      "dado_projeto": {
+        "descricao": "o que este item representa no projeto (max 150 chars)",
+        "especificacao": "especificacao tecnica esperada (ex: espessura 19cm)",
+        "fonte": "onde encontrar no projeto (ex: Planta Estrutural - Folha 3)",
+        "valor_referencia": "valor numerico ou descritivo de referencia"
+      },
+      "verificacoes": [
+        {
+          "instrucao": "instrucao simples do que fazer (max 100 chars)",
+          "tipo": "medicao | visual | documento",
+          "valor_esperado": "o que esperar (ex: minimo 19cm)",
+          "como_medir": "como realizar a verificacao na pratica (max 150 chars)"
+        }
+      ],
+      "pergunta_engenheiro": {
+        "contexto": "contexto para o engenheiro (max 150 chars)",
+        "pergunta": "pergunta colaborativa e respeitosa (max 150 chars)",
+        "tom": "colaborativo"
+      },
+      "documentos_a_exigir": ["nome do documento 1", "nome do documento 2"]
     }
   ]
 }
@@ -696,6 +721,11 @@ def processar_checklist_background(
                                         medidas_minimas=item_data.get("medidas_minimas"),
                                         explicacao_leigo=item_data.get("explicacao_leigo", ""),
                                         caracteristica_origem=carac_id,
+                                        # 3 Camadas
+                                        dado_projeto=json.dumps(item_data["dado_projeto"], ensure_ascii=False) if item_data.get("dado_projeto") else None,
+                                        verificacoes=json.dumps(item_data["verificacoes"], ensure_ascii=False) if item_data.get("verificacoes") else None,
+                                        pergunta_engenheiro=json.dumps(item_data["pergunta_engenheiro"], ensure_ascii=False) if item_data.get("pergunta_engenheiro") else None,
+                                        documentos_a_exigir=json.dumps(item_data["documentos_a_exigir"], ensure_ascii=False) if item_data.get("documentos_a_exigir") else None,
                                     )
                                     session.add(item)
                                     total_itens += 1

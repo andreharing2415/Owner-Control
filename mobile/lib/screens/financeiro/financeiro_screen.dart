@@ -7,6 +7,7 @@ import "../../services/api_client.dart";
 import "alertas_config_screen.dart";
 import "curva_s_screen.dart";
 import "lancar_despesa_screen.dart";
+import "orcamento_edit_screen.dart";
 
 class FinanceiroScreen extends StatefulWidget {
   const FinanceiroScreen({
@@ -66,6 +67,21 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => LancarDespesaScreen(
+          obraId: widget.obraId,
+          api: widget.api,
+        ),
+      ),
+    );
+    if (result == true) {
+      await _refresh();
+    }
+  }
+
+  Future<void> _abrirEditarOrcamento() async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OrcamentoEditScreen(
           obraId: widget.obraId,
           api: widget.api,
         ),
@@ -137,6 +153,11 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
       appBar: AppBar(
         title: const Text("Financeiro"),
         actions: [
+          IconButton(
+            onPressed: _abrirEditarOrcamento,
+            icon: const Icon(Icons.edit_note),
+            tooltip: "Editar Orçamento",
+          ),
           IconButton(
             onPressed: _abrirCurvaS,
             icon: const Icon(Icons.show_chart),

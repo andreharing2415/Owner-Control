@@ -30,6 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _erro;
   List<Etapa> _etapas = [];
   List<ChecklistItem> _itensPendentes = [];
+  int _bottomNavIndex = 0;
 
   ApiClient get _api => context.read<ObraAtualProvider>().api!;
 
@@ -107,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Consumer<ObraAtualProvider>(
       builder: (context, provider, _) {
         final obra = provider.obraAtual;
+        final isConvidado = context.read<AuthProvider>().user?.isConvidado ?? false;
         return Scaffold(
           appBar: AppBar(
             title: Row(
@@ -154,80 +156,182 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            actions: [
-              if (obra != null) ...[
-                // Convidado doesn't see normas, convites, etc.
-                if (!(context.read<AuthProvider>().user?.isConvidado ?? false)) ...[
-                  IconButton(
-                    icon: const Icon(Icons.people_outline),
-                    tooltip: "Convites",
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => ConvitesScreen(
-                              obraId: obra.id, obraNome: obra.nome)),
-                    ),
-                  ),
-                ],
-                IconButton(
-                  icon: const Icon(Icons.swap_horiz),
-                  tooltip: "Trocar obra",
-                  onPressed: _selecionarObra,
-                ),
-              ],
-              if (!(context.read<AuthProvider>().user?.isConvidado ?? false))
-                IconButton(
-                  icon: const Icon(Icons.menu_book_outlined),
-                  tooltip: "Normas Técnicas",
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => NormasScreen(api: _api)),
-                  ),
-                ),
-              PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == "logout") {
-                    context.read<AuthProvider>().logout();
-                  } else if (value == "upgrade") {
-                    PaywallScreen.show(context);
-                  }
-                },
-                itemBuilder: (context) {
-                  final user = context.read<AuthProvider>().user;
-                  final sub = context.read<SubscriptionProvider>();
-                  return [
-                    PopupMenuItem(
-                      enabled: false,
-                      child: Text(
-                        user?.nome ?? "",
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (sub.isGratuito && !(user?.isConvidado ?? false))
-                      const PopupMenuItem(
-                        value: "upgrade",
-                        child: Row(children: [
-                          Icon(Icons.workspace_premium, size: 18, color: Colors.amber),
-                          SizedBox(width: 8),
-                          Text("Assinar Plano Dono"),
-                        ]),
-                      ),
-                    const PopupMenuDivider(),
-                    const PopupMenuItem(
-                      value: "logout",
-                      child: Row(children: [
-                        Icon(Icons.logout, size: 18),
-                        SizedBox(width: 8),
-                        Text("Sair"),
-                      ]),
-                    ),
-                  ];
-                },
-              ),
-            ],
           ),
           body: obra == null ? _buildSemObra() : _buildDashboard(obra),
+          bottomNavigationBar: obra == null
+              ? null
+              : _buildBottomNav(obra, isConvidado),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomNav(Obra obra, bool isConvidado) {
+    final items = <BottomNavigationBarItem>[
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.home),
+        label: 'Início',
+      ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.list_alt),
+        label: 'Etapas',
+      ),
+      if (!isConvidado)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.description),
+          label: 'Documentos',
+        ),
+      if (!isConvidado)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.menu_book_outlined),
+          label: 'Normas',
+        ),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.more_horiz),
+        label: 'Mais',
+      ),
+    ];
+
+    return BottomNavigationBar(
+      currentIndex: _bottomNavIndex,
+      type: BottomNavigationBarType.fixed,
+      selectedFontSize: 12,
+      unselectedFontSize: 11,
+      onTap: (index) {
+        // Map index to action based on guest/owner items
+        if (index == 0) {
+          // Início — já está aqui
+          setState(() => _bottomNavIndex = 0);
+          return;
+        }
+
+        final maisIndex = items.length - 1;
+
+        if (index == 1) {
+          // Etapas
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => EtapasScreen(obra: obra, api: _api),
+            ),
+          ).then((_) => _carregarDashboard(obra));
+        } else if (!isConvidado && index == 2) {
+          // Documentos
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => DocumentosScreen(obraId: obra.id, api: _api),
+            ),
+          );
+        } else if (!isConvidado && index == 3) {
+          // Normas
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => NormasScreen(api: _api),
+            ),
+          );
+        }
+
+        if (index == maisIndex) {
+          _showMaisMenu(obra, isConvidado);
+        }
+      },
+      items: items,
+    );
+  }
+
+  void _showMaisMenu(Obra obra, bool isConvidado) {
+    final sub = context.read<SubscriptionProvider>();
+    final user = context.read<AuthProvider>().user;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                if (user != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Text(
+                      user.nome,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.swap_horiz),
+                  title: const Text("Trocar Obra"),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _selecionarObra();
+                  },
+                ),
+                if (!isConvidado)
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: const Text("Convites"),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ConvitesScreen(
+                              obraId: obra.id, obraNome: obra.nome),
+                        ),
+                      );
+                    },
+                  ),
+                if (!isConvidado)
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: const Text("Prestadores"),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PrestadoresScreen(api: _api),
+                        ),
+                      );
+                    },
+                  ),
+                if (sub.isGratuito && !isConvidado)
+                  ListTile(
+                    leading: const Icon(Icons.workspace_premium, color: Colors.amber),
+                    title: const Text("Assinar Plano Dono"),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      PaywallScreen.show(context);
+                    },
+                  ),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout),
+                  title: const Text("Sair"),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    context.read<AuthProvider>().logout();
+                  },
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -326,28 +430,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ],
-          const SizedBox(height: 14),
-          _AcoesRapidasCard(
-            isConvidado:
-                context.read<AuthProvider>().user?.isConvidado ?? false,
-            onVerEtapas: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) =>
-                      EtapasScreen(obra: obra, api: _api)),
-            ).then((_) => _carregarDashboard(obra)),
-            onDocumentos: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => DocumentosScreen(
-                      obraId: obra.id, api: _api)),
-            ),
-            onPrestadores: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => PrestadoresScreen(api: _api)),
-            ),
-          ),
           if (_itensPendentes.isNotEmpty) ...[
             const SizedBox(height: 14),
             _ItensPendentesCard(itens: _itensPendentes),
@@ -586,61 +668,6 @@ class _OrcamentoCard extends StatelessWidget {
   }
 }
 
-class _AcoesRapidasCard extends StatelessWidget {
-  const _AcoesRapidasCard({
-    required this.onVerEtapas,
-    required this.onDocumentos,
-    required this.onPrestadores,
-    this.isConvidado = false,
-  });
-
-  final VoidCallback onVerEtapas;
-  final VoidCallback onDocumentos;
-  final VoidCallback onPrestadores;
-  final bool isConvidado;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Ações Rápidas",
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  onPressed: onVerEtapas,
-                  icon: const Icon(Icons.list_alt, size: 18),
-                  label: const Text("Ver Etapas"),
-                ),
-                if (!isConvidado)
-                  OutlinedButton.icon(
-                    onPressed: onDocumentos,
-                    icon: const Icon(Icons.description, size: 18),
-                    label: const Text("Documentos"),
-                  ),
-                if (!isConvidado)
-                  OutlinedButton.icon(
-                    onPressed: onPrestadores,
-                    icon: const Icon(Icons.people_outline, size: 18),
-                  label: const Text("Prestadores"),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ItensPendentesCard extends StatelessWidget {
   const _ItensPendentesCard({required this.itens});

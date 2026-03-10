@@ -15,9 +15,19 @@ import "screens/home/home_screen.dart";
 import "screens/subscription/paywall_screen.dart";
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ObraMasterApp());
+  runZonedGuarded(() {
+    WidgetsFlutterBinding.ensureInitialized();
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      _globalErrorNotifier.value = details.exceptionAsString();
+    };
+    runApp(const ObraMasterApp());
+  }, (error, stack) {
+    _globalErrorNotifier.value = "$error\n$stack";
+  });
 }
+
+final _globalErrorNotifier = ValueNotifier<String?>(null);
 
 class ObraMasterApp extends StatefulWidget {
   const ObraMasterApp({super.key});
@@ -52,16 +62,19 @@ class _ObraMasterAppState extends State<ObraMasterApp> {
   }
 
   Future<void> _initDeepLinks() async {
-    _appLinks = AppLinks();
-
-    // Handle link that launched the app
     try {
-      final initialUri = await _appLinks.getInitialLink();
-      if (initialUri != null) _handleDeepLink(initialUri);
-    } catch (_) {}
+      _appLinks = AppLinks();
 
-    // Handle links while app is running
-    _linkSub = _appLinks.uriLinkStream.listen(_handleDeepLink);
+      // Handle link that launched the app
+      final initialUri = await _appLinks.getInitialLink()
+          .timeout(const Duration(seconds: 3));
+      if (initialUri != null) _handleDeepLink(initialUri);
+
+      // Handle links while app is running
+      _linkSub = _appLinks.uriLinkStream.listen(_handleDeepLink);
+    } catch (_) {
+      // Deep links not available — app continues normally
+    }
   }
 
   void _handleDeepLink(Uri uri) {
@@ -127,8 +140,25 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, auth, _) {
+    return ValueListenableBuilder<String?>(
+      valueListenable: _globalErrorNotifier,
+      builder: (context, error, child) {
+        if (error != null) {
+          return MaterialApp(
+            home: Scaffold(
+              backgroundColor: Colors.red[50],
+              appBar: AppBar(title: const Text("Erro de Inicialização"), backgroundColor: Colors.red),
+              body: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: SelectableText(error, style: const TextStyle(fontSize: 12, fontFamily: "monospace")),
+              ),
+            ),
+          );
+        }
+        return child!;
+      },
+      child: Consumer<AuthProvider>(
+        builder: (context, auth, _) {
         if (auth.loading) {
           return Scaffold(
             backgroundColor: Colors.white,
@@ -142,6 +172,8 @@ class _AuthGateState extends State<_AuthGate> {
                   ),
                   const SizedBox(height: 32),
                   const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text("Carregando...", style: TextStyle(color: Colors.grey)),
                 ],
               ),
             ),
@@ -160,6 +192,7 @@ class _AuthGateState extends State<_AuthGate> {
         }
         return const HomeScreen();
       },
+      ),
     );
   }
 }

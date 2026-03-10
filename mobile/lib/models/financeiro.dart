@@ -4,6 +4,7 @@ class OrcamentoEtapa {
     required this.obraId,
     required this.etapaId,
     required this.valorPrevisto,
+    this.valorRealizado,
     this.etapaNome,
   });
 
@@ -11,6 +12,7 @@ class OrcamentoEtapa {
   final String obraId;
   final String etapaId;
   final double valorPrevisto;
+  final double? valorRealizado;
   final String? etapaNome;
 
   factory OrcamentoEtapa.fromJson(Map<String, dynamic> json) {
@@ -19,6 +21,7 @@ class OrcamentoEtapa {
       obraId: json["obra_id"] as String,
       etapaId: json["etapa_id"] as String,
       valorPrevisto: (json["valor_previsto"] as num?)?.toDouble() ?? 0.0,
+      valorRealizado: (json["valor_realizado"] as num?)?.toDouble(),
       etapaNome: json["etapa_nome"] as String?,
     );
   }

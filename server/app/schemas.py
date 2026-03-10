@@ -115,6 +115,15 @@ class ChecklistItemCreate(SQLModel):
     origem: str = "padrao"
     grupo: str = "Geral"
     ordem: int = 0
+    # 3 Camadas (optional, filled by AI)
+    severidade: Optional[str] = None
+    traducao_leigo: Optional[str] = None
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    documentos_a_exigir: Optional[str] = None
+    confianca: Optional[int] = None
+    requer_validacao_profissional: bool = False
 
 
 class ChecklistItemRead(SQLModel):
@@ -129,6 +138,18 @@ class ChecklistItemRead(SQLModel):
     origem: str
     grupo: str
     ordem: int
+    # 3 Camadas
+    severidade: Optional[str] = None
+    traducao_leigo: Optional[str] = None
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    documentos_a_exigir: Optional[str] = None
+    registro_proprietario: Optional[str] = None
+    resultado_cruzamento: Optional[str] = None
+    status_verificacao: str = "pendente"
+    confianca: Optional[int] = None
+    requer_validacao_profissional: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -142,6 +163,15 @@ class ChecklistItemUpdate(SQLModel):
     norma_referencia: Optional[str] = None
     grupo: Optional[str] = None
     ordem: Optional[int] = None
+    # 3 Camadas
+    severidade: Optional[str] = None
+    traducao_leigo: Optional[str] = None
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    documentos_a_exigir: Optional[str] = None
+    confianca: Optional[int] = None
+    requer_validacao_profissional: Optional[bool] = None
 
 
 class EtapaStatusUpdate(SQLModel):
@@ -230,6 +260,7 @@ class SugerirGrupoResponse(SQLModel):
 class OrcamentoEtapaCreate(SQLModel):
     etapa_id: UUID
     valor_previsto: float
+    valor_realizado: Optional[float] = None
 
 
 class OrcamentoEtapaRead(SQLModel):
@@ -237,6 +268,7 @@ class OrcamentoEtapaRead(SQLModel):
     obra_id: UUID
     etapa_id: UUID
     valor_previsto: float
+    valor_realizado: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 
@@ -507,6 +539,15 @@ class ItemParaAplicar(SQLModel):
     critico: bool = False
     grupo: str = "Geral"
     ordem: int = 0
+    # 3 Camadas
+    severidade: Optional[str] = None
+    traducao_leigo: Optional[str] = None
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    documentos_a_exigir: Optional[str] = None
+    confianca: Optional[int] = None
+    requer_validacao_profissional: bool = False
 
 
 class AplicarChecklistRequest(SQLModel):
@@ -550,6 +591,11 @@ class ChecklistGeracaoItemRead(SQLModel):
     medidas_minimas: Optional[str] = None
     explicacao_leigo: str
     caracteristica_origem: str
+    # 3 Camadas (new)
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    documentos_a_exigir: Optional[str] = None
     created_at: datetime
 
 

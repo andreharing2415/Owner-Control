@@ -366,6 +366,28 @@ class ApiClient {
         jsonDecode(response.body) as Map<String, dynamic>);
   }
 
+  Future<ChecklistItem> verificarChecklistItem({
+    required String itemId,
+    String? valorMedido,
+    required String status,
+    List<String>? fotoIds,
+  }) async {
+    final response = await _post(
+      "/api/checklist-items/$itemId/verificar",
+      body: {
+        "status": status,
+        if (valorMedido != null && valorMedido.isNotEmpty)
+          "valor_medido": valorMedido,
+        if (fotoIds != null) "foto_ids": fotoIds,
+      },
+    );
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao registrar verificação");
+    }
+    return ChecklistItem.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
   Future<void> deletarItem(String itemId) async {
     final response = await _delete("/api/checklist-items/$itemId");
     if (response.statusCode != 204) {
@@ -578,7 +600,7 @@ class ApiClient {
       String obraId, List<Map<String, dynamic>> itens) async {
     final response = await _post(
       "/api/obras/$obraId/orcamento",
-      body: {"itens": itens},
+      body: itens,
     );
     if (response.statusCode != 200) {
       throw Exception("Erro ao salvar orçamento");
@@ -746,33 +768,6 @@ class ApiClient {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       throw Exception(body["detail"] ?? "Erro ao analisar projeto");
     }
-  }
-
-  Future<AnaliseDocumento> obterAnaliseProjeto(String projetoId) async {
-    final response = await _get("/api/projetos/$projetoId/analise");
-    if (response.statusCode != 200) {
-      throw Exception("Erro ao obter análise");
-    }
-    return AnaliseDocumento.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
-  }
-
-  Future<Risco> registrarVerificacaoRisco({
-    required String riscoId,
-    String? valorMedido,
-    required String status,
-    List<String>? fotoIds,
-  }) async {
-    final response = await _post("/api/riscos/$riscoId/verificar", body: {
-      "status": status,
-      if (valorMedido != null) "valor_medido": valorMedido,
-      if (fotoIds != null) "foto_ids": fotoIds,
-    });
-    if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(body["detail"] ?? "Erro ao registrar verificação");
-    }
-    return Risco.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
   // ─── Visual AI ─────────────────────────────────────────────────────────────

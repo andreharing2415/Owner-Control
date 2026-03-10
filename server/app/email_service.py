@@ -2,7 +2,9 @@
 
 import logging
 import os
-from typing import Optional
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
@@ -58,20 +60,59 @@ def enviar_email_convite(
         f"Este link expira em 7 dias."
     )
 
+    # 1. Gmail SMTP (primary)
+    gmail_user = os.getenv("GMAIL_USER")
+    gmail_app_password = os.getenv("GMAIL_APP_PASSWORD")
+    if gmail_user and gmail_app_password:
+        return _send_via_gmail_smtp(gmail_user, gmail_app_password, destinatario, subject, body_html, body_text)
+
+    # 2. SendGrid
     sendgrid_key = os.getenv("SENDGRID_API_KEY")
     if sendgrid_key:
         return _send_via_sendgrid(sendgrid_key, destinatario, subject, body_html, body_text)
 
+    # 3. Resend
     resend_key = os.getenv("RESEND_API_KEY")
     if resend_key:
         return _send_via_resend(resend_key, destinatario, subject, body_html)
 
     # Fallback: log para desenvolvimento
-    logger.info(
-        "EMAIL DE CONVITE (dev mode):\n  Para: %s\n  Obra: %s\n  Link: %s",
+    logger.warning(
+        "EMAIL NÃO ENVIADO (nenhum provedor configurado):\n  Para: %s\n  Obra: %s\n  Link: %s",
         destinatario, obra_nome, magic_link,
     )
-    return True
+    return False
+
+
+def _send_via_gmail_smtp(
+    gmail_user: str,
+    gmail_app_password: str,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    text_content: str,
+) -> bool:
+    """Envia e-mail via Gmail SMTP com App Password."""
+    try:
+        from_name = os.getenv("EMAIL_FROM_NAME", "Mestre da Obra")
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{from_name} <{gmail_user}>"
+        msg["To"] = to_email
+
+        msg.attach(MIMEText(text_content, "plain", "utf-8"))
+        msg.attach(MIMEText(html_content, "html", "utf-8"))
+
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
+            server.starttls()
+            server.login(gmail_user, gmail_app_password)
+            server.sendmail(gmail_user, to_email, msg.as_string())
+
+        logger.info("Email enviado via Gmail SMTP para %s", to_email)
+        return True
+    except Exception as exc:
+        logger.error("Gmail SMTP exception: %s", exc)
+        return False
 
 
 def _send_via_sendgrid(

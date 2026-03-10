@@ -33,15 +33,16 @@ class AuthProvider extends ChangeNotifier {
     _loading = true;
     notifyListeners();
     try {
-      final tokens = await SecureStorage.loadTokens();
+      final tokens = await SecureStorage.loadTokens()
+          .timeout(const Duration(seconds: 5));
       if (tokens != null) {
         api.setTokens(access: tokens.access, refresh: tokens.refresh);
-        _user = await api.getMe();
-
+        _user = await api.getMe()
+            .timeout(const Duration(seconds: 10));
       }
     } catch (_) {
       api.clearTokens();
-      await SecureStorage.clearTokens();
+      try { await SecureStorage.clearTokens(); } catch (_) {}
     }
     _loading = false;
     notifyListeners();

@@ -493,6 +493,71 @@ def deletar_item(
     session.commit()
 
 
+@app.post("/api/checklist-items/{item_id}/verificar", response_model=ChecklistItemRead)
+def verificar_checklist_item(
+    item_id: UUID,
+    body: RegistrarVerificacaoRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> ChecklistItemRead:
+    """Registra verificação do proprietário num item do checklist e cruza com dados do projeto."""
+    item = session.get(ChecklistItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item nao encontrado")
+
+    # Salva registro do proprietário
+    registro = {
+        "valor_medido": body.valor_medido,
+        "status": body.status,
+        "foto_ids": body.foto_ids or [],
+        "data_verificacao": datetime.utcnow().isoformat(),
+    }
+    item.registro_proprietario = json.dumps(registro, ensure_ascii=False)
+    item.status_verificacao = body.status
+
+    # Cruzamento com dados do projeto
+    dado_projeto = json.loads(item.dado_projeto) if item.dado_projeto else None
+    if dado_projeto and body.valor_medido:
+        valor_ref = dado_projeto.get("valor_referencia", "")
+        especificacao = dado_projeto.get("especificacao", "")
+        descricao_proj = dado_projeto.get("descricao", "")
+
+        if body.status == "conforme":
+            resultado = {
+                "conclusao": "conforme",
+                "resumo": f"A verificacao esta de acordo com o projeto ({especificacao}).",
+                "acao": None,
+                "urgencia": "baixa",
+            }
+        elif body.status == "divergente":
+            resultado = {
+                "conclusao": "divergente",
+                "resumo": (
+                    f"{descricao_proj}: medido {body.valor_medido}, "
+                    f"projeto indica {valor_ref}."
+                ),
+                "acao": "Pergunte ao engenheiro usando a sugestao abaixo.",
+                "urgencia": "alta",
+            }
+        else:
+            resultado = {
+                "conclusao": "duvida",
+                "resumo": (
+                    f"Duvida sobre {descricao_proj}. "
+                    f"Valor de referencia: {valor_ref}."
+                ),
+                "acao": "Converse com o engenheiro para esclarecer.",
+                "urgencia": "media",
+            }
+        item.resultado_cruzamento = json.dumps(resultado, ensure_ascii=False)
+
+    item.updated_at = datetime.utcnow()
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return ChecklistItemRead.model_validate(item)
+
+
 @app.get("/api/etapas/{etapa_id}/score")
 def score_etapa(etapa_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> dict:
     itens = session.exec(select(ChecklistItem).where(ChecklistItem.etapa_id == etapa_id)).all()
@@ -787,7 +852,7 @@ def registrar_orcamento(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> list[OrcamentoEtapa]:
-    """Registra ou atualiza o orçamento previsto por etapa (upsert)."""
+    """Registra ou atualiza o orçamento previsto e realizado por etapa (upsert)."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
     resultado: list[OrcamentoEtapa] = []
     for item in payload:
@@ -798,6 +863,7 @@ def registrar_orcamento(
         ).first()
         if existing:
             existing.valor_previsto = item.valor_previsto
+            existing.valor_realizado = item.valor_realizado
             existing.updated_at = datetime.utcnow()
             session.add(existing)
             resultado.append(existing)
@@ -806,6 +872,7 @@ def registrar_orcamento(
                 obra_id=obra_id,
                 etapa_id=item.etapa_id,
                 valor_previsto=item.valor_previsto,
+                valor_realizado=item.valor_realizado,
             )
             session.add(orcamento)
             resultado.append(orcamento)
@@ -889,6 +956,7 @@ def relatorio_financeiro(
     threshold = alerta_config.percentual_desvio_threshold if alerta_config else 10.0
 
     orcamento_por_etapa = {str(o.etapa_id): o.valor_previsto for o in orcamentos}
+    realizado_por_etapa = {str(o.etapa_id): o.valor_realizado for o in orcamentos if o.valor_realizado is not None}
     gasto_por_etapa: dict[str, float] = {}
     for d in despesas:
         key = str(d.etapa_id) if d.etapa_id else "__sem_etapa__"
@@ -897,7 +965,7 @@ def relatorio_financeiro(
     por_etapa: list[EtapaFinanceiroItem] = []
     for etapa in etapas:
         previsto = orcamento_por_etapa.get(str(etapa.id), 0.0)
-        gasto = gasto_por_etapa.get(str(etapa.id), 0.0)
+        gasto = realizado_por_etapa.get(str(etapa.id), gasto_por_etapa.get(str(etapa.id), 0.0))
         if previsto > 0:
             desvio_pct = ((gasto - previsto) / previsto) * 100
         else:
@@ -1288,92 +1356,6 @@ def analisar_projeto(
         session.add(projeto)
         session.commit()
         raise HTTPException(status_code=502, detail=f"Erro na analise: {exc}")
-
-
-@app.get("/api/projetos/{projeto_id}/analise", response_model=ProjetoAnaliseRead)
-def obter_analise(
-    projeto_id: UUID,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> ProjetoAnaliseRead:
-    """Retorna o projeto com todos os riscos identificados pela IA."""
-    projeto = session.get(ProjetoDoc, projeto_id)
-    if not projeto:
-        raise HTTPException(status_code=404, detail="Projeto nao encontrado")
-    riscos = session.exec(
-        select(Risco)
-        .where(Risco.projeto_id == projeto_id)
-        .order_by(Risco.severidade)
-    ).all()
-    return ProjetoAnaliseRead(
-        projeto=ProjetoDocRead.model_validate(projeto),
-        riscos=[RiscoRead.model_validate(r) for r in riscos],
-    )
-
-
-@app.post("/api/riscos/{risco_id}/verificar", response_model=RiscoRead)
-def registrar_verificacao(
-    risco_id: UUID,
-    body: RegistrarVerificacaoRequest,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> RiscoRead:
-    """Registra verificação do proprietário e cruza com dados do projeto via IA."""
-    risco = session.get(Risco, risco_id)
-    if not risco:
-        raise HTTPException(status_code=404, detail="Risco nao encontrado")
-
-    # Salva registro do proprietário
-    registro = {
-        "valor_medido": body.valor_medido,
-        "status": body.status,
-        "foto_ids": body.foto_ids or [],
-        "data_verificacao": datetime.utcnow().isoformat(),
-    }
-    risco.registro_proprietario = json.dumps(registro, ensure_ascii=False)
-    risco.status_verificacao = body.status
-
-    # Cruzamento inteligente com dados do projeto
-    dado_projeto = json.loads(risco.dado_projeto) if risco.dado_projeto else None
-    if dado_projeto and body.valor_medido:
-        valor_ref = dado_projeto.get("valor_referencia", "")
-        especificacao = dado_projeto.get("especificacao", "")
-        descricao_proj = dado_projeto.get("descricao", "")
-
-        if body.status == "conforme":
-            resultado = {
-                "conclusao": "conforme",
-                "resumo": f"A verificacao esta de acordo com o projeto ({especificacao}).",
-                "acao": None,
-                "urgencia": "baixa",
-            }
-        elif body.status == "divergente":
-            resultado = {
-                "conclusao": "divergente",
-                "resumo": (
-                    f"{descricao_proj}: medido {body.valor_medido}, "
-                    f"projeto indica {valor_ref}."
-                ),
-                "acao": "Pergunte ao engenheiro usando a sugestao abaixo.",
-                "urgencia": "alta",
-            }
-        else:
-            resultado = {
-                "conclusao": "duvida",
-                "resumo": (
-                    f"Duvida sobre {descricao_proj}. "
-                    f"Valor de referencia: {valor_ref}."
-                ),
-                "acao": "Converse com o engenheiro para esclarecer.",
-                "urgencia": "media",
-            }
-        risco.resultado_cruzamento = json.dumps(resultado, ensure_ascii=False)
-
-    risco.updated_at = datetime.utcnow()
-    session.add(risco)
-    session.commit()
-    session.refresh(risco)
-    return RiscoRead.model_validate(risco)
 
 
 # ─── Fase 4 — Visual AI ───────────────────────────────────────────────────────
@@ -1945,6 +1927,15 @@ def aplicar_checklist_inteligente(
             status=ChecklistStatus.PENDENTE.value,
             grupo=grupo,
             ordem=getattr(item_data, "ordem", 0),
+            # 3 Camadas
+            severidade=getattr(item_data, "severidade", None),
+            traducao_leigo=getattr(item_data, "traducao_leigo", None),
+            dado_projeto=getattr(item_data, "dado_projeto", None),
+            verificacoes=getattr(item_data, "verificacoes", None),
+            pergunta_engenheiro=getattr(item_data, "pergunta_engenheiro", None),
+            documentos_a_exigir=getattr(item_data, "documentos_a_exigir", None),
+            confianca=getattr(item_data, "confianca", None),
+            requer_validacao_profissional=getattr(item_data, "requer_validacao_profissional", False),
         )
         session.add(novo_item)
         itens_criados.append(novo_item)
@@ -1980,6 +1971,64 @@ def historico_checklist_inteligente(
         .where(ChecklistGeracaoLog.obra_id == obra_id)
         .order_by(ChecklistGeracaoLog.created_at.desc())
     ).all()
+
+
+@app.post("/api/admin/migrar-riscos-para-checklist")
+def migrar_riscos_para_checklist(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """One-time migration: converts Risco records into ChecklistItems."""
+    if current_user.role != "admin" and current_user.role != "owner":
+        raise HTTPException(status_code=403, detail="Sem permissao")
+
+    riscos = session.exec(select(Risco)).all()
+    migrados = 0
+
+    for risco in riscos:
+        # Find the obra via ProjetoDoc
+        projeto = session.get(ProjetoDoc, risco.projeto_id)
+        if not projeto:
+            continue
+
+        # Find first etapa of the obra (default: "Fundacoes e Estrutura")
+        etapas = session.exec(
+            select(Etapa).where(Etapa.obra_id == projeto.obra_id)
+        ).all()
+        etapa_alvo = None
+        for e in etapas:
+            if e.nome == "Fundacoes e Estrutura":
+                etapa_alvo = e
+                break
+        if not etapa_alvo and etapas:
+            etapa_alvo = etapas[0]
+        if not etapa_alvo:
+            continue
+
+        novo = ChecklistItem(
+            etapa_id=etapa_alvo.id,
+            titulo=risco.descricao[:120] if risco.descricao else "Risco importado",
+            descricao=risco.descricao,
+            critico=risco.severidade == "alto",
+            norma_referencia=risco.norma_referencia,
+            origem="ia",
+            severidade=risco.severidade,
+            traducao_leigo=risco.traducao_leigo,
+            dado_projeto=risco.dado_projeto,
+            verificacoes=risco.verificacoes,
+            pergunta_engenheiro=risco.pergunta_engenheiro,
+            documentos_a_exigir=risco.documentos_a_exigir,
+            registro_proprietario=risco.registro_proprietario,
+            resultado_cruzamento=risco.resultado_cruzamento,
+            status_verificacao=risco.status_verificacao,
+            confianca=risco.confianca,
+            requer_validacao_profissional=risco.requer_validacao_profissional,
+        )
+        session.add(novo)
+        migrados += 1
+
+    session.commit()
+    return {"migrados": migrados, "total_riscos": len(riscos)}
 
 
 # ─── Monetização — Subscription ──────────────────────────────────────────────
@@ -2346,13 +2395,15 @@ def criar_convite(
     session.refresh(convite)
 
     # Enviar e-mail com magic link
-    enviar_email_convite(
+    email_enviado = enviar_email_convite(
         destinatario=convite.email,
         obra_nome=obra.nome,
         dono_nome=current_user.nome,
         papel=convite.papel,
         token=token,
     )
+    if not email_enviado:
+        logger.error("Falha ao enviar email de convite para %s", convite.email)
 
     return ConviteRead(
         id=convite.id,

@@ -9,7 +9,7 @@ set -e
 
 PROJECT_ID="${GCP_PROJECT:-mestreobra}"
 SERVICE_NAME="${CLOUD_RUN_SERVICE:-mestreobra-backend}"
-REGION="${1:-southamerica-east1}"
+REGION="${1:-us-central1}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 

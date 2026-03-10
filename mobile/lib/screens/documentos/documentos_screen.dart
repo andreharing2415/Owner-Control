@@ -7,7 +7,6 @@ import "../../models/documento.dart";
 import "../../providers/auth_provider.dart";
 import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
-import "analise_documento_screen.dart";
 import "pdf_viewer_screen.dart";
 import "../checklist_inteligente/checklist_inteligente_screen.dart";
 
@@ -136,18 +135,6 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
     }
   }
 
-  void _abrirAnalise(ProjetoDoc projeto) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => AnaliseDocumentoScreen(
-          projetoId: projeto.id,
-          api: widget.api,
-        ),
-      ),
-    );
-  }
-
   Future<void> _deletarProjeto(ProjetoDoc projeto) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -188,7 +175,10 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
   void _onTapProjeto(ProjetoDoc projeto) {
     switch (projeto.status) {
       case "concluido":
-        _abrirAnalise(projeto);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Análise concluída. Verifique o checklist.")),
+        );
       case "pendente":
         _analisarProjeto(projeto);
       case "processando":

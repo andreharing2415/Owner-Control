@@ -61,6 +61,18 @@ class ChecklistItem(SQLModel, table=True):
     origem: str = Field(default="padrao")            # "padrao" | "ia"
     grupo: str = Field(default="Geral")              # ex: "Piscina", "Churrasqueira"
     ordem: int = Field(default=0)                    # ordenação cronológica dentro do grupo
+    # ─── 3 Camadas (preenchido por IA) ─────────────────────────────────
+    severidade: Optional[str] = None                 # "alto" | "medio" | "baixo"
+    traducao_leigo: Optional[str] = None             # explicação simples para leigo
+    dado_projeto: Optional[str] = None               # JSON: {descricao, especificacao, fonte, valor_referencia}
+    verificacoes: Optional[str] = None               # JSON: [{instrucao, tipo, valor_esperado, como_medir}]
+    pergunta_engenheiro: Optional[str] = None        # JSON: {contexto, pergunta, tom}
+    documentos_a_exigir: Optional[str] = None        # JSON: ["doc1", "doc2"]
+    registro_proprietario: Optional[str] = None      # JSON: {valor_medido, status, foto_ids, data_verificacao}
+    resultado_cruzamento: Optional[str] = None       # JSON: {conclusao, resumo, acao, urgencia}
+    status_verificacao: str = Field(default="pendente")  # "pendente" | "conforme" | "divergente" | "duvida"
+    confianca: Optional[int] = None                  # 0-100, confiança da IA
+    requer_validacao_profissional: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -115,6 +127,7 @@ class OrcamentoEtapa(SQLModel, table=True):
     obra_id: UUID = Field(index=True, foreign_key="obra.id")
     etapa_id: UUID = Field(index=True, foreign_key="etapa.id")
     valor_previsto: float
+    valor_realizado: Optional[float] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -293,6 +306,11 @@ class ChecklistGeracaoItem(SQLModel, table=True):
     medidas_minimas: Optional[str] = None
     explicacao_leigo: str = Field(default="")
     caracteristica_origem: str = Field(default="")
+    # 3 Camadas
+    dado_projeto: Optional[str] = None
+    verificacoes: Optional[str] = None
+    pergunta_engenheiro: Optional[str] = None
+    documentos_a_exigir: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 

@@ -5,6 +5,7 @@ import "package:image_picker/image_picker.dart";
 import "../../models/checklist_item.dart";
 import "../../services/api_client.dart";
 import "../normas/normas_screen.dart";
+import "verificacao_inline_widget.dart";
 
 class DetalheItemScreen extends StatefulWidget {
   const DetalheItemScreen({
@@ -28,6 +29,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
   late TextEditingController _obsController;
   bool _salvandoObs = false;
   bool _salvandoStatus = false;
+  bool _mostrarFormVerificacao = false;
 
   @override
   void initState() {
@@ -129,7 +131,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Evidência enviada.")));
-        setState(() {}); // trigger FutureBuilder rebuild
+        setState(() {});
       }
     } catch (e) {
       if (mounted) {
@@ -144,9 +146,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Detalhe do Item"),
-      ),
+      appBar: AppBar(title: const Text("Detalhe do Item")),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -162,15 +162,39 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
               if (_item.critico)
                 Container(
                   margin: const EdgeInsets.only(left: 8, top: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: Colors.red.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text("Crítico",
-                      style: TextStyle(color: Colors.red, fontSize: 12,
+                      style: TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600)),
                 ),
+              if (_item.severidade != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _severidadeColor(_item.severidade!)
+                        .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    _item.severidade!.toUpperCase(),
+                    style: TextStyle(
+                      color: _severidadeColor(_item.severidade!),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 6),
@@ -180,6 +204,10 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
               const SizedBox(width: 4),
               Text("${_item.grupo} · ${widget.etapaNome}",
                   style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+              if (_item.statusVerificacao != "pendente") ...[
+                const SizedBox(width: 8),
+                _VerificacaoBadge(status: _item.statusVerificacao),
+              ],
             ],
           ),
 
@@ -191,8 +219,275 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
             Text(_item.descricao!, style: const TextStyle(fontSize: 14)),
           ],
 
-          // ── Norma ───────────────────────────────────────────────────
-          if (_item.normaReferencia != null) ...[
+          // ── Tradução leigo ──────────────────────────────────────────
+          if (_item.traducaoLeigo != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.indigo.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.lightbulb_outline,
+                      size: 18, color: Colors.indigo),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(_item.traducaoLeigo!,
+                        style: const TextStyle(fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // ═══ BLOCO 1: O que o projeto diz ═══════════════════════════
+          if (_item.dadoProjeto != null) ...[
+            const SizedBox(height: 20),
+            _BlocoExpansivel(
+              titulo: "O que o projeto diz",
+              icon: Icons.architecture,
+              cor: Colors.teal,
+              children: [
+                if (_item.dadoProjeto!["descricao"] != null)
+                  Text(_item.dadoProjeto!["descricao"],
+                      style: const TextStyle(fontSize: 14)),
+                if (_item.dadoProjeto!["especificacao"] != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.straighten,
+                            size: 16, color: Colors.teal),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _item.dadoProjeto!["especificacao"],
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (_item.dadoProjeto!["fonte"] != null) ...[
+                  const SizedBox(height: 6),
+                  Text("Fonte: ${_item.dadoProjeto!["fonte"]}",
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
+              ],
+            ),
+          ],
+
+          // ═══ BLOCO 2: Verifique na obra ═════════════════════════════
+          if (_item.verificacoes != null && _item.verificacoes!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _BlocoExpansivel(
+              titulo: "Verifique na obra",
+              icon: Icons.checklist_rtl,
+              cor: Colors.blue,
+              initiallyExpanded: true,
+              children: [
+                for (final v in _item.verificacoes!) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        _tipoVerificacaoIcon(v["tipo"] as String? ?? "visual"),
+                        size: 18,
+                        color: Colors.blue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(v["instrucao"] ?? "",
+                                style: const TextStyle(fontSize: 14)),
+                            if (v["valor_esperado"] != null)
+                              Text("Esperado: ${v["valor_esperado"]}",
+                                  style: TextStyle(
+                                      fontSize: 12, color: Colors.grey[600])),
+                            if (v["como_medir"] != null)
+                              Text(v["como_medir"],
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey[600])),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                ],
+                // Resultado do cruzamento (se já registrado)
+                if (_item.resultadoCruzamento != null) ...[
+                  const Divider(),
+                  _ResultadoCruzamentoCard(
+                      resultado: _item.resultadoCruzamento!),
+                ],
+                // Botão/form de verificação
+                const SizedBox(height: 8),
+                if (_mostrarFormVerificacao)
+                  VerificacaoInlineWidget(
+                    item: _item,
+                    api: widget.api,
+                    onVerificado: (atualizado) {
+                      setState(() {
+                        _item = atualizado;
+                        _mostrarFormVerificacao = false;
+                      });
+                    },
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: () =>
+                        setState(() => _mostrarFormVerificacao = true),
+                    icon: Icon(
+                      _item.registroProprietario != null
+                          ? Icons.edit
+                          : Icons.assignment_turned_in,
+                      size: 18,
+                    ),
+                    label: Text(
+                      _item.registroProprietario != null
+                          ? "Atualizar Verificação"
+                          : "Registrar Verificação",
+                    ),
+                  ),
+              ],
+            ),
+          ],
+
+          // ═══ BLOCO 3: Norma & Engenheiro ════════════════════════════
+          if (_item.perguntaEngenheiro != null ||
+              _item.normaReferencia != null ||
+              (_item.documentosAExigir != null &&
+                  _item.documentosAExigir!.isNotEmpty)) ...[
+            const SizedBox(height: 12),
+            _BlocoExpansivel(
+              titulo: "Norma & Engenheiro",
+              icon: Icons.engineering,
+              cor: Colors.deepPurple,
+              children: [
+                // Norma
+                if (_item.normaReferencia != null) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.menu_book_outlined,
+                          size: 16, color: theme.colorScheme.primary),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(_item.normaReferencia!,
+                            style: const TextStyle(fontSize: 13)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => NormasScreen(
+                              api: widget.api,
+                              etapaInicial: widget.etapaNome,
+                            ),
+                          ),
+                        ),
+                        child: const Text("Ver biblioteca"),
+                      ),
+                    ],
+                  ),
+                ],
+                // Pergunta para engenheiro
+                if (_item.perguntaEngenheiro != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.deepPurple.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (_item.perguntaEngenheiro!["contexto"] != null)
+                          Text(_item.perguntaEngenheiro!["contexto"],
+                              style: TextStyle(
+                                  fontSize: 13, color: Colors.grey[700])),
+                        if (_item.perguntaEngenheiro!["pergunta"] != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            "\"${_item.perguntaEngenheiro!["pergunta"]}\"",
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+                // Documentos a exigir
+                if (_item.documentosAExigir != null &&
+                    _item.documentosAExigir!.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text("Documentos a exigir:",
+                      style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  for (final doc in _item.documentosAExigir!)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.description_outlined,
+                              size: 14, color: Colors.deepPurple),
+                          const SizedBox(width: 6),
+                          Expanded(
+                              child:
+                                  Text(doc, style: const TextStyle(fontSize: 13))),
+                        ],
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          ],
+
+          // ── Mensagem se não enriquecido ─────────────────────────────
+          if (!_item.isEnriquecido &&
+              _item.normaReferencia == null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.auto_awesome, size: 18, color: Colors.amber[700]),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      "Solicite análise por IA para preencher detalhes.",
+                      style: TextStyle(fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (!_item.isEnriquecido &&
+              _item.normaReferencia != null) ...[
+            // Item with norma but no 3-layer data
             const SizedBox(height: 16),
             Text("Norma de referência", style: theme.textTheme.titleSmall),
             const SizedBox(height: 6),
@@ -255,6 +550,50 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
                   ],
                 ),
 
+          // ── Confiança IA ────────────────────────────────────────────
+          if (_item.confianca != null) ...[
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Text("Confiança da IA: ", style: theme.textTheme.titleSmall),
+                Text("${_item.confianca}%",
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            LinearProgressIndicator(
+              value: _item.confianca! / 100.0,
+              backgroundColor: Colors.grey.withValues(alpha: 0.2),
+            ),
+          ],
+
+          // ── Validação profissional ──────────────────────────────────
+          if (_item.requerValidacaoProfissional) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                    color: Colors.orange.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.warning_amber,
+                      size: 20, color: Colors.orange),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Este item requer validação de engenheiro ou arquiteto.",
+                      style: TextStyle(fontSize: 13, color: Colors.orange),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // ── Evidências ──────────────────────────────────────────────
           const SizedBox(height: 24),
           Row(
@@ -292,7 +631,8 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
               return GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
                   crossAxisSpacing: 8,
                   mainAxisSpacing: 8,
@@ -300,7 +640,8 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
                 itemCount: evidencias.length,
                 itemBuilder: (context, i) {
                   final ev = evidencias[i];
-                  final isImage = ev.mimeType?.startsWith("image/") == true;
+                  final isImage =
+                      ev.mimeType?.startsWith("image/") == true;
                   return ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: isImage
@@ -336,7 +677,8 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
               onPressed: _salvandoObs ? null : _salvarObservacao,
               child: _salvandoObs
                   ? const SizedBox(
-                      width: 18, height: 18,
+                      width: 18,
+                      height: 18,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white))
                   : const Text("Salvar observação"),
@@ -349,7 +691,165 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
   }
 }
 
-// ─── Widget auxiliar ─────────────────────────────────────────────────────────
+// ─── Helper functions ────────────────────────────────────────────────────────
+
+Color _severidadeColor(String severidade) {
+  switch (severidade) {
+    case "alto":
+      return Colors.red;
+    case "medio":
+      return Colors.orange;
+    case "baixo":
+      return Colors.green;
+    default:
+      return Colors.grey;
+  }
+}
+
+IconData _tipoVerificacaoIcon(String tipo) {
+  switch (tipo) {
+    case "medicao":
+      return Icons.straighten;
+    case "visual":
+      return Icons.visibility;
+    case "documento":
+      return Icons.description;
+    default:
+      return Icons.check;
+  }
+}
+
+// ─── Widgets auxiliares ──────────────────────────────────────────────────────
+
+class _BlocoExpansivel extends StatelessWidget {
+  const _BlocoExpansivel({
+    required this.titulo,
+    required this.icon,
+    required this.cor,
+    required this.children,
+    this.initiallyExpanded = false,
+  });
+
+  final String titulo;
+  final IconData icon;
+  final Color cor;
+  final List<Widget> children;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: cor.withValues(alpha: 0.3)),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: initiallyExpanded,
+        leading: Icon(icon, color: cor),
+        title: Text(titulo,
+            style: TextStyle(
+                fontWeight: FontWeight.w600, color: cor, fontSize: 15)),
+        childrenPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        expandedCrossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+
+class _VerificacaoBadge extends StatelessWidget {
+  const _VerificacaoBadge({required this.status});
+
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = switch (status) {
+      "conforme" => ("Conforme", Colors.green, Icons.check_circle),
+      "divergente" => ("Divergente", Colors.red, Icons.error),
+      "duvida" => ("Dúvida", Colors.orange, Icons.help),
+      _ => ("Pendente", Colors.grey, Icons.pending),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 3),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10, color: color, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultadoCruzamentoCard extends StatelessWidget {
+  const _ResultadoCruzamentoCard({required this.resultado});
+
+  final Map<String, dynamic> resultado;
+
+  @override
+  Widget build(BuildContext context) {
+    final conclusao = resultado["conclusao"] as String? ?? "duvida";
+    final cor = switch (conclusao) {
+      "conforme" => Colors.green,
+      "divergente" => Colors.red,
+      _ => Colors.orange,
+    };
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                conclusao == "conforme"
+                    ? Icons.check_circle
+                    : conclusao == "divergente"
+                        ? Icons.error
+                        : Icons.help,
+                size: 18,
+                color: cor,
+              ),
+              const SizedBox(width: 6),
+              Text("Resultado da verificação",
+                  style: TextStyle(
+                      fontWeight: FontWeight.w600, color: cor, fontSize: 13)),
+            ],
+          ),
+          if (resultado["resumo"] != null) ...[
+            const SizedBox(height: 6),
+            Text(resultado["resumo"], style: const TextStyle(fontSize: 13)),
+          ],
+          if (resultado["acao"] != null) ...[
+            const SizedBox(height: 4),
+            Text(resultado["acao"],
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                    fontStyle: FontStyle.italic)),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class _StatusButton extends StatelessWidget {
   const _StatusButton({
@@ -393,8 +893,7 @@ class _StatusButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   color: selected ? color : Colors.grey,
-                  fontWeight:
-                      selected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 ),
                 textAlign: TextAlign.center,
               ),

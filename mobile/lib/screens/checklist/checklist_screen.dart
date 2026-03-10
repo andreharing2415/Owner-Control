@@ -504,6 +504,28 @@ class _ItemCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // Severity badge
+                  if (item.severidade != null) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _severidadeColor(item.severidade!)
+                            .withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        item.severidade!.toUpperCase(),
+                        style: TextStyle(
+                          color: _severidadeColor(item.severidade!),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                  // Critical badge
                   if (item.critico) ...[
                     const SizedBox(height: 4),
                     Container(
@@ -518,6 +540,12 @@ class _ItemCard extends StatelessWidget {
                         style: TextStyle(color: Colors.red, fontSize: 10),
                       ),
                     ),
+                  ],
+                  // AI enriched icon
+                  if (item.isEnriquecido) ...[
+                    const SizedBox(height: 4),
+                    Icon(Icons.auto_awesome,
+                        size: 14, color: Colors.amber[700]),
                   ],
                 ],
               ),
@@ -564,6 +592,20 @@ class _ItemCard extends StatelessWidget {
       },
       child: card,
     );
+  }
+
+}
+
+Color _severidadeColor(String severidade) {
+  switch (severidade) {
+    case "alto":
+      return Colors.red;
+    case "medio":
+      return Colors.orange;
+    case "baixo":
+      return Colors.green;
+    default:
+      return Colors.grey;
   }
 }
 
