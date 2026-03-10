@@ -1,5 +1,6 @@
+import "dart:async";
 import "dart:convert";
-import "dart:io" show File;
+import "dart:io" show File, SocketException;
 import "dart:typed_data";
 import "package:file_picker/file_picker.dart";
 import "package:http/http.dart" as http;
@@ -268,8 +269,19 @@ class ApiClient {
         "localizacao": localizacao,
       if (orcamento != null) "orcamento": orcamento,
     });
+    if (response.statusCode == 403) {
+      onFeatureGate?.call("Limite do plano atingido");
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Limite do plano atingido");
+    }
     if (response.statusCode != 200) {
-      throw Exception("Erro ao criar obra");
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao criar obra");
+      } catch (e) {
+        if (e is Exception && e.toString().contains("detail")) rethrow;
+        throw Exception("Erro ao criar obra");
+      }
     }
     return Obra.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
@@ -305,7 +317,7 @@ class ApiClient {
   Future<List<ChecklistItem>> listarItens(String etapaId) async {
     final response = await _get("/api/etapas/$etapaId/checklist-items");
     if (response.statusCode != 200) {
-      throw Exception("Erro ao listar checklist");
+      throw Exception("Erro ao listar checklist (${response.statusCode})");
     }
     final data = jsonDecode(response.body) as List<dynamic>;
     return data
@@ -499,7 +511,7 @@ class ApiClient {
       throw Exception("Plataforma não suporta leitura deste arquivo.");
     }
     request.files.add(multipartFile);
-    final response = await request.send();
+    final response = await _sendWithTimeout(request);
     if (response.statusCode != 200) {
       throw Exception("Erro ao enviar evidencia");
     }
@@ -523,7 +535,7 @@ class ApiClient {
       contentType: _inferContentTypeFromExtension(ext),
     );
     request.files.add(multipartFile);
-    final response = await request.send();
+    final response = await _sendWithTimeout(request);
     if (response.statusCode != 200) {
       throw Exception("Erro ao enviar imagem");
     }
@@ -1155,6 +1167,19 @@ class ApiClient {
   }
 
   // ─── Utils ─────────────────────────────────────────────────────────────────
+
+  Future<http.StreamedResponse> _sendWithTimeout(
+    http.MultipartRequest request, {
+    Duration timeout = const Duration(seconds: 120),
+  }) async {
+    try {
+      return await request.send().timeout(timeout);
+    } on TimeoutException {
+      throw Exception("Upload expirou. Verifique sua conexão e tente novamente.");
+    } on SocketException {
+      throw Exception("Falha na conexão. Verifique sua internet.");
+    }
+  }
 
   MediaType? _inferContentTypeFromExtension(String? ext) {
     if (ext == null) return null;

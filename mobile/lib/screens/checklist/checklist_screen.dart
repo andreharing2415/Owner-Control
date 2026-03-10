@@ -330,7 +330,21 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text("Erro: ${snapshot.error}"));
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text("Erro: ${snapshot.error}", textAlign: TextAlign.center),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: _refresh,
+                    child: const Text("Tentar novamente"),
+                  ),
+                ],
+              ),
+            );
           }
           final itens = snapshot.data ?? [];
           if (itens.isEmpty) {

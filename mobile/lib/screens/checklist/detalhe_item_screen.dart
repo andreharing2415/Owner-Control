@@ -115,12 +115,18 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
     try {
       if (opcao == "camera") {
         final img = await _imagePicker.pickImage(
-            source: ImageSource.camera, imageQuality: 85);
+            source: ImageSource.camera,
+            imageQuality: 85,
+            maxWidth: 1920,
+            maxHeight: 1920);
         if (img == null) return;
         await widget.api.uploadEvidenciaImagem(itemId: _item.id, image: img);
       } else if (opcao == "galeria") {
         final img = await _imagePicker.pickImage(
-            source: ImageSource.gallery, imageQuality: 85);
+            source: ImageSource.gallery,
+            imageQuality: 85,
+            maxWidth: 1920,
+            maxHeight: 1920);
         if (img == null) return;
         await widget.api.uploadEvidenciaImagem(itemId: _item.id, image: img);
       } else {

@@ -169,7 +169,27 @@ def buscar_normas(
         lines = cleaned.split("\n")
         cleaned = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
 
-    resultado = json.loads(cleaned)
+    # Tenta parsear JSON; se falhar, tenta reparar problemas comuns do GPT
+    try:
+        resultado = json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Remove possíveis caracteres de controle e tenta novamente
+        cleaned = cleaned.replace("\n", " ").replace("\r", "").replace("\t", " ")
+        # Tenta extrair JSON de dentro da resposta (pode ter texto extra)
+        start = cleaned.find("{")
+        end = cleaned.rfind("}") + 1
+        if start >= 0 and end > start:
+            cleaned = cleaned[start:end]
+        try:
+            resultado = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Último recurso: retorna estrutura mínima com o texto bruto
+            resultado = {
+                "resumo_geral": output_text[:500],
+                "aviso_legal": "Este resultado é informativo e NÃO substitui parecer técnico de profissional habilitado.",
+                "normas": [],
+                "checklist_dinamico": [],
+            }
     resultado["query_texto"] = query
     resultado["data_consulta"] = datetime.utcnow().isoformat()
     resultado["etapa_nome"] = etapa_nome

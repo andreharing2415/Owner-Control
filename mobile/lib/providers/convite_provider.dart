@@ -62,12 +62,18 @@ class ConviteProvider extends ChangeNotifier {
   List<ObraConvidada> get obrasConvidadas => _obrasConvidadas;
   bool get loadingObras => _loadingObras;
 
+  String? _erroObras;
+  String? get erroObras => _erroObras;
+
   Future<void> carregarObrasConvidadas() async {
     _loadingObras = true;
+    _erroObras = null;
     notifyListeners();
     try {
       _obrasConvidadas = await api.listarObrasConvidadas();
-    } catch (_) {}
+    } catch (e) {
+      _erroObras = e.toString();
+    }
     _loadingObras = false;
     notifyListeners();
   }
@@ -80,12 +86,18 @@ class ConviteProvider extends ChangeNotifier {
   List<EtapaComentario> get comentarios => _comentarios;
   bool get loadingComentarios => _loadingComentarios;
 
+  String? _erroComentarios;
+  String? get erroComentarios => _erroComentarios;
+
   Future<void> carregarComentarios(String etapaId) async {
     _loadingComentarios = true;
+    _erroComentarios = null;
     notifyListeners();
     try {
       _comentarios = await api.listarComentarios(etapaId);
-    } catch (_) {}
+    } catch (e) {
+      _erroComentarios = e.toString();
+    }
     _loadingComentarios = false;
     notifyListeners();
   }

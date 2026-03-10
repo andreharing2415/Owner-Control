@@ -13,6 +13,7 @@ import "../../services/api_client.dart";
 import "../checklist/checklist_screen.dart";
 import "../checklist_inteligente/checklist_inteligente_screen.dart";
 import "../normas/normas_screen.dart";
+import "../financeiro/lancar_despesa_screen.dart";
 import "../visual_ai/visual_ai_screen.dart";
 
 const _statusEtapaLabels = {
@@ -108,6 +109,35 @@ class _EtapasScreenState extends State<EtapasScreen> {
     );
   }
 
+  Widget _buildOrcamentoBar(Etapa etapa) {
+    if (etapa.valorPrevisto == null || etapa.valorPrevisto! <= 0) {
+      return const SizedBox.shrink();
+    }
+    final pct = (etapa.valorGasto ?? 0) / etapa.valorPrevisto!;
+    final estourado = pct > 1.0;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LinearProgressIndicator(
+            value: pct.clamp(0.0, 1.0),
+            backgroundColor: Colors.grey[200],
+            color: estourado ? Colors.red : Colors.green,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "R\$ ${(etapa.valorGasto ?? 0).toStringAsFixed(0)} / R\$ ${etapa.valorPrevisto!.toStringAsFixed(0)}",
+            style: TextStyle(
+              fontSize: 12,
+              color: estourado ? Colors.red : Colors.grey[600],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case "concluida":
@@ -170,7 +200,24 @@ class _EtapasScreenState extends State<EtapasScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text("Erro: ${snapshot.error}"));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 12),
+                    Text("Erro: ${snapshot.error}", textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _refresh,
+                      child: const Text("Tentar novamente"),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           final etapas = snapshot.data ?? [];
           return RefreshIndicator(
@@ -198,31 +245,37 @@ class _EtapasScreenState extends State<EtapasScreen> {
                     ),
                     title: Text(etapa.nome,
                         style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: Row(
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: _statusColor(etapa.status)
-                                .withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            _statusEtapaLabels[etapa.status] ?? etapa.status,
-                            style: TextStyle(
-                                color: _statusColor(etapa.status),
-                                fontSize: 12),
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: _statusColor(etapa.status)
+                                    .withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                _statusEtapaLabels[etapa.status] ?? etapa.status,
+                                style: TextStyle(
+                                    color: _statusColor(etapa.status),
+                                    fontSize: 12),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text("Score: $scoreStr",
+                                style: const TextStyle(fontSize: 12)),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        Text("Score: $scoreStr",
-                            style: const TextStyle(fontSize: 12)),
+                        _buildOrcamentoBar(etapa),
                       ],
                     ),
                     trailing: PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert),
-                      onSelected: (value) {
+                      onSelected: (value) async {
                         switch (value) {
                           case "checklist":
                             Navigator.push(
@@ -252,6 +305,19 @@ class _EtapasScreenState extends State<EtapasScreen> {
                             );
                           case "comentarios":
                             _mostrarComentarios(etapa);
+                          case "despesa":
+                            final adicionou = await Navigator.push<bool>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => LancarDespesaScreen(
+                                  api: widget.api,
+                                  obraId: widget.obra.id,
+                                  etapaId: etapa.id,
+                                  etapaNome: etapa.nome,
+                                ),
+                              ),
+                            );
+                            if (adicionou == true) _refresh();
                         }
                       },
                       itemBuilder: (context) {
@@ -274,6 +340,16 @@ class _EtapasScreenState extends State<EtapasScreen> {
                             ),
                           ),
                           if (!isConvidado) ...[
+                            const PopupMenuItem(
+                              value: "despesa",
+                              child: Row(
+                                children: [
+                                  Icon(Icons.attach_money, size: 18),
+                                  SizedBox(width: 8),
+                                  Text("Lançar despesa"),
+                                ],
+                              ),
+                            ),
                             const PopupMenuItem(
                               value: "normas",
                               child: Row(

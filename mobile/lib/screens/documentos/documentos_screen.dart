@@ -10,9 +10,8 @@ import "../../services/api_client.dart";
 import "pdf_viewer_screen.dart";
 import "../checklist_inteligente/checklist_inteligente_screen.dart";
 
-// Conditional import for web file picking
-import "web_file_picker_stub.dart"
-    if (dart.library.html) "web_file_picker.dart" as web_picker;
+import "dart:io";
+import "package:file_picker/file_picker.dart";
 
 class DocumentosScreen extends StatefulWidget {
   const DocumentosScreen({
@@ -46,8 +45,11 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
 
   Future<void> _uploadPdf() async {
     try {
-      final picked = await web_picker.pickPdfFile();
-      if (picked == null) {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+      if (result == null || result.files.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Nenhum arquivo selecionado.")),
@@ -55,18 +57,16 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
         }
         return;
       }
-
       setState(() => _uploading = true);
+      final file = result.files.first;
+      final bytes = file.bytes ?? await File(file.path!).readAsBytes();
       await widget.api.uploadProjeto(
         obraId: widget.obraId,
-        bytes: picked.bytes,
-        fileName: picked.name,
+        bytes: bytes,
+        fileName: file.name,
       );
-
       await _refresh();
-      if (mounted) {
-        _perguntarChecklistInteligente();
-      }
+      if (mounted) _perguntarChecklistInteligente();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -275,7 +275,24 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text("Erro: ${snapshot.error}"));
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                    const SizedBox(height: 12),
+                    Text("Erro: ${snapshot.error}", textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    ElevatedButton(
+                      onPressed: _refresh,
+                      child: const Text("Tentar novamente"),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
           final projetos = snapshot.data ?? [];
           if (projetos.isEmpty) {

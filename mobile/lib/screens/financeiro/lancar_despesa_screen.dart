@@ -9,10 +9,14 @@ class LancarDespesaScreen extends StatefulWidget {
     super.key,
     required this.obraId,
     required this.api,
+    this.etapaId,
+    this.etapaNome,
   });
 
   final String obraId;
   final ApiClient api;
+  final String? etapaId;
+  final String? etapaNome;
 
   @override
   State<LancarDespesaScreen> createState() => _LancarDespesaScreenState();
@@ -33,6 +37,7 @@ class _LancarDespesaScreenState extends State<LancarDespesaScreen> {
   @override
   void initState() {
     super.initState();
+    _etapaIdSelecionada = widget.etapaId;
     _carregarEtapas();
   }
 

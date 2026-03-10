@@ -93,7 +93,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Erro ao criar obra: $e")),
+            SnackBar(content: Text(e.toString().replaceFirst("Exception: ", ""))),
           );
         }
       }

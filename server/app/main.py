@@ -167,6 +167,66 @@ def health() -> dict:
     return {"status": "ok"}
 
 
+from fastapi.responses import HTMLResponse
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_policy():
+    return """<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Política de Privacidade — Mestre da Obra</title>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.6;color:#333}h1{color:#1a5276}h2{color:#2c3e50;margin-top:2rem}</style></head><body>
+<h1>Política de Privacidade — Mestre da Obra</h1>
+<p><strong>Última atualização:</strong> 10 de março de 2026</p>
+
+<h2>1. Informações que coletamos</h2>
+<p>O Mestre da Obra coleta as seguintes informações para fornecer nossos serviços:</p>
+<ul>
+<li><strong>Dados de cadastro:</strong> nome, e-mail e senha (armazenada de forma criptografada).</li>
+<li><strong>Dados de obras:</strong> informações sobre obras, etapas, orçamentos e checklists que você cadastra.</li>
+<li><strong>Fotos e câmera:</strong> quando você utiliza a funcionalidade de análise visual, acessamos a câmera do dispositivo para capturar fotos da obra. As fotos são armazenadas de forma segura e usadas exclusivamente para análise técnica.</li>
+<li><strong>Documentos (PDF):</strong> projetos enviados para análise por inteligência artificial.</li>
+</ul>
+
+<h2>2. Como usamos suas informações</h2>
+<ul>
+<li>Gerenciar suas obras, etapas e orçamentos.</li>
+<li>Analisar fotos e projetos via inteligência artificial para identificar possíveis problemas.</li>
+<li>Enviar notificações sobre alertas e atualizações da obra.</li>
+<li>Processar pagamentos de assinatura via Stripe.</li>
+</ul>
+
+<h2>3. Compartilhamento de dados</h2>
+<p>Não vendemos seus dados pessoais. Compartilhamos informações apenas com:</p>
+<ul>
+<li><strong>Stripe:</strong> para processamento seguro de pagamentos.</li>
+<li><strong>Provedores de IA:</strong> para análise de fotos e projetos (dados anonimizados quando possível).</li>
+<li><strong>Profissionais convidados:</strong> apenas dados da obra específica, quando você convida um profissional.</li>
+</ul>
+
+<h2>4. Armazenamento e segurança</h2>
+<p>Seus dados são armazenados em servidores seguros (Google Cloud Platform e Supabase) com criptografia em trânsito e em repouso. Senhas são protegidas com hash bcrypt.</p>
+
+<h2>5. Seus direitos (LGPD)</h2>
+<p>Conforme a Lei Geral de Proteção de Dados (Lei 13.709/2018), você tem direito a:</p>
+<ul>
+<li>Acessar seus dados pessoais.</li>
+<li>Corrigir dados incompletos ou desatualizados.</li>
+<li>Solicitar a exclusão da sua conta e dados associados.</li>
+<li>Revogar consentimento a qualquer momento.</li>
+</ul>
+<p>Para exercer seus direitos, acesse "Minha Conta" no app ou entre em contato pelo e-mail abaixo.</p>
+
+<h2>6. ID de publicidade</h2>
+<p>O Mestre da Obra <strong>não utiliza</strong> o ID de publicidade do Google (AD_ID) e não exibe anúncios.</p>
+
+<h2>7. Contato</h2>
+<p>Para dúvidas sobre esta política: <strong>andrefharing@gmail.com</strong></p>
+
+<h2>8. Alterações</h2>
+<p>Esta política pode ser atualizada periodicamente. Notificaremos sobre mudanças significativas pelo app.</p>
+</body></html>"""
+
+
 # ─── Fase 7 — Autenticação ──────────────────────────────────────────────────
 
 @app.post("/api/auth/register", response_model=TokenResponse)
@@ -408,9 +468,29 @@ def listar_obras(session: Session = Depends(get_session), current_user: User = D
 
 @app.get("/api/obras/{obra_id}")
 def obter_obra(obra_id: UUID, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)) -> dict:
+    from sqlalchemy import func as sa_func
+
     obra = _verify_obra_ownership(obra_id, current_user, session)
     etapas = session.exec(select(Etapa).where(Etapa.obra_id == obra_id).order_by(Etapa.ordem)).all()
-    return {"obra": obra, "etapas": etapas}
+
+    etapas_enriched = []
+    for etapa in etapas:
+        etapa_dict = etapa.model_dump()
+
+        orcamento = session.exec(
+            select(OrcamentoEtapa).where(OrcamentoEtapa.etapa_id == etapa.id)
+        ).first()
+        etapa_dict["valor_previsto"] = orcamento.valor_previsto if orcamento else None
+
+        total_gasto = session.exec(
+            select(sa_func.coalesce(sa_func.sum(Despesa.valor), 0))
+            .where(Despesa.etapa_id == etapa.id)
+        ).one()
+        etapa_dict["valor_gasto"] = float(total_gasto)
+
+        etapas_enriched.append(etapa_dict)
+
+    return {"obra": obra, "etapas": etapas_enriched}
 
 
 @app.get("/api/obras/{obra_id}/export-pdf")
