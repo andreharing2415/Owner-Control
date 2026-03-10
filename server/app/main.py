@@ -109,7 +109,7 @@ from .normas import buscar_normas
 from .documentos import analisar_documento
 from .visual_ai import analisar_imagem
 from .push import enviar_push_multiplos
-from .checklist_inteligente import gerar_checklist_stream, processar_checklist_background
+from .checklist_inteligente import gerar_checklist_stream, processar_checklist_background, enriquecer_item_unico
 from .email_service import enviar_email_convite
 
 
@@ -2777,3 +2777,145 @@ def listar_comentarios(
             created_at=c.created_at,
         ))
     return result
+
+
+# ─── Fase 3 — IA Enriquece Checklist Padrão ─────────────────────────────────
+
+@app.post("/api/checklist-items/{item_id}/enriquecer", response_model=ChecklistItemRead)
+def enriquecer_item(
+    item_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_paid),
+):
+    """Enriquece um item de checklist padrão com análise IA (3 blocos)."""
+    item = session.get(ChecklistItem, item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item nao encontrado")
+
+    etapa = session.get(Etapa, item.etapa_id)
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa nao encontrada")
+
+    _verify_obra_access(etapa.obra_id, current_user, session)
+
+    # Buscar contexto dos docs analisados da obra
+    docs = session.exec(
+        select(ProjetoDoc).where(ProjetoDoc.obra_id == etapa.obra_id)
+    ).all()
+    doc_parts = []
+    for d in docs:
+        if d.resumo_geral:
+            doc_parts.append(f"[{d.arquivo_nome}] {d.resumo_geral}")
+        # Include risks identified in this document
+        riscos = session.exec(
+            select(Risco).where(Risco.projeto_id == d.id)
+        ).all()
+        for r in riscos:
+            doc_parts.append(f"  Risco ({r.severidade}): {r.descricao}")
+    contexto = "\n".join(doc_parts)
+
+    enrichment = enriquecer_item_unico(
+        titulo=item.titulo,
+        descricao=item.descricao or "",
+        etapa_nome=etapa.nome,
+        contexto_docs=contexto,
+    )
+
+    # Atualizar campos escalares
+    if enrichment.get("severidade"):
+        item.severidade = enrichment["severidade"]
+    if enrichment.get("traducao_leigo"):
+        item.traducao_leigo = enrichment["traducao_leigo"]
+    if enrichment.get("norma_referencia"):
+        item.norma_referencia = enrichment["norma_referencia"]
+    if enrichment.get("confianca") is not None:
+        item.confianca = int(enrichment["confianca"])
+
+    # Atualizar campos JSON (3 blocos)
+    if enrichment.get("dado_projeto"):
+        item.dado_projeto = json.dumps(enrichment["dado_projeto"], ensure_ascii=False)
+    if enrichment.get("verificacoes"):
+        item.verificacoes = json.dumps(enrichment["verificacoes"], ensure_ascii=False)
+    if enrichment.get("pergunta_engenheiro"):
+        item.pergunta_engenheiro = json.dumps(enrichment["pergunta_engenheiro"], ensure_ascii=False)
+    if enrichment.get("documentos_a_exigir"):
+        item.documentos_a_exigir = json.dumps(enrichment["documentos_a_exigir"], ensure_ascii=False)
+
+    item.origem = "ia"
+    session.add(item)
+    session.commit()
+    session.refresh(item)
+    return item
+
+
+@app.post("/api/etapas/{etapa_id}/enriquecer-checklist")
+def enriquecer_checklist_etapa(
+    etapa_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_paid),
+):
+    """Enriquece em batch todos os itens padrão de uma etapa com IA."""
+    etapa = session.get(Etapa, etapa_id)
+    if not etapa:
+        raise HTTPException(status_code=404, detail="Etapa nao encontrada")
+
+    _verify_obra_access(etapa.obra_id, current_user, session)
+
+    # Buscar itens NÃO enriquecidos (sem dado_projeto preenchido)
+    items = session.exec(
+        select(ChecklistItem)
+        .where(ChecklistItem.etapa_id == etapa_id)
+        .where(ChecklistItem.dado_projeto.is_(None))
+    ).all()
+
+    if not items:
+        return {"enriquecidos": 0, "total": 0, "mensagem": "Todos os itens ja foram enriquecidos."}
+
+    # Buscar contexto dos docs
+    docs = session.exec(
+        select(ProjetoDoc).where(ProjetoDoc.obra_id == etapa.obra_id)
+    ).all()
+    doc_parts = []
+    for d in docs:
+        if d.resumo_geral:
+            doc_parts.append(f"[{d.arquivo_nome}] {d.resumo_geral}")
+        riscos = session.exec(
+            select(Risco).where(Risco.projeto_id == d.id)
+        ).all()
+        for r in riscos:
+            doc_parts.append(f"  Risco ({r.severidade}): {r.descricao}")
+    contexto = "\n".join(doc_parts)
+
+    count = 0
+    for item in items:
+        try:
+            enrichment = enriquecer_item_unico(
+                titulo=item.titulo,
+                descricao=item.descricao or "",
+                etapa_nome=etapa.nome,
+                contexto_docs=contexto,
+            )
+            if enrichment.get("severidade"):
+                item.severidade = enrichment["severidade"]
+            if enrichment.get("traducao_leigo"):
+                item.traducao_leigo = enrichment["traducao_leigo"]
+            if enrichment.get("norma_referencia"):
+                item.norma_referencia = enrichment["norma_referencia"]
+            if enrichment.get("confianca") is not None:
+                item.confianca = int(enrichment["confianca"])
+            if enrichment.get("dado_projeto"):
+                item.dado_projeto = json.dumps(enrichment["dado_projeto"], ensure_ascii=False)
+            if enrichment.get("verificacoes"):
+                item.verificacoes = json.dumps(enrichment["verificacoes"], ensure_ascii=False)
+            if enrichment.get("pergunta_engenheiro"):
+                item.pergunta_engenheiro = json.dumps(enrichment["pergunta_engenheiro"], ensure_ascii=False)
+            if enrichment.get("documentos_a_exigir"):
+                item.documentos_a_exigir = json.dumps(enrichment["documentos_a_exigir"], ensure_ascii=False)
+            item.origem = "ia"
+            session.add(item)
+            count += 1
+        except Exception as e:
+            logger.warning(f"Falha ao enriquecer item {item.id}: {e}")
+
+    session.commit()
+    return {"enriquecidos": count, "total": len(items)}

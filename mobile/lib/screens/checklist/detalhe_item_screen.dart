@@ -30,6 +30,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
   bool _salvandoObs = false;
   bool _salvandoStatus = false;
   bool _mostrarFormVerificacao = false;
+  bool _enriquecendo = false;
 
   @override
   void initState() {
@@ -81,6 +82,29 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
       }
     } finally {
       if (mounted) setState(() => _salvandoObs = false);
+    }
+  }
+
+  Future<void> _enriquecerItem() async {
+    setState(() => _enriquecendo = true);
+    try {
+      final enriched = await widget.api.enriquecerItem(_item.id);
+      if (mounted) {
+        setState(() => _item = enriched);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Item enriquecido com sucesso!")),
+        );
+      }
+    } on FeatureGateException {
+      // onFeatureGate callback already handled
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _enriquecendo = false);
     }
   }
 
@@ -468,58 +492,55 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
             ),
           ],
 
-          // ── Mensagem se não enriquecido ─────────────────────────────
-          if (!_item.isEnriquecido &&
-              _item.normaReferencia == null) ...[
+          // ── Botão Analisar com IA (se não enriquecido) ────────────
+          if (!_item.isEnriquecido) ...[
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(10),
+            Card(
+              color: Colors.blue.shade50,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: Colors.blue.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: ListTile(
+                leading: const Icon(Icons.auto_awesome, color: Colors.blue),
+                title: const Text("Analisar com IA"),
+                subtitle: const Text("Preencher os 3 blocos com análise inteligente"),
+                trailing: _enriquecendo
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _enriquecendo ? null : _enriquecerItem,
+              ),
+            ),
+            if (_item.normaReferencia != null) ...[
+              const SizedBox(height: 8),
+              Row(
                 children: [
-                  Icon(Icons.auto_awesome, size: 18, color: Colors.amber[700]),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      "Solicite análise por IA para preencher detalhes.",
-                      style: TextStyle(fontSize: 13),
+                  Icon(Icons.menu_book_outlined,
+                      size: 16, color: theme.colorScheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(_item.normaReferencia!,
+                        style: const TextStyle(fontSize: 13)),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => NormasScreen(
+                          api: widget.api,
+                          etapaInicial: widget.etapaNome,
+                        ),
+                      ),
                     ),
+                    child: const Text("Ver biblioteca"),
                   ),
                 ],
               ),
-            ),
-          ] else if (!_item.isEnriquecido &&
-              _item.normaReferencia != null) ...[
-            // Item with norma but no 3-layer data
-            const SizedBox(height: 16),
-            Text("Norma de referência", style: theme.textTheme.titleSmall),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Icon(Icons.menu_book_outlined,
-                    size: 16, color: theme.colorScheme.primary),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(_item.normaReferencia!,
-                      style: const TextStyle(fontSize: 13)),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => NormasScreen(
-                        api: widget.api,
-                        etapaInicial: widget.etapaNome,
-                      ),
-                    ),
-                  ),
-                  child: const Text("Ver biblioteca"),
-                ),
-              ],
-            ),
+            ],
           ],
 
           // ── Status ──────────────────────────────────────────────────

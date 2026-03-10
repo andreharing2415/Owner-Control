@@ -1020,6 +1020,38 @@ class ApiClient {
         .toList();
   }
 
+  // ─── Enriquecimento IA ──────────────────────────────────────────────────────
+
+  Future<ChecklistItem> enriquecerItem(String itemId) async {
+    final response = await _post("/api/checklist-items/$itemId/enriquecer");
+    if (response.statusCode == 403) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body["detail"] as String? ?? "Funcionalidade exclusiva do plano Dono da Obra";
+      onFeatureGate?.call(msg);
+      throw FeatureGateException(msg);
+    }
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao enriquecer item");
+    }
+    return ChecklistItem.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<Map<String, dynamic>> enriquecerChecklist(String etapaId) async {
+    final response = await _post("/api/etapas/$etapaId/enriquecer-checklist");
+    if (response.statusCode == 403) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body["detail"] as String? ?? "Funcionalidade exclusiva do plano Dono da Obra";
+      onFeatureGate?.call(msg);
+      throw FeatureGateException(msg);
+    }
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao enriquecer checklist");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   // ─── Subscription ─────────────────────────────────────────────────────────
 
   Future<SubscriptionInfo> getSubscriptionInfo() async {

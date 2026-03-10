@@ -192,6 +192,62 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     }
   }
 
+  Future<void> _enriquecerTodos() async {
+    final confirma = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.auto_awesome, color: Colors.blue),
+        title: const Text("Enriquecer Checklist com IA?"),
+        content: const Text(
+          "A IA vai analisar todos os itens padrão desta etapa e preencher "
+          "os 3 blocos (projeto, verificação, norma) com base nos documentos da obra.",
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text("Cancelar")),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Enriquecer")),
+        ],
+      ),
+    );
+    if (confirma != true) return;
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text("Enriquecendo itens com IA..."),
+          duration: Duration(seconds: 60)),
+    );
+
+    try {
+      final result = await widget.api.enriquecerChecklist(_etapa.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text("${result['enriquecidos']} itens enriquecidos!")),
+        );
+        _refresh();
+      }
+    } on FeatureGateException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        PaywallScreen.show(context,
+            message: "Enriqueça o checklist com IA no plano Dono da Obra");
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro: $e")),
+        );
+      }
+    }
+  }
+
   Future<void> _editarPrazo() async {
     DateTime? prazoPrevisto = _etapa.prazoPrevisto;
     DateTime? prazoExecutado = _etapa.prazoExecutado;
@@ -289,6 +345,11 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
       appBar: AppBar(
         title: Text(_etapa.nome),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: "Enriquecer todos com IA",
+            onPressed: _enriquecerTodos,
+          ),
           IconButton(
             onPressed: _editarPrazo,
             icon: Badge(

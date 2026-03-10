@@ -469,6 +469,140 @@ def gerar_itens_para_caracteristica(
     )
 
 
+# ─── Enriquecimento unitario de item padrao ─────────────────────────────────
+
+ENRICH_PROMPT_TEMPLATE = """\
+Voce e um especialista em normas tecnicas brasileiras de construcao civil.
+
+Analise este item de checklist de obra no contexto dos documentos do projeto \
+e enriqueca com informacoes detalhadas para o proprietario.
+
+Item: {titulo}
+Descricao: {descricao}
+Etapa: {etapa_nome}
+
+Documentos do projeto:
+{contexto_docs}
+
+REGRAS:
+1. Linguagem SIMPLES e DIRETA para proprietario leigo
+2. Inclua norma tecnica aplicavel (ABNT, NR) quando houver
+3. Indique nivel de confianca (0-100)
+4. NUNCA apresente como parecer tecnico
+
+FORMATO DE RESPOSTA (JSON obrigatorio):
+{{
+  "severidade": "alto" | "medio" | "baixo",
+  "traducao_leigo": "explicacao simples para proprietario leigo (max 200 chars)",
+  "dado_projeto": {{
+    "descricao": "o que este item representa no projeto (max 150 chars)",
+    "especificacao": "especificacao tecnica esperada",
+    "fonte": "onde encontrar no projeto",
+    "valor_referencia": "valor de referencia"
+  }},
+  "verificacoes": [
+    {{
+      "instrucao": "instrucao simples do que fazer (max 100 chars)",
+      "tipo": "medicao | visual | documento",
+      "valor_esperado": "o que esperar",
+      "como_medir": "como realizar a verificacao (max 150 chars)"
+    }}
+  ],
+  "pergunta_engenheiro": {{
+    "contexto": "contexto para o engenheiro (max 150 chars)",
+    "pergunta": "pergunta colaborativa e respeitosa (max 150 chars)",
+    "tom": "colaborativo"
+  }},
+  "norma_referencia": "norma ABNT/NBR aplicavel ou null",
+  "documentos_a_exigir": ["nome do documento 1"],
+  "confianca": 0-100
+}}
+
+Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
+
+
+def _enriquecer_claude(prompt: str) -> dict:
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY nao configurada")
+    client = anthropic.Anthropic(api_key=api_key)
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text if response.content else ""
+    if not text:
+        raise ValueError("Claude nao retornou resposta")
+    return json.loads(_clean_json_response(text))
+
+
+def _enriquecer_openai(prompt: str) -> dict:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY nao configurada")
+    client = OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.choices[0].message.content or ""
+    if not text:
+        raise ValueError("OpenAI nao retornou resposta")
+    return json.loads(_clean_json_response(text))
+
+
+def _enriquecer_gemini(prompt: str) -> dict:
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY nao configurada")
+    import google.generativeai as genai
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-2.0-flash")
+    response = model.generate_content(prompt)
+    text = response.text
+    if not text:
+        raise ValueError("Gemini nao retornou resposta")
+    return json.loads(_clean_json_response(text))
+
+
+def enriquecer_item_unico(
+    titulo: str,
+    descricao: str,
+    etapa_nome: str,
+    contexto_docs: str,
+) -> dict:
+    """Enriquece um item de checklist padrao com analise IA.
+
+    Cadeia de fallback: Claude -> OpenAI -> Gemini.
+    Retorna dict com campos dos 3 blocos de orientacao.
+    """
+    prompt = ENRICH_PROMPT_TEMPLATE.format(
+        titulo=titulo,
+        descricao=descricao or "Sem descricao",
+        etapa_nome=etapa_nome,
+        contexto_docs=contexto_docs[:8000] if contexto_docs else "Nenhum documento analisado",
+    )
+
+    providers = [
+        ("Claude", _enriquecer_claude),
+        ("OpenAI", _enriquecer_openai),
+        ("Gemini", _enriquecer_gemini),
+    ]
+    last_error = None
+    for name, func in providers:
+        try:
+            result = func(prompt)
+            logger.info("Enriquecimento de '%s' via %s", titulo[:40], name)
+            return result
+        except Exception as exc:
+            logger.warning("Enriquecimento de '%s' falhou via %s: %s", titulo[:40], name, exc)
+            last_error = exc
+
+    raise ValueError(f"Todos os providers falharam para enriquecer '{titulo[:40]}'. Ultimo: {last_error}")
+
+
 # ─── Pipeline SSE Streaming ─────────────────────────────────────────────────
 
 def gerar_checklist_stream(
