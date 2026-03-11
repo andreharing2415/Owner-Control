@@ -306,12 +306,12 @@ class _CurvaSPainter extends CustomPainter {
     return "R\$${value.toStringAsFixed(0)}";
   }
 
-  String _formatDateLabel(String isoDate) {
-    final parts = isoDate.split("-");
-    if (parts.length >= 2) {
-      return "${parts[parts.length - 1]}/${parts[parts.length - 2]}";
+  String _formatDateLabel(String label) {
+    // Etapa names may be long — truncate to fit
+    if (label.length > 12) {
+      return "${label.substring(0, 10)}…";
     }
-    return isoDate;
+    return label;
   }
 
   @override

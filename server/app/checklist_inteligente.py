@@ -6,8 +6,8 @@ Pipeline incremental por pagina com SSE streaming:
 2. Para cada caracteristica NOVA -> gera itens de checklist com normas detalhadas
 3. Envia resultados ao cliente via Server-Sent Events em tempo real
 
-Cadeia de fallback para identificacao: Claude -> OpenAI -> Gemini
-Cadeia de fallback para geracao: OpenAI (web search) -> Gemini
+Cadeia de fallback para identificacao: Gemini -> Claude -> OpenAI
+Cadeia de fallback para geracao: Gemini -> OpenAI (web search)
 
 Guardrails obrigatorios (RULES.md):
 - Nunca apresentar como parecer tecnico ou opiniao profissional
@@ -131,10 +131,13 @@ Analise esta UNICA pagina de um projeto de construcao e identifique \
 TODAS as caracteristicas especiais e sistemas presentes.
 
 REGRAS OBRIGATORIAS:
-1. Identifique SOMENTE caracteristicas EXPLICITAMENTE mencionadas ou desenhadas
-2. NAO especule sobre caracteristicas nao mencionadas
-3. Para cada caracteristica, indique onde na pagina ela foi identificada
+1. Identifique SOMENTE caracteristicas que voce pode VER CLARAMENTE escritas, desenhadas ou cotadas na pagina
+2. NAO ESPECULE. Se nao ha texto, simbolo ou desenho EXPLICITO de uma caracteristica, NAO a inclua
+3. Para cada caracteristica, cite o TEXTO EXATO ou SIMBOLO que voce viu na pagina como evidencia
 4. Indique nivel de confianca (0-100) para cada caracteristica
+5. Confianca abaixo de 70: NAO inclua a caracteristica. So reporte o que e CERTO
+6. Se a pagina e uma planta baixa generica sem sistemas especiais, retorne lista VAZIA
+7. NUNCA confunda equipamentos padrao (torneiras, chuveiros, tomadas) com sistemas especiais
 
 LISTA DE CARACTERISTICAS A BUSCAR:
 - piscina (piscina, spa, espelho d'agua com sistema)
@@ -165,12 +168,14 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
       "id": "piscina",
       "nome_legivel": "Piscina",
       "descricao_no_projeto": "onde e como aparece na pagina (max 200 chars)",
+      "evidencia_textual": "texto ou rotulo EXATO que voce leu na pagina (ex: 'PISCINA 24 m2')",
       "confianca": numero 0-100
     }
   ],
   "resumo_pagina": "descricao breve do conteudo desta pagina (max 150 chars)"
 }
 
+IMPORTANTE: Na maioria das paginas NAO ha caracteristicas especiais. E NORMAL retornar lista vazia.
 Se nenhuma caracteristica especial for encontrada, retorne:
 {"caracteristicas": [], "resumo_pagina": "descricao do conteudo"}
 
@@ -346,7 +351,7 @@ def _analisar_pagina_gemini(img_b64: str, page_label: str) -> dict:
     from google.generativeai.types import content_types
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     img_bytes = base64.standard_b64decode(img_b64)
     response = model.generate_content([
@@ -361,11 +366,11 @@ def _analisar_pagina_gemini(img_b64: str, page_label: str) -> dict:
 
 
 def analisar_pagina(img_b64: str, page_label: str) -> dict:
-    """Analisa uma pagina individual com fallback chain: Claude -> OpenAI -> Gemini."""
+    """Analisa uma pagina individual com fallback chain: Gemini -> Claude -> OpenAI."""
     providers = [
+        ("Gemini", _analisar_pagina_gemini),
         ("Claude", _analisar_pagina_claude),
         ("OpenAI", _analisar_pagina_openai),
-        ("Gemini", _analisar_pagina_gemini),
     ]
     last_error = None
     for name, func in providers:
@@ -416,7 +421,7 @@ def _gerar_itens_gemini(query: str) -> dict:
 
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     response = model.generate_content(
         f"{PHASE2_SYSTEM_PROMPT}\n\nConsulta: {query}"
@@ -455,8 +460,8 @@ def gerar_itens_para_caracteristica(
     )
 
     providers = [
-        ("OpenAI", _gerar_itens_openai),
         ("Gemini", _gerar_itens_gemini),
+        ("OpenAI", _gerar_itens_openai),
     ]
     last_error = None
     for name, func in providers:
@@ -567,7 +572,7 @@ def _enriquecer_gemini(prompt: str) -> dict:
         raise ValueError("GEMINI_API_KEY nao configurada")
     import google.generativeai as genai
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     response = model.generate_content(prompt)
     text = response.text
     if not text:
@@ -594,9 +599,9 @@ def enriquecer_item_unico(
     )
 
     providers = [
+        ("Gemini", _enriquecer_gemini),
         ("Claude", _enriquecer_claude),
         ("OpenAI", _enriquecer_openai),
-        ("Gemini", _enriquecer_gemini),
     ]
     last_error = None
     for name, func in providers:
@@ -679,10 +684,14 @@ def gerar_checklist_stream(
                 if resumo:
                     resumos_paginas.append(f"[p{global_page}] {resumo}")
 
-                # Verificar caracteristicas novas
+                # Verificar caracteristicas novas (filtrar confianca < 70)
                 for carac in resultado.get("caracteristicas", []):
                     carac_id = carac.get("id", "")
+                    confianca = carac.get("confianca", 0)
                     if not carac_id or carac_id in caracteristicas_encontradas:
+                        continue
+                    if confianca < 70:
+                        logger.info("Caracteristica '%s' descartada (confianca=%d < 70)", carac_id, confianca)
                         continue
 
                     caracteristicas_encontradas[carac_id] = carac
@@ -825,7 +834,11 @@ def processar_checklist_background(
 
                     for carac in resultado.get("caracteristicas", []):
                         carac_id = carac.get("id", "")
+                        confianca = carac.get("confianca", 0)
                         if not carac_id or carac_id in caracteristicas_encontradas:
+                            continue
+                        if confianca < 70:
+                            logger.info("BG: Caracteristica '%s' descartada (confianca=%d < 70)", carac_id, confianca)
                             continue
 
                         caracteristicas_encontradas[carac_id] = carac

@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -1067,6 +1068,20 @@ def relatorio_financeiro(
     else:
         desvio_total = 0.0
 
+    # ─── Gerar dados da Curva S (acumulado por etapa) ──────────────────
+    from .schemas import CurvaSPonto
+    curva_s: list[CurvaSPonto] = []
+    acum_previsto = 0.0
+    acum_realizado = 0.0
+    for ep in por_etapa:
+        acum_previsto += ep.valor_previsto
+        acum_realizado += ep.valor_gasto
+        curva_s.append(CurvaSPonto(
+            data=ep.etapa_nome,
+            previsto=round(acum_previsto, 2),
+            realizado=round(acum_realizado, 2),
+        ))
+
     return RelatorioFinanceiro(
         obra_id=obra_id,
         total_previsto=total_previsto,
@@ -1075,6 +1090,7 @@ def relatorio_financeiro(
         alerta=desvio_total > threshold,
         threshold=threshold,
         por_etapa=por_etapa,
+        curva_s=curva_s,
     )
 
 
@@ -3195,6 +3211,76 @@ def enriquecer_todos_checklist(
 
 # ─── Fase 6F: Detalhamento da Obra (cômodos + m²) ────────────────────────────
 
+
+def _extrair_detalhamento_vision(paginas: list[tuple[str, int]], prompt: str) -> dict:
+    """Extrai detalhamento via vision AI com fallback Gemini -> Claude -> OpenAI."""
+    import google.generativeai as genai
+    from google.generativeai.types import content_types
+
+    def _clean(text: str) -> str:
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            cleaned = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+        return cleaned
+
+    # --- Gemini (primary) ---
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
+        try:
+            genai.configure(api_key=gemini_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            parts = []
+            for img_b64, page_num in paginas:
+                parts.append(f"[Pagina {page_num}]")
+                img_bytes = base64.b64decode(img_b64)
+                parts.append(content_types.to_part({"mime_type": "image/jpeg", "data": img_bytes}))
+            parts.append(prompt)
+            response = model.generate_content(parts)
+            if response.text:
+                return json.loads(_clean(response.text))
+        except Exception as exc:
+            logger.warning("Detalhamento vision falhou via Gemini: %s", exc)
+
+    # --- Claude (fallback) ---
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        try:
+            import anthropic as anth
+            client = anth.Anthropic(api_key=anthropic_key)
+            content_blocks: list[dict] = []
+            for img_b64, page_num in paginas:
+                content_blocks.append({"type": "text", "text": f"[Pagina {page_num}]"})
+                content_blocks.append({"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": img_b64}})
+            content_blocks.append({"type": "text", "text": prompt})
+            response = client.messages.create(model="claude-sonnet-4-6", max_tokens=4096, messages=[{"role": "user", "content": content_blocks}])
+            text = response.content[0].text if response.content else ""
+            if text:
+                return json.loads(_clean(text))
+        except Exception as exc:
+            logger.warning("Detalhamento vision falhou via Claude: %s", exc)
+
+    # --- OpenAI (fallback) ---
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        try:
+            from openai import OpenAI as OAI
+            client = OAI(api_key=openai_key)
+            content_parts: list[dict] = []
+            for img_b64, page_num in paginas:
+                content_parts.append({"type": "text", "text": f"[Pagina {page_num}]"})
+                content_parts.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})
+            content_parts.append({"type": "text", "text": prompt})
+            response = client.chat.completions.create(model="gpt-4o", messages=[{"role": "user", "content": content_parts}], max_tokens=4096)
+            text = response.choices[0].message.content or ""
+            if text:
+                return json.loads(_clean(text))
+        except Exception as exc:
+            logger.warning("Detalhamento vision falhou via OpenAI: %s", exc)
+
+    raise ValueError("Todos os providers falharam na extracao de detalhamento vision.")
+
+
 @app.get("/api/obras/{obra_id}/detalhamento")
 def get_detalhamento(
     obra_id: UUID,
@@ -3225,7 +3311,7 @@ def extrair_detalhamento(
     session: Session = Depends(get_session),
     current_user: User = Depends(require_paid),
 ):
-    """Extrai cômodos e metragens dos documentos da obra usando IA."""
+    """Extrai cômodos e metragens dos documentos da obra usando IA vision (envia imagens do PDF)."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
 
     docs = session.exec(
@@ -3234,53 +3320,53 @@ def extrair_detalhamento(
     if not docs:
         raise HTTPException(status_code=400, detail="Nenhum documento enviado.")
 
-    # Build context from document summaries
-    doc_parts = []
+    # Download PDFs and extract pages as images for vision AI
+    from .pdf_utils import extrair_paginas_como_imagens
+    from .storage import download_by_url, extract_object_key
+
+    all_pages: list[tuple[str, int]] = []
     fonte_doc = None
+    bucket = os.getenv("S3_BUCKET", "")
     for d in docs:
-        if d.resumo_geral:
-            doc_parts.append(f"[{d.arquivo_nome}] {d.resumo_geral}")
+        try:
+            object_key = extract_object_key(d.arquivo_url, bucket)
+            pdf_bytes = download_by_url(d.arquivo_url, bucket, object_key)
+            pages = extrair_paginas_como_imagens(pdf_bytes, dpi=200, max_pages=15)
+            all_pages.extend(pages)
             if fonte_doc is None:
                 fonte_doc = d
-    contexto = "\n".join(doc_parts)
+        except Exception as exc:
+            logger.warning("Falha ao baixar PDF %s: %s", d.arquivo_nome, exc)
 
-    if not contexto:
-        raise HTTPException(status_code=400, detail="Documentos ainda nao analisados.")
+    if not all_pages:
+        raise HTTPException(status_code=400, detail="Nao foi possivel extrair paginas dos PDFs.")
 
-    prompt = f"""Analise os documentos do projeto de construcao abaixo e extraia:
-1. Lista de comodos/ambientes com nome e area em m2 de cada um
-2. Area total da obra em m2
+    detalhamento_prompt = """Analise TODAS as paginas deste projeto arquitetonico de construcao civil.
 
-Documentos:
-{contexto[:8000]}
+Extraia com precisao:
+1. TODOS os comodos/ambientes que aparecem nas plantas com seus nomes e areas em m2
+2. A area total construida
+
+REGRAS:
+- Leia EXATAMENTE os nomes e metragens escritos nas plantas (ex: "SUITE MASTER 12,87 m2")
+- NAO invente comodos ou areas que nao estejam claramente escritos
+- Inclua TODOS os ambientes: quartos, banheiros (WC), closets, sala, cozinha, garagem, varanda, areas externas, etc.
+- Use o formato brasileiro de numeros (virgula como decimal) convertido para ponto (ex: 12,87 -> 12.87)
 
 FORMATO DE RESPOSTA (JSON obrigatorio):
-{{
+{
   "comodos": [
-    {{"nome": "Sala de estar", "area_m2": 25.0}},
-    {{"nome": "Quarto 1", "area_m2": 14.0}}
+    {"nome": "Suite Master", "area_m2": 12.87},
+    {"nome": "Cozinha", "area_m2": 30.25}
   ],
-  "area_total_m2": 180.0
-}}
+  "area_total_m2": 238.27
+}
 
 Se nao conseguir identificar areas especificas, retorne area_m2: null para o comodo.
-Se nao conseguir identificar nenhum comodo, retorne lista vazia.
-Retorne SOMENTE o JSON."""
+Retorne SOMENTE o JSON, sem markdown."""
 
-    # Use the enrichment chain (Claude -> OpenAI -> Gemini)
-    from .checklist_inteligente import _enriquecer_claude, _enriquecer_openai, _enriquecer_gemini
-    providers = [
-        ("Claude", _enriquecer_claude),
-        ("OpenAI", _enriquecer_openai),
-        ("Gemini", _enriquecer_gemini),
-    ]
-    result = None
-    for name, func in providers:
-        try:
-            result = func(prompt)
-            break
-        except Exception as exc:
-            logger.warning(f"Extracao detalhamento falhou via {name}: {exc}")
+    # Use vision AI with actual PDF page images
+    result = _extrair_detalhamento_vision(all_pages, detalhamento_prompt)
 
     if not result:
         raise HTTPException(status_code=500, detail="Falha ao extrair detalhamento.")

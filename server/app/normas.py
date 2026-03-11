@@ -105,6 +105,37 @@ Retorne SOMENTE o JSON, sem markdown, sem texto antes ou depois."""
 # ─── Função principal ─────────────────────────────────────────────────────────
 
 
+def _clean_json_normas(text: str) -> str:
+    """Remove blocos de markdown se presentes na resposta da IA."""
+    cleaned = text.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        cleaned = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
+    return cleaned
+
+
+def _parse_normas_json(output_text: str) -> dict:
+    """Tenta parsear JSON; se falhar, tenta reparar problemas comuns."""
+    cleaned = _clean_json_normas(output_text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        cleaned = cleaned.replace("\n", " ").replace("\r", "").replace("\t", " ")
+        start = cleaned.find("{")
+        end = cleaned.rfind("}") + 1
+        if start >= 0 and end > start:
+            cleaned = cleaned[start:end]
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            return {
+                "resumo_geral": output_text[:500],
+                "aviso_legal": "Este resultado é informativo e NÃO substitui parecer técnico de profissional habilitado.",
+                "normas": [],
+                "checklist_dinamico": [],
+            }
+
+
 def buscar_normas(
     etapa_nome: str,
     disciplina: Optional[str] = None,
@@ -112,15 +143,10 @@ def buscar_normas(
     obra_tipo: Optional[str] = None,
 ) -> dict:
     """
-    Pesquisa normas aplicáveis à etapa usando GPT-4o com web search.
+    Pesquisa normas aplicáveis à etapa.
+    Cadeia de fallback: Gemini -> OpenAI (web search).
     Retorna dict com normas, checklist dinâmico e metadados.
     """
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY não configurada")
-
-    client = OpenAI(api_key=api_key)
-
     keywords = KEYWORDS_POR_ETAPA.get(etapa_nome, [])
     keywords_str = ", ".join(keywords[:6]) if keywords else etapa_nome
 
@@ -143,53 +169,50 @@ def buscar_normas(
         f"Inclua número da norma, versão, órgão emissor e principais exigências."
     )
 
-    response = client.responses.create(
-        model="gpt-4o",
-        tools=[{"type": "web_search_preview"}],
-        input=f"{SYSTEM_PROMPT}\n\nConsulta: {query}",
-    )
+    full_input = f"{SYSTEM_PROMPT}\n\nConsulta: {query}"
+    resultado = None
 
-    # Extrai o texto da resposta
-    output_text = ""
-    for item in response.output:
-        if hasattr(item, "content"):
-            for block in item.content:
-                if hasattr(block, "text"):
-                    output_text = block.text
-                    break
-        if output_text:
-            break
-
-    if not output_text:
-        raise ValueError("OpenAI não retornou resposta válida")
-
-    # Remove blocos de markdown se presentes
-    cleaned = output_text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        cleaned = "\n".join(lines[1:-1]) if lines[-1].strip() == "```" else "\n".join(lines[1:])
-
-    # Tenta parsear JSON; se falhar, tenta reparar problemas comuns do GPT
-    try:
-        resultado = json.loads(cleaned)
-    except json.JSONDecodeError:
-        # Remove possíveis caracteres de controle e tenta novamente
-        cleaned = cleaned.replace("\n", " ").replace("\r", "").replace("\t", " ")
-        # Tenta extrair JSON de dentro da resposta (pode ter texto extra)
-        start = cleaned.find("{")
-        end = cleaned.rfind("}") + 1
-        if start >= 0 and end > start:
-            cleaned = cleaned[start:end]
+    # --- Gemini (primary) ---
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key:
         try:
-            resultado = json.loads(cleaned)
-        except json.JSONDecodeError:
-            # Último recurso: retorna estrutura mínima com o texto bruto
-            resultado = {
-                "resumo_geral": output_text[:500],
-                "aviso_legal": "Este resultado é informativo e NÃO substitui parecer técnico de profissional habilitado.",
-                "normas": [],
-                "checklist_dinamico": [],
-            }
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            response = model.generate_content(full_input)
+            if response.text:
+                resultado = _parse_normas_json(response.text)
+        except Exception:
+            pass
+
+    # --- OpenAI (fallback with web search) ---
+    if resultado is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("Nenhum provider de IA configurado (GEMINI_API_KEY ou OPENAI_API_KEY)")
+
+        client = OpenAI(api_key=api_key)
+        response = client.responses.create(
+            model="gpt-4o",
+            tools=[{"type": "web_search_preview"}],
+            input=full_input,
+        )
+
+        output_text = ""
+        for item in response.output:
+            if hasattr(item, "content"):
+                for block in item.content:
+                    if hasattr(block, "text"):
+                        output_text = block.text
+                        break
+            if output_text:
+                break
+
+        if not output_text:
+            raise ValueError("OpenAI não retornou resposta válida")
+
+        resultado = _parse_normas_json(output_text)
+
     resultado["query_texto"] = query
     resultado["data_consulta"] = datetime.utcnow().isoformat()
     resultado["etapa_nome"] = etapa_nome

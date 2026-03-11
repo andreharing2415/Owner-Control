@@ -3,7 +3,7 @@ Servico de analise de documentos de projeto via IA.
 
 Fase 3 — Document AI.
 
-Analise pagina por pagina com cadeia de fallback: Claude -> OpenAI -> Gemini.
+Analise pagina por pagina com cadeia de fallback: Gemini -> Claude -> OpenAI.
 
 Guardrails obrigatorios:
 - Nunca apresentar como parecer tecnico ou opiniao profissional
@@ -218,7 +218,7 @@ def _analisar_com_gemini(paginas: list[tuple[str, int]], arquivo_nome: str) -> d
     from google.generativeai.types import content_types
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     parts = []
     for img_b64, page_num in paginas:
@@ -242,7 +242,7 @@ def _analisar_com_gemini(paginas: list[tuple[str, int]], arquivo_nome: str) -> d
 def analisar_documento(pdf_bytes: bytes, arquivo_nome: str) -> dict:
     """
     Analisa um PDF de projeto pagina por pagina.
-    Cadeia de fallback: Claude -> OpenAI -> Gemini.
+    Cadeia de fallback: Gemini -> Claude -> OpenAI.
 
     Retorna dict com resumo_geral, aviso_legal e lista de riscos.
     """
@@ -250,9 +250,9 @@ def analisar_documento(pdf_bytes: bytes, arquivo_nome: str) -> dict:
     logger.info("Documento '%s': %d paginas extraidas para analise", arquivo_nome, len(paginas))
 
     providers = [
+        ("Gemini", _analisar_com_gemini),
         ("Claude", _analisar_com_claude),
         ("OpenAI", _analisar_com_openai),
-        ("Gemini", _analisar_com_gemini),
     ]
     last_error = None
     for name, func in providers:

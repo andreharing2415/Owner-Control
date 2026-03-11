@@ -323,6 +323,12 @@ class EtapaFinanceiroItem(SQLModel):
     alerta: bool
 
 
+class CurvaSPonto(SQLModel):
+    data: str
+    previsto: float
+    realizado: float
+
+
 class RelatorioFinanceiro(SQLModel):
     obra_id: UUID
     total_previsto: float
@@ -331,6 +337,7 @@ class RelatorioFinanceiro(SQLModel):
     alerta: bool
     threshold: float
     por_etapa: List[EtapaFinanceiroItem]
+    curva_s: List[CurvaSPonto] = []
 
 
 # ─── Fase 3 — Document AI ─────────────────────────────────────────────────────

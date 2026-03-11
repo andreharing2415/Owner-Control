@@ -3,7 +3,7 @@ Servico de analise visual de fotos da obra via IA.
 
 Fase 4 — Visual AI.
 
-Cadeia de fallback: Claude -> OpenAI -> Gemini.
+Cadeia de fallback: Gemini -> Claude -> OpenAI.
 
 Guardrails obrigatorios:
 - Nunca apresentar como parecer tecnico ou opiniao profissional
@@ -202,7 +202,7 @@ def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str, grup
     from google.generativeai.types import content_types
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     contexto_grupo = f" Categoria/grupo do checklist: '{grupo}'." if grupo else ""
 
@@ -229,7 +229,7 @@ def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str, grup
 def analisar_imagem(imagem_bytes: bytes, imagem_nome: str, etapa_nome: str, grupo: str | None = None) -> dict:
     """
     Analisa uma foto de obra.
-    Cadeia de fallback: Claude -> OpenAI -> Gemini.
+    Cadeia de fallback: Gemini -> Claude -> OpenAI.
 
     Retorna dict com etapa_inferida, confianca_etapa, resumo_geral, aviso_legal e achados.
     """
@@ -237,9 +237,9 @@ def analisar_imagem(imagem_bytes: bytes, imagem_nome: str, etapa_nome: str, grup
     imagem_b64 = base64.standard_b64encode(imagem_bytes).decode("utf-8")
 
     providers = [
+        ("Gemini", _analisar_com_gemini),
         ("Claude", _analisar_com_claude),
         ("OpenAI", _analisar_com_openai),
-        ("Gemini", _analisar_com_gemini),
     ]
     last_error = None
     for name, func in providers:
