@@ -11,7 +11,6 @@ import "../../models/obra.dart";
 import "../../providers/auth_provider.dart";
 import "../../services/api_client.dart";
 import "../checklist/checklist_screen.dart";
-import "../checklist_inteligente/checklist_inteligente_screen.dart";
 import "../normas/normas_screen.dart";
 import "../financeiro/lancar_despesa_screen.dart";
 import "../visual_ai/visual_ai_screen.dart";
@@ -156,28 +155,6 @@ class _EtapasScreenState extends State<EtapasScreen> {
         title: Text(widget.obra.nome),
         actions: [
           IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
-          if (!(context.read<AuthProvider>().user?.isConvidado ?? false)) ...[
-            IconButton(
-              icon: const Icon(Icons.auto_awesome),
-              tooltip: "Checklist IA",
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChecklistInteligenteScreen(
-                      obraId: widget.obra.id, api: widget.api),
-                ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.menu_book_outlined),
-              tooltip: "Biblioteca Normativa",
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => NormasScreen(api: widget.api)),
-              ),
-            ),
-          ],
           _exportando
               ? const Padding(
                   padding: EdgeInsets.all(12),

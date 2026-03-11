@@ -156,6 +156,7 @@ class _NormasScreenState extends State<NormasScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
+                  // ignore: deprecated_member_use
                   value: _etapaSelecionada,
                   decoration: const InputDecoration(
                     labelText: "Etapa da obra",

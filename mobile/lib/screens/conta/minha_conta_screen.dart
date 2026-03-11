@@ -251,6 +251,7 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
     );
 
     if (result == null || result.isEmpty || result == currentValue) return;
+    if (!context.mounted) return;
 
     try {
       final auth = context.read<AuthProvider>();
@@ -259,23 +260,22 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
       } else {
         await auth.updateProfile(telefone: result);
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("$label atualizado com sucesso")),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("$label atualizado com sucesso")),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro ao atualizar: $e")),
-        );
-      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao atualizar: $e")),
+      );
     }
   }
 
   // ─── Cancel Subscription ─────────────────────────────────
 
   Future<void> _cancelSubscription() async {
+    final sub = context.read<SubscriptionProvider>();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -301,23 +301,20 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
 
     setState(() => _actionLoading = true);
     try {
-      final sub = context.read<SubscriptionProvider>();
       final result = await sub.cancelSubscription();
-      if (mounted) {
-        final expiresAt = result["expires_at"] as String?;
-        final msg = expiresAt != null
-            ? "Assinatura cancelada. Acesso até ${_formatDate(expiresAt)}."
-            : "Assinatura cancelada.";
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
-      }
+      if (!mounted) return;
+      final expiresAt = result["expires_at"] as String?;
+      final msg = expiresAt != null
+          ? "Assinatura cancelada. Acesso até ${_formatDate(expiresAt)}."
+          : "Assinatura cancelada.";
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg)),
+      );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro: $e")),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro: $e")),
+      );
     }
     if (mounted) setState(() => _actionLoading = false);
   }
@@ -325,6 +322,7 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
   // ─── Delete Account ──────────────────────────────────────
 
   Future<void> _deleteAccount() async {
+    final auth = context.read<AuthProvider>();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -348,21 +346,17 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
     );
 
     if (confirmed != true) return;
-
     setState(() => _actionLoading = true);
     try {
-      final api = context.read<AuthProvider>().api;
-      await api.deleteAccount();
-      if (mounted) {
-        await context.read<AuthProvider>().logout();
-      }
+      await auth.api.deleteAccount();
+      if (!mounted) return;
+      await auth.logout();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro: $e")),
-        );
-        setState(() => _actionLoading = false);
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro: $e")),
+      );
+      setState(() => _actionLoading = false);
     }
   }
 }

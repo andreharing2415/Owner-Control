@@ -292,15 +292,13 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                         prazoPrevisto: prazoPrevisto,
                         prazoExecutado: prazoExecutado,
                       );
-                      if (mounted) {
-                        setState(() => _etapa = etapaAtualizada);
-                        Navigator.pop(context);
-                      }
+                      if (!context.mounted) return;
+                      setState(() => _etapa = etapaAtualizada);
+                      Navigator.pop(context);
                     } catch (e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("Erro: $e")));
-                      }
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Erro: $e")));
                     }
                   },
                   child: const Text("Salvar prazo"),

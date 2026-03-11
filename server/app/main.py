@@ -1438,6 +1438,150 @@ def analisar_projeto(
         raise HTTPException(status_code=502, detail=f"Erro na analise: {exc}")
 
 
+# ─── Riscos → Checklist ─────────────────────────────────────────────────────
+
+# Mapeamento de palavras-chave em riscos para etapas sugeridas
+_RISCO_ETAPA_KEYWORDS: dict[str, list[str]] = {
+    "fundação": ["Fundacoes e Estrutura"],
+    "fundacao": ["Fundacoes e Estrutura"],
+    "estrutura": ["Fundacoes e Estrutura"],
+    "concreto": ["Fundacoes e Estrutura"],
+    "ferragem": ["Fundacoes e Estrutura"],
+    "armadura": ["Fundacoes e Estrutura"],
+    "estaca": ["Fundacoes e Estrutura"],
+    "sapata": ["Fundacoes e Estrutura"],
+    "terreno": ["Preparacao do Terreno"],
+    "terraplanagem": ["Preparacao do Terreno"],
+    "topografia": ["Preparacao do Terreno"],
+    "sondagem": ["Preparacao do Terreno"],
+    "demolição": ["Preparacao do Terreno"],
+    "demolicao": ["Preparacao do Terreno"],
+    "alvenaria": ["Alvenaria e Cobertura"],
+    "cobertura": ["Alvenaria e Cobertura"],
+    "telhado": ["Alvenaria e Cobertura"],
+    "laje": ["Alvenaria e Cobertura"],
+    "impermeabilização": ["Alvenaria e Cobertura"],
+    "impermeabilizacao": ["Alvenaria e Cobertura"],
+    "elétric": ["Instalacoes e Acabamentos"],
+    "eletric": ["Instalacoes e Acabamentos"],
+    "hidráulic": ["Instalacoes e Acabamentos"],
+    "hidraulic": ["Instalacoes e Acabamentos"],
+    "acabamento": ["Instalacoes e Acabamentos"],
+    "revestimento": ["Instalacoes e Acabamentos"],
+    "pintura": ["Instalacoes e Acabamentos"],
+    "piso": ["Instalacoes e Acabamentos"],
+    "entrega": ["Entrega e Pos-obra"],
+    "habite-se": ["Entrega e Pos-obra"],
+    "vistoria": ["Entrega e Pos-obra"],
+    "garantia": ["Entrega e Pos-obra"],
+    "projeto": ["Planejamento e Projeto"],
+    "licença": ["Planejamento e Projeto"],
+    "licenca": ["Planejamento e Projeto"],
+    "alvará": ["Planejamento e Projeto"],
+    "alvara": ["Planejamento e Projeto"],
+}
+
+
+@app.get("/api/obras/{obra_id}/riscos-pendentes")
+def listar_riscos_pendentes(
+    obra_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna riscos de documentos analisados que ainda nao viraram checklist items."""
+    docs = session.exec(
+        select(ProjetoDoc)
+        .where(ProjetoDoc.obra_id == obra_id)
+        .where(ProjetoDoc.status == "concluido")
+    ).all()
+
+    # Buscar todos os títulos de checklist existentes na obra para comparação
+    titulos_existentes: set[str] = set()
+    etapas = session.exec(select(Etapa).where(Etapa.obra_id == obra_id)).all()
+    etapa_ids = [e.id for e in etapas]
+    if etapa_ids:
+        items_existentes = session.exec(
+            select(ChecklistItem.titulo).where(ChecklistItem.etapa_id.in_(etapa_ids))  # type: ignore[attr-defined]
+        ).all()
+        titulos_existentes = {t for t in items_existentes}
+
+    riscos_pendentes = []
+    for doc in docs:
+        riscos = session.exec(
+            select(Risco).where(Risco.projeto_id == doc.id)
+        ).all()
+        for risco in riscos:
+            if risco.descricao in titulos_existentes:
+                continue
+            riscos_pendentes.append({
+                "id": str(risco.id),
+                "descricao": risco.descricao,
+                "severidade": risco.severidade,
+                "norma_referencia": risco.norma_referencia,
+                "traducao_leigo": risco.traducao_leigo,
+                "documento_nome": doc.arquivo_nome,
+            })
+
+    return {"riscos": riscos_pendentes, "total": len(riscos_pendentes)}
+
+
+@app.post("/api/obras/{obra_id}/aplicar-riscos")
+def aplicar_riscos(
+    obra_id: UUID,
+    body: dict,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Converte riscos selecionados em ChecklistItems nas etapas adequadas."""
+    risco_ids = body.get("risco_ids", [])
+    if not risco_ids:
+        return {"criados": 0}
+
+    etapas = session.exec(select(Etapa).where(Etapa.obra_id == obra_id)).all()
+    if not etapas:
+        raise HTTPException(status_code=400, detail="Obra sem etapas")
+
+    etapa_map = {e.nome: e for e in etapas}
+    etapa_fallback = etapa_map.get("Instalacoes e Acabamentos") or etapas[-1]
+
+    criados = 0
+    for rid in risco_ids:
+        risco = session.get(Risco, UUID(rid))
+        if not risco:
+            continue
+
+        etapa_alvo = etapa_fallback
+        desc_lower = risco.descricao.lower()
+        for keyword, etapa_nomes in _RISCO_ETAPA_KEYWORDS.items():
+            if keyword in desc_lower:
+                for nome in etapa_nomes:
+                    if nome in etapa_map:
+                        etapa_alvo = etapa_map[nome]
+                        break
+                break
+
+        item = ChecklistItem(
+            etapa_id=etapa_alvo.id,
+            titulo=risco.descricao,
+            descricao=risco.traducao_leigo,
+            origem="ia",
+            severidade=risco.severidade,
+            traducao_leigo=risco.traducao_leigo,
+            norma_referencia=risco.norma_referencia,
+            dado_projeto=risco.dado_projeto,
+            verificacoes=risco.verificacoes,
+            pergunta_engenheiro=risco.pergunta_engenheiro,
+            documentos_a_exigir=risco.documentos_a_exigir,
+            confianca=risco.confianca,
+            requer_validacao_profissional=risco.requer_validacao_profissional,
+        )
+        session.add(item)
+        criados += 1
+
+    session.commit()
+    return {"criados": criados}
+
+
 # ─── Fase 4 — Visual AI ───────────────────────────────────────────────────────
 
 @app.post("/api/etapas/{etapa_id}/analise-visual", response_model=AnaliseVisualComAchadosRead)

@@ -9,15 +9,11 @@ import '../../providers/auth_provider.dart';
 import '../../providers/obra_provider.dart';
 import '../../providers/subscription_provider.dart';
 import '../../services/api_client.dart';
-import '../convites/convites_screen.dart';
 import '../obras/obras_screen.dart';
 import '../etapas/etapas_screen.dart';
-import '../normas/normas_screen.dart';
-import '../documentos/documentos_screen.dart';
 import '../financeiro/financeiro_screen.dart';
-import '../prestadores/prestadores_screen.dart';
-import '../conta/minha_conta_screen.dart';
-import '../subscription/paywall_screen.dart';
+import '../ia/ia_hub_screen.dart';
+import '../perfil/perfil_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -36,6 +32,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void _resetNavKeys() {
     _navKeys = List.generate(4, (_) => GlobalKey<NavigatorState>());
   }
+
+  static const _navItems = <BottomNavigationBarItem>[
+    BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
+    BottomNavigationBarItem(icon: Icon(Icons.construction), label: 'Obra'),
+    BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: 'IA'),
+    BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
+  ];
 
   Future<void> _selecionarObra() async {
     final obraSelecionada = await Navigator.push<Obra>(
@@ -60,9 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
         final obra = provider.obraAtual;
         if (obra == null) return _buildSemObra();
 
-        final isConvidado =
-            context.read<AuthProvider>().user?.isConvidado ?? false;
-
         final pages = <Widget>[
           Navigator(
             key: _navKeys[0],
@@ -80,35 +80,22 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (_) => EtapasScreen(obra: obra, api: _api),
             ),
           ),
-          if (!isConvidado)
-            Navigator(
-              key: _navKeys[2],
-              onGenerateRoute: (_) => MaterialPageRoute(
-                builder: (_) => DocumentosScreen(obraId: obra.id, api: _api),
+          Navigator(
+            key: _navKeys[2],
+            onGenerateRoute: (_) => MaterialPageRoute(
+              builder: (_) => IAHubScreen(obra: obra, api: _api),
+            ),
+          ),
+          Navigator(
+            key: _navKeys[3],
+            onGenerateRoute: (_) => MaterialPageRoute(
+              builder: (_) => PerfilScreen(
+                obra: obra,
+                api: _api,
+                onSelectObra: _selecionarObra,
               ),
             ),
-          if (!isConvidado)
-            Navigator(
-              key: _navKeys[3],
-              onGenerateRoute: (_) => MaterialPageRoute(
-                builder: (_) => NormasScreen(api: _api),
-              ),
-            ),
-        ];
-
-        final navItems = <BottomNavigationBarItem>[
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.home), label: 'Início'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.list_alt), label: 'Etapas'),
-          if (!isConvidado)
-            const BottomNavigationBarItem(
-                icon: Icon(Icons.description), label: 'Documentos'),
-          if (!isConvidado)
-            const BottomNavigationBarItem(
-                icon: Icon(Icons.menu_book_outlined), label: 'Normas'),
-          const BottomNavigationBarItem(
-              icon: Icon(Icons.more_horiz), label: 'Mais'),
+          ),
         ];
 
         final safeTab = _currentTab < pages.length ? _currentTab : 0;
@@ -135,10 +122,7 @@ class _HomeScreenState extends State<HomeScreen> {
               selectedFontSize: 12,
               unselectedFontSize: 11,
               onTap: (index) {
-                final maisIndex = navItems.length - 1;
-                if (index == maisIndex) {
-                  _showMaisMenu(obra, isConvidado);
-                } else if (index == safeTab) {
+                if (index == safeTab) {
                   _navKeys[safeTab]
                       .currentState
                       ?.popUntil((r) => r.isFirst);
@@ -146,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() => _currentTab = index);
                 }
               },
-              items: navItems,
+              items: _navItems,
             ),
           ),
         );
@@ -202,128 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showMaisMenu(Obra obra, bool isConvidado) {
-    final sub = context.read<SubscriptionProvider>();
-    final user = context.read<AuthProvider>().user;
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 36,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                if (user != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 4),
-                    child: Text(
-                      user.nome,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.swap_horiz),
-                  title: const Text("Trocar Obra"),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _selecionarObra();
-                  },
-                ),
-                if (!isConvidado)
-                  ListTile(
-                    leading: const Icon(Icons.attach_money),
-                    title: const Text("Financeiro"),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _navKeys[_currentTab].currentState?.push(
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              FinanceiroScreen(obraId: obra.id, api: _api),
-                        ),
-                      );
-                    },
-                  ),
-                if (!isConvidado)
-                  ListTile(
-                    leading: const Icon(Icons.people_outline),
-                    title: const Text("Convites"),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _navKeys[_currentTab].currentState?.push(
-                        MaterialPageRoute(
-                          builder: (_) => ConvitesScreen(
-                              obraId: obra.id, obraNome: obra.nome),
-                        ),
-                      );
-                    },
-                  ),
-                if (!isConvidado)
-                  ListTile(
-                    leading: const Icon(Icons.engineering),
-                    title: const Text("Prestadores"),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _navKeys[_currentTab].currentState?.push(
-                        MaterialPageRoute(
-                          builder: (_) => PrestadoresScreen(api: _api),
-                        ),
-                      );
-                    },
-                  ),
-                if (sub.isGratuito && !isConvidado)
-                  ListTile(
-                    leading: const Icon(Icons.workspace_premium,
-                        color: Colors.amber),
-                    title: const Text("Assinar Plano Dono"),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      PaywallScreen.show(context);
-                    },
-                  ),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: const Text("Minha Conta"),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _navKeys[_currentTab].currentState?.push(
-                      MaterialPageRoute(
-                        builder: (_) => const MinhaContaScreen(),
-                      ),
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text("Sair"),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    context.read<AuthProvider>().logout();
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
 // ─── Dashboard Page ──────────────────────────────────────────────────────────

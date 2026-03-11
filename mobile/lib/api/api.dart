@@ -6,11 +6,6 @@ import "package:http/http.dart" as http;
 import "package:http_parser/http_parser.dart";
 import "package:image_picker/image_picker.dart";
 
-// 10.0.2.2 é o alias do localhost no emulador Android.
-// No web (Chrome) usamos localhost diretamente.
-// ignore: do_not_use_environment
-const bool _kIsWeb = bool.fromEnvironment('dart.library.html');
-
 const apiBaseUrl = String.fromEnvironment(
   "API_BASE_URL",
   defaultValue: "http://localhost:8000",
@@ -305,7 +300,7 @@ class ApiClient {
     final payload = {
       "nome": nome,
       if (localizacao != null && localizacao.isNotEmpty) "localizacao": localizacao,
-      if (orcamento != null) "orcamento": orcamento,
+      "orcamento": ?orcamento,
     };
     final response = await _client.post(
       _uri("/api/obras"),
@@ -384,11 +379,11 @@ class ApiClient {
     String? observacao,
   }) async {
     final payload = {
-      if (titulo != null) "titulo": titulo,
-      if (descricao != null) "descricao": descricao,
-      if (status != null) "status": status,
-      if (critico != null) "critico": critico,
-      if (observacao != null) "observacao": observacao,
+      "titulo": ?titulo,
+      "descricao": ?descricao,
+      "status": ?status,
+      "critico": ?critico,
+      "observacao": ?observacao,
     };
     final response = await _client.patch(
       _uri("/api/checklist-items/$itemId"),
@@ -514,9 +509,9 @@ class ApiClient {
   }) async {
     final payload = {
       "etapa_nome": etapaNome,
-      if (disciplina != null) "disciplina": disciplina,
-      if (localizacao != null) "localizacao": localizacao,
-      if (obraTipo != null) "obra_tipo": obraTipo,
+      "disciplina": ?disciplina,
+      "localizacao": ?localizacao,
+      "obra_tipo": ?obraTipo,
     };
     final response = await _client.post(
       _uri("/api/normas/buscar"),

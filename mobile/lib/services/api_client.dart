@@ -267,7 +267,7 @@ class ApiClient {
       "nome": nome,
       if (localizacao != null && localizacao.isNotEmpty)
         "localizacao": localizacao,
-      if (orcamento != null) "orcamento": orcamento,
+      "orcamento": ?orcamento,
     });
     if (response.statusCode == 403) {
       onFeatureGate?.call("Limite do plano atingido");
@@ -363,12 +363,12 @@ class ApiClient {
     final response = await _patch(
       "/api/checklist-items/$itemId",
       body: {
-        if (titulo != null) "titulo": titulo,
-        if (descricao != null) "descricao": descricao,
-        if (status != null) "status": status,
-        if (critico != null) "critico": critico,
-        if (observacao != null) "observacao": observacao,
-        if (grupo != null) "grupo": grupo,
+        "titulo": ?titulo,
+        "descricao": ?descricao,
+        "status": ?status,
+        "critico": ?critico,
+        "observacao": ?observacao,
+        "grupo": ?grupo,
       },
     );
     if (response.statusCode != 200) {
@@ -390,7 +390,7 @@ class ApiClient {
         "status": status,
         if (valorMedido != null && valorMedido.isNotEmpty)
           "valor_medido": valorMedido,
-        if (fotoIds != null) "foto_ids": fotoIds,
+        "foto_ids": ?fotoIds,
       },
     );
     if (response.statusCode != 200) {
@@ -559,9 +559,9 @@ class ApiClient {
   }) async {
     final response = await _post("/api/normas/buscar", body: {
       "etapa_nome": etapaNome,
-      if (disciplina != null) "disciplina": disciplina,
-      if (localizacao != null) "localizacao": localizacao,
-      if (obraTipo != null) "obra_tipo": obraTipo,
+      "disciplina": ?disciplina,
+      "localizacao": ?localizacao,
+      "obra_tipo": ?obraTipo,
     });
     if (response.statusCode != 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -642,8 +642,8 @@ class ApiClient {
       "valor": valor,
       "descricao": descricao,
       "data": data,
-      if (etapaId != null) "etapa_id": etapaId,
-      if (categoria != null) "categoria": categoria,
+      "etapa_id": ?etapaId,
+      "categoria": ?categoria,
     });
     if (response.statusCode != 200) {
       throw Exception("Erro ao lançar despesa");
@@ -782,6 +782,28 @@ class ApiClient {
     }
   }
 
+  // ─── Riscos → Checklist ────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> listarRiscosPendentes(String obraId) async {
+    final response = await _get("/api/obras/$obraId/riscos-pendentes");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao buscar riscos pendentes");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<int> aplicarRiscos(String obraId, List<String> riscoIds) async {
+    final response = await _post(
+      "/api/obras/$obraId/aplicar-riscos",
+      body: {"risco_ids": riscoIds},
+    );
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao aplicar riscos");
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data["criados"] as int;
+  }
+
   // ─── Visual AI ─────────────────────────────────────────────────────────────
 
   Future<AnaliseVisual> enviarAnaliseVisual({
@@ -867,9 +889,9 @@ class ApiClient {
       "nome": nome,
       "categoria": categoria,
       "subcategoria": subcategoria,
-      if (regiao != null) "regiao": regiao,
-      if (telefone != null) "telefone": telefone,
-      if (email != null) "email": email,
+      "regiao": ?regiao,
+      "telefone": ?telefone,
+      "email": ?email,
     });
     if (response.statusCode != 200) {
       throw Exception("Erro ao criar prestador");

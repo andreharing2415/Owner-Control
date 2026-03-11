@@ -8,6 +8,7 @@ import "../../providers/auth_provider.dart";
 import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
 import "pdf_viewer_screen.dart";
+import "riscos_review_screen.dart";
 import "../checklist_inteligente/checklist_inteligente_screen.dart";
 
 import "dart:io";
@@ -30,17 +31,29 @@ class DocumentosScreen extends StatefulWidget {
 class _DocumentosScreenState extends State<DocumentosScreen> {
   late Future<List<ProjetoDoc>> _projetosFuture;
   bool _uploading = false;
+  int _riscosPendentes = 0;
 
   @override
   void initState() {
     super.initState();
     _projetosFuture = widget.api.listarProjetos(widget.obraId);
+    _checkRiscosPendentes();
+  }
+
+  Future<void> _checkRiscosPendentes() async {
+    try {
+      final result = await widget.api.listarRiscosPendentes(widget.obraId);
+      if (mounted) {
+        setState(() => _riscosPendentes = result["total"] as int);
+      }
+    } catch (_) {}
   }
 
   Future<void> _refresh() async {
     setState(() {
       _projetosFuture = widget.api.listarProjetos(widget.obraId);
     });
+    _checkRiscosPendentes();
   }
 
   Future<void> _uploadPdf() async {
@@ -321,9 +334,33 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
             onRefresh: _refresh,
             child: ListView.builder(
               padding: const EdgeInsets.all(12),
-              itemCount: projetos.length,
+              itemCount: projetos.length + (_riscosPendentes > 0 ? 1 : 0),
               itemBuilder: (context, index) {
-                final projeto = projetos[index];
+                if (_riscosPendentes > 0 && index == 0) {
+                  return Card(
+                    color: Colors.orange.shade50,
+                    margin: const EdgeInsets.only(bottom: 12),
+                    child: ListTile(
+                      leading: const Icon(Icons.warning_amber, color: Colors.orange),
+                      title: Text("$_riscosPendentes riscos identificados"),
+                      subtitle: const Text("Adicionar ao checklist das etapas?"),
+                      trailing: FilledButton(
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RiscosReviewScreen(
+                              api: widget.api,
+                              obraId: widget.obraId,
+                            ),
+                          ),
+                        ).then((_) => _refresh()),
+                        child: const Text("Revisar"),
+                      ),
+                    ),
+                  );
+                }
+                final projetoIndex = _riscosPendentes > 0 ? index - 1 : index;
+                final projeto = projetos[projetoIndex];
                 final statusColor = _statusColor(projeto.status);
                 return Card(
                   child: ListTile(

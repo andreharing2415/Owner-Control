@@ -94,7 +94,7 @@ class _OrcamentoEditScreenState extends State<OrcamentoEditScreen> {
         itens.add({
           "etapa_id": etapa.id,
           "valor_previsto": previsto,
-          if (realizado != null) "valor_realizado": realizado,
+          "valor_realizado": ?realizado,
         });
       }
       await widget.api.salvarOrcamento(widget.obraId, itens);
@@ -151,7 +151,7 @@ class _OrcamentoEditScreenState extends State<OrcamentoEditScreen> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _etapas.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final etapa = _etapas[index];
         return Card(
