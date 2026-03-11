@@ -262,12 +262,14 @@ class ApiClient {
     required String nome,
     String? localizacao,
     double? orcamento,
+    double? areaM2,
   }) async {
     final response = await _post("/api/obras", body: {
       "nome": nome,
       if (localizacao != null && localizacao.isNotEmpty)
         "localizacao": localizacao,
       "orcamento": ?orcamento,
+      "area_m2": ?areaM2,
     });
     if (response.statusCode == 403) {
       onFeatureGate?.call("Limite do plano atingido");
@@ -809,6 +811,7 @@ class ApiClient {
   Future<AnaliseVisual> enviarAnaliseVisual({
     required String etapaId,
     required XFile image,
+    String? grupo,
   }) async {
     final bytes = await image.readAsBytes();
     final request = http.MultipartRequest(
@@ -823,6 +826,9 @@ class ApiClient {
       filename: image.name,
       contentType: _inferContentTypeFromExtension(ext),
     ));
+    if (grupo != null) {
+      request.fields["grupo"] = grupo;
+    }
     final streamResp = await request.send();
     final resp = await http.Response.fromStream(streamResp);
     if (resp.statusCode != 200) {
@@ -992,9 +998,10 @@ class ApiClient {
 
   /// Starts background checklist processing. Returns the log with its ID.
   Future<ChecklistInteligenteLog> iniciarChecklistInteligente(
-      String obraId) async {
+      String obraId, {List<String>? projetoIds}) async {
     final response = await _post(
       "/api/obras/$obraId/checklist-inteligente/iniciar",
+      body: projetoIds != null ? {"projeto_ids": projetoIds} : null,
     );
     if (response.statusCode != 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -1070,6 +1077,46 @@ class ApiClient {
     if (response.statusCode != 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       throw Exception(body["detail"] ?? "Erro ao enriquecer checklist");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> enriquecerTodos(String obraId) async {
+    final response = await _post("/api/obras/$obraId/enriquecer-todos");
+    if (response.statusCode == 403) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body["detail"] as String? ?? "Funcionalidade exclusiva do plano Dono da Obra";
+      onFeatureGate?.call(msg);
+      throw FeatureGateException(msg);
+    }
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao enriquecer checklist");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  // ─── Detalhamento da Obra ──────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getDetalhamento(String obraId) async {
+    final response = await _get("/api/obras/$obraId/detalhamento");
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao carregar detalhamento");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> extrairDetalhamento(String obraId) async {
+    final response = await _post("/api/obras/$obraId/extrair-detalhamento");
+    if (response.statusCode == 403) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final msg = body["detail"] as String? ?? "Funcionalidade exclusiva do plano Dono da Obra";
+      onFeatureGate?.call(msg);
+      throw FeatureGateException(msg);
+    }
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao extrair detalhamento");
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }

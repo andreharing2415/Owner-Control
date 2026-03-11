@@ -32,6 +32,7 @@ class Obra(SQLModel, table=True):
     data_fim: Optional[date] = None
     orcamento: Optional[float] = None
     localizacao: Optional[str] = None
+    area_m2: Optional[float] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -61,6 +62,11 @@ class ChecklistItem(SQLModel, table=True):
     origem: str = Field(default="padrao")            # "padrao" | "ia"
     grupo: str = Field(default="Geral")              # ex: "Piscina", "Churrasqueira"
     ordem: int = Field(default=0)                    # ordenação cronológica dentro do grupo
+    projeto_doc_id: Optional[UUID] = Field(default=None, foreign_key="projetodoc.id")
+    projeto_doc_nome: Optional[str] = None
+    como_verificar: Optional[str] = None
+    medidas_minimas: Optional[str] = None
+    explicacao_leigo: Optional[str] = None
     # ─── 3 Camadas (preenchido por IA) ─────────────────────────────────
     severidade: Optional[str] = None                 # "alto" | "medio" | "baixo"
     traducao_leigo: Optional[str] = None             # explicação simples para leigo
@@ -306,6 +312,8 @@ class ChecklistGeracaoItem(SQLModel, table=True):
     medidas_minimas: Optional[str] = None
     explicacao_leigo: str = Field(default="")
     caracteristica_origem: str = Field(default="")
+    projeto_doc_id: Optional[UUID] = None
+    projeto_doc_nome: Optional[str] = None
     # 3 Camadas
     dado_projeto: Optional[str] = None
     verificacoes: Optional[str] = None
@@ -372,6 +380,18 @@ class ObraConvite(SQLModel, table=True):
     token_expires_at: datetime
     created_at: datetime = Field(default_factory=datetime.utcnow)
     accepted_at: Optional[datetime] = None
+
+
+class ObraDetalhamento(SQLModel, table=True):
+    """Detalhamento da obra extraído por IA dos documentos (cômodos, m²)."""
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    obra_id: UUID = Field(foreign_key="obra.id", index=True)
+    comodos: Optional[str] = None       # JSON: [{nome, area_m2}]
+    area_total_m2: Optional[float] = None
+    fonte_doc_id: Optional[UUID] = Field(default=None, foreign_key="projetodoc.id")
+    fonte_doc_nome: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class EtapaComentario(SQLModel, table=True):

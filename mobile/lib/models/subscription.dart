@@ -20,7 +20,9 @@ class SubscriptionInfo {
   final String status;
 
   bool get isGratuito => plan == "gratuito";
-  bool get isDono => plan == "dono_da_obra";
+  bool get isDono =>
+      plan == "dono_da_obra" &&
+      (status == "active" || status == "grace_period");
 
   int? get maxObras => planConfig["max_obras"] as int?;
   int? get maxDocUploads => planConfig["max_doc_uploads"] as int?;

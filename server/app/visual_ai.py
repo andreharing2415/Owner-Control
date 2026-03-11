@@ -104,13 +104,15 @@ def _clean_json_response(text: str) -> str:
     return cleaned
 
 
-def _analisar_com_claude(imagem_b64: str, media_type: str, etapa_nome: str) -> dict:
+def _analisar_com_claude(imagem_b64: str, media_type: str, etapa_nome: str, grupo: str | None = None) -> dict:
     """Analisa imagem via Claude Vision API."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY não configurada")
 
     client = anthropic.Anthropic(api_key=api_key)
+
+    contexto_grupo = f" Categoria/grupo do checklist: '{grupo}'." if grupo else ""
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
@@ -131,7 +133,7 @@ def _analisar_com_claude(imagem_b64: str, media_type: str, etapa_nome: str) -> d
                         "type": "text",
                         "text": (
                             f"{SYSTEM_PROMPT}\n\n"
-                            f"Analise a foto acima da etapa '{etapa_nome}' desta obra. "
+                            f"Analise a foto acima da etapa '{etapa_nome}' desta obra.{contexto_grupo} "
                             f"Identifique a etapa construtiva visível e todos os achados "
                             f"relevantes para o proprietário."
                         ),
@@ -148,13 +150,15 @@ def _analisar_com_claude(imagem_b64: str, media_type: str, etapa_nome: str) -> d
     return json.loads(_clean_json_response(output_text))
 
 
-def _analisar_com_openai(imagem_b64: str, media_type: str, etapa_nome: str) -> dict:
+def _analisar_com_openai(imagem_b64: str, media_type: str, etapa_nome: str, grupo: str | None = None) -> dict:
     """Analisa imagem via OpenAI GPT-4o Vision (fallback)."""
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OPENAI_API_KEY não configurada para fallback")
 
     client = OpenAI(api_key=api_key)
+
+    contexto_grupo = f" Categoria/grupo do checklist: '{grupo}'." if grupo else ""
 
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -170,7 +174,7 @@ def _analisar_com_openai(imagem_b64: str, media_type: str, etapa_nome: str) -> d
                         "type": "text",
                         "text": (
                             f"{SYSTEM_PROMPT}\n\n"
-                            f"Analise a foto acima da etapa '{etapa_nome}' desta obra. "
+                            f"Analise a foto acima da etapa '{etapa_nome}' desta obra.{contexto_grupo} "
                             f"Identifique a etapa construtiva visível e todos os achados "
                             f"relevantes para o proprietário."
                         ),
@@ -188,7 +192,7 @@ def _analisar_com_openai(imagem_b64: str, media_type: str, etapa_nome: str) -> d
     return json.loads(_clean_json_response(output_text))
 
 
-def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str) -> dict:
+def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str, grupo: str | None = None) -> dict:
     """Analisa imagem via Gemini Vision (fallback)."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
@@ -200,12 +204,14 @@ def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str) -> d
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-2.0-flash")
 
+    contexto_grupo = f" Categoria/grupo do checklist: '{grupo}'." if grupo else ""
+
     img_bytes = base64.standard_b64decode(imagem_b64)
     parts = [
         content_types.to_part({"mime_type": media_type, "data": img_bytes}),
         (
             f"{SYSTEM_PROMPT}\n\n"
-            f"Analise a foto acima da etapa '{etapa_nome}' desta obra. "
+            f"Analise a foto acima da etapa '{etapa_nome}' desta obra.{contexto_grupo} "
             f"Identifique a etapa construtiva visivel e todos os achados "
             f"relevantes para o proprietario."
         ),
@@ -220,7 +226,7 @@ def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str) -> d
     return json.loads(_clean_json_response(output_text))
 
 
-def analisar_imagem(imagem_bytes: bytes, imagem_nome: str, etapa_nome: str) -> dict:
+def analisar_imagem(imagem_bytes: bytes, imagem_nome: str, etapa_nome: str, grupo: str | None = None) -> dict:
     """
     Analisa uma foto de obra.
     Cadeia de fallback: Claude -> OpenAI -> Gemini.
@@ -238,7 +244,7 @@ def analisar_imagem(imagem_bytes: bytes, imagem_nome: str, etapa_nome: str) -> d
     last_error = None
     for name, func in providers:
         try:
-            resultado = func(imagem_b64, media_type, etapa_nome)
+            resultado = func(imagem_b64, media_type, etapa_nome, grupo)
             logger.info("Analise visual concluida via %s", name)
             return resultado
         except Exception as exc:

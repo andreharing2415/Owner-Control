@@ -83,7 +83,11 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator(
             key: _navKeys[2],
             onGenerateRoute: (_) => MaterialPageRoute(
-              builder: (_) => IAHubScreen(obra: obra, api: _api),
+              builder: (_) => IAHubScreen(
+                obra: obra,
+                api: _api,
+                onNavigateToObra: () => setState(() => _currentTab = 1),
+              ),
             ),
           ),
           Navigator(

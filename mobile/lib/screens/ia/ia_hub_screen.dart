@@ -13,8 +13,9 @@ import '../normas/normas_screen.dart';
 class IAHubScreen extends StatelessWidget {
   final Obra obra;
   final ApiClient api;
+  final VoidCallback? onNavigateToObra;
 
-  const IAHubScreen({super.key, required this.obra, required this.api});
+  const IAHubScreen({super.key, required this.obra, required this.api, this.onNavigateToObra});
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +34,17 @@ class IAHubScreen extends StatelessWidget {
           icon: Icons.description,
           titulo: "Documentos",
           descricao: "Upload e análise de projetos PDF",
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => DocumentosScreen(obraId: obra.id, api: api),
-            ),
-          ),
+          onTap: () async {
+            final result = await Navigator.push<String>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => DocumentosScreen(obraId: obra.id, api: api),
+              ),
+            );
+            if (result == "navigate_obra") {
+              onNavigateToObra?.call();
+            }
+          },
         ),
         _IAAction(
           icon: Icons.checklist,
@@ -120,10 +126,40 @@ class IAHubScreen extends StatelessWidget {
       ),
     );
     if (etapa == null || !context.mounted) return;
+
+    // Second dialog: select category (optional)
+    String? grupo;
+    try {
+      final itens = await api.listarItens(etapa.id);
+      final grupos = itens.map((i) => i.grupo).toSet().toList()..sort();
+      if (grupos.isNotEmpty && context.mounted) {
+        grupo = await showDialog<String>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: const Text("Categoria (opcional)"),
+            children: [
+              SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, null),
+                child: const Text("Nenhuma — análise geral",
+                    style: TextStyle(color: Colors.grey)),
+              ),
+              ...grupos.map((g) => SimpleDialogOption(
+                    onPressed: () => Navigator.pop(ctx, g),
+                    child: Text(g),
+                  )),
+            ],
+          ),
+        );
+      }
+    } catch (_) {
+      // If loading items fails, proceed without group
+    }
+
+    if (!context.mounted) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => VisualAiScreen(etapa: etapa, api: api),
+        builder: (_) => VisualAiScreen(etapa: etapa, api: api, grupo: grupo),
       ),
     );
   }
@@ -131,21 +167,35 @@ class IAHubScreen extends StatelessWidget {
   Future<void> _selecionarEtapaParaEnriquecer(BuildContext context) async {
     final etapas = await api.listarEtapas(obra.id);
     if (!context.mounted) return;
-    final etapa = await showDialog<Etapa>(
+
+    // Use a sentinel value for "all etapas"
+    final opcao = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
         title: const Text("Selecione a etapa"),
-        children: etapas
-            .map((e) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(ctx, e),
-                  child: Text(e.nome),
-                ))
-            .toList(),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, "__todas__"),
+            child: const Text("Todas as etapas",
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          const Divider(),
+          ...etapas.map((e) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(ctx, e.id),
+                child: Text(e.nome),
+              )),
+        ],
       ),
     );
-    if (etapa == null || !context.mounted) return;
+    if (opcao == null || !context.mounted) return;
+
     try {
-      final result = await api.enriquecerChecklist(etapa.id);
+      final Map<String, dynamic> result;
+      if (opcao == "__todas__") {
+        result = await api.enriquecerTodos(obra.id);
+      } else {
+        result = await api.enriquecerChecklist(opcao);
+      }
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

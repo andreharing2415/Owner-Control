@@ -188,9 +188,42 @@ class _DocumentosScreenState extends State<DocumentosScreen> {
   void _onTapProjeto(ProjetoDoc projeto) {
     switch (projeto.status) {
       case "concluido":
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text("Análise concluída. Verifique o checklist.")),
+        showModalBottomSheet(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.visibility),
+                  title: const Text("Visualizar PDF"),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PdfViewerScreen(
+                          projetoId: projeto.id,
+                          fileName: projeto.arquivoNome,
+                          api: widget.api,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.home_outlined),
+                  title: const Text("Ver na Obra"),
+                  subtitle: const Text("Navegar para a aba Obra"),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    // Pop and signal parent to switch to Obra tab
+                    Navigator.of(context).pop("navigate_obra");
+                  },
+                ),
+              ],
+            ),
+          ),
         );
       case "pendente":
         _analisarProjeto(projeto);

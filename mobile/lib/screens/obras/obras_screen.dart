@@ -35,33 +35,46 @@ class _ObrasScreenState extends State<ObrasScreen> {
     final nomeController = TextEditingController();
     final localController = TextEditingController();
     final orcamentoController = TextEditingController();
+    final areaController = TextEditingController();
 
     final created = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Nova Obra"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nomeController,
-              decoration: const InputDecoration(labelText: "Nome da obra *"),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: localController,
-              decoration: const InputDecoration(labelText: "Localização"),
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: orcamentoController,
-              decoration: const InputDecoration(labelText: "Orçamento (R\$)"),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nomeController,
+                decoration: const InputDecoration(labelText: "Nome da obra *"),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: localController,
+                decoration: const InputDecoration(labelText: "Localização"),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: orcamentoController,
+                decoration: const InputDecoration(labelText: "Orçamento (R\$)"),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: areaController,
+                decoration: const InputDecoration(
+                  labelText: "Área (m²)",
+                  suffixText: "m²",
+                ),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -78,10 +91,13 @@ class _ObrasScreenState extends State<ObrasScreen> {
       try {
         final orcamento = double.tryParse(
             orcamentoController.text.replaceAll(",", "."));
+        final areaM2 = double.tryParse(
+            areaController.text.replaceAll(",", "."));
         await _api.criarObra(
           nome: nomeController.text.trim(),
           localizacao: localController.text.trim(),
           orcamento: orcamento,
+          areaM2: areaM2,
         );
         await _refresh();
         if (mounted) {

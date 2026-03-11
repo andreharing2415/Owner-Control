@@ -11,10 +11,11 @@ import "../subscription/paywall_screen.dart";
 import "detalhe_achado_screen.dart";
 
 class VisualAiScreen extends StatefulWidget {
-  const VisualAiScreen({super.key, required this.etapa, required this.api});
+  const VisualAiScreen({super.key, required this.etapa, required this.api, this.grupo});
 
   final Etapa etapa;
   final ApiClient api;
+  final String? grupo;
 
   @override
   State<VisualAiScreen> createState() => _VisualAiScreenState();
@@ -51,6 +52,7 @@ class _VisualAiScreenState extends State<VisualAiScreen> {
       final analise = await widget.api.enviarAnaliseVisual(
         etapaId: widget.etapa.id,
         image: image,
+        grupo: widget.grupo,
       );
       setState(() {
         _ultimaAnalise = analise;

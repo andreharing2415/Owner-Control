@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 # Carrega .env do diretório raiz do servidor
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from sqlmodel import Session, select
@@ -27,7 +27,7 @@ from .models import (
     OrcamentoEtapa, Despesa, AlertaConfig, ProjetoDoc, Risco, AnaliseVisual,
     Achado, DeviceToken, Prestador, Avaliacao, ChecklistGeracaoLog,
     ChecklistGeracaoItem, Subscription, UsageTracking, RevenueCatEvent,
-    ObraConvite, EtapaComentario,
+    ObraConvite, EtapaComentario, ObraDetalhamento,
 )
 from .enums import EtapaStatus, ChecklistStatus, CategoriaPrestador, SubcategoriaPrestadorServico, SubcategoriaMateriais
 from .schemas import (
@@ -68,6 +68,7 @@ from .schemas import (
     PrestadorDetalheRead,
     CaracteristicaIdentificada,
     ChecklistInteligenteResponse,
+    IniciarChecklistRequest,
     AplicarChecklistRequest,
     AplicarChecklistResponse,
     ItemParaAplicar,
@@ -1588,6 +1589,7 @@ def aplicar_riscos(
 def analisar_visual(
     etapa_id: UUID,
     file: UploadFile = File(...),
+    grupo: str | None = Form(None),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> AnaliseVisualComAchadosRead:
@@ -1624,7 +1626,7 @@ def analisar_visual(
     try:
         file.file.seek(0)
         imagem_bytes = file.file.read()
-        resultado = analisar_imagem(imagem_bytes, file.filename, etapa.nome)
+        resultado = analisar_imagem(imagem_bytes, file.filename, etapa.nome, grupo=grupo)
 
         achados_db: list[Achado] = []
         for achado_data in resultado.get("achados", []):
@@ -1661,6 +1663,8 @@ def analisar_visual(
         )
 
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         analise.status = "erro"
         analise.updated_at = datetime.utcnow()
         session.add(analise)
@@ -2005,12 +2009,14 @@ def stream_checklist_inteligente(
 )
 def iniciar_checklist_inteligente(
     obra_id: UUID,
+    payload: IniciarChecklistRequest | None = None,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """
     Inicia o processamento do checklist inteligente em background.
     Retorna imediatamente o log_id para acompanhamento.
+    Aceita body opcional: {"projeto_ids": ["uuid1", "uuid2"]}
     """
     obra = _verify_obra_ownership(obra_id, current_user, session)
     config = get_plan_config(current_user)
@@ -2043,11 +2049,19 @@ def iniciar_checklist_inteligente(
                    "Envie pelo menos um PDF antes de gerar o checklist inteligente.",
         )
 
+    # Filter by selected project IDs if provided
+    selected_ids = payload.projeto_ids if payload else None
+    if selected_ids:
+        selected_uuids = {UUID(str(pid)) for pid in selected_ids}
+        projetos = [p for p in projetos if p.id in selected_uuids]
+        if not projetos:
+            raise HTTPException(status_code=400, detail="Nenhum documento selecionado encontrado.")
+
     bucket = os.getenv("S3_BUCKET")
     if not bucket:
         raise HTTPException(status_code=500, detail="S3_BUCKET nao configurado")
 
-    projetos_info = [(p.arquivo_url, p.arquivo_nome) for p in projetos]
+    projetos_info = [(p.arquivo_url, p.arquivo_nome, str(p.id)) for p in projetos]
 
     # Create log entry
     log = ChecklistGeracaoLog(
@@ -2160,6 +2174,12 @@ def aplicar_checklist_inteligente(
             documentos_a_exigir=getattr(item_data, "documentos_a_exigir", None),
             confianca=getattr(item_data, "confianca", None),
             requer_validacao_profissional=getattr(item_data, "requer_validacao_profissional", False),
+            # Fase 6: campos enriquecidos
+            como_verificar=getattr(item_data, "como_verificar", None),
+            medidas_minimas=getattr(item_data, "medidas_minimas", None),
+            explicacao_leigo=getattr(item_data, "explicacao_leigo", None),
+            projeto_doc_id=getattr(item_data, "projeto_doc_id", None),
+            projeto_doc_nome=getattr(item_data, "projeto_doc_nome", None),
         )
         session.add(novo_item)
         itens_criados.append(novo_item)
@@ -2457,8 +2477,14 @@ def cancel_subscription(
         raise HTTPException(status_code=502, detail=f"Erro Stripe: {exc}")
 
     sub.status = "cancelled"
+    sub.plan = "gratuito"
     sub.updated_at = datetime.utcnow()
     session.add(sub)
+
+    current_user.plan = "gratuito"
+    current_user.updated_at = datetime.utcnow()
+    session.add(current_user)
+
     session.commit()
 
     return {
@@ -2614,6 +2640,11 @@ async def stripe_webhook(
                 sub.status = "grace_period"
             elif status_val in ("canceled", "unpaid"):
                 sub.status = "cancelled"
+                sub.plan = "gratuito"
+                if user:
+                    user.plan = "gratuito"
+                    user.updated_at = datetime.utcnow()
+                    session.add(user)
             sub.updated_at = datetime.utcnow()
             rc_event.processed = True
 
@@ -2985,6 +3016,14 @@ def enriquecer_item(
     if enrichment.get("documentos_a_exigir"):
         item.documentos_a_exigir = json.dumps(enrichment["documentos_a_exigir"], ensure_ascii=False)
 
+    # Fase 6: campos diretos
+    if enrichment.get("como_verificar"):
+        item.como_verificar = enrichment["como_verificar"]
+    if enrichment.get("medidas_minimas"):
+        item.medidas_minimas = enrichment["medidas_minimas"]
+    if enrichment.get("explicacao_leigo"):
+        item.explicacao_leigo = enrichment["explicacao_leigo"]
+
     item.origem = "ia"
     session.add(item)
     session.commit()
@@ -3005,10 +3044,11 @@ def enriquecer_checklist_etapa(
 
     _verify_obra_access(etapa.obra_id, current_user, session)
 
-    # Buscar itens NÃO enriquecidos (sem dado_projeto preenchido)
+    # Buscar itens padrão NÃO enriquecidos (sem dado_projeto preenchido)
     items = session.exec(
         select(ChecklistItem)
         .where(ChecklistItem.etapa_id == etapa_id)
+        .where(ChecklistItem.origem == "padrao")
         .where(ChecklistItem.dado_projeto.is_(None))
     ).all()
 
@@ -3055,6 +3095,13 @@ def enriquecer_checklist_etapa(
                 item.pergunta_engenheiro = json.dumps(enrichment["pergunta_engenheiro"], ensure_ascii=False)
             if enrichment.get("documentos_a_exigir"):
                 item.documentos_a_exigir = json.dumps(enrichment["documentos_a_exigir"], ensure_ascii=False)
+            # Fase 6: campos diretos
+            if enrichment.get("como_verificar"):
+                item.como_verificar = enrichment["como_verificar"]
+            if enrichment.get("medidas_minimas"):
+                item.medidas_minimas = enrichment["medidas_minimas"]
+            if enrichment.get("explicacao_leigo"):
+                item.explicacao_leigo = enrichment["explicacao_leigo"]
             item.origem = "ia"
             session.add(item)
             count += 1
@@ -3063,3 +3110,210 @@ def enriquecer_checklist_etapa(
 
     session.commit()
     return {"enriquecidos": count, "total": len(items)}
+
+
+@app.post("/api/obras/{obra_id}/enriquecer-todos")
+def enriquecer_todos_checklist(
+    obra_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_paid),
+):
+    """Enriquece em batch todos os itens padrão de TODAS as etapas da obra."""
+    obra = _verify_obra_ownership(obra_id, current_user, session)
+
+    etapas = session.exec(
+        select(Etapa).where(Etapa.obra_id == obra_id)
+    ).all()
+
+    # Buscar contexto dos docs
+    docs = session.exec(
+        select(ProjetoDoc).where(ProjetoDoc.obra_id == obra_id)
+    ).all()
+    doc_parts = []
+    for d in docs:
+        if d.resumo_geral:
+            doc_parts.append(f"[{d.arquivo_nome}] {d.resumo_geral}")
+        riscos = session.exec(
+            select(Risco).where(Risco.projeto_id == d.id)
+        ).all()
+        for r in riscos:
+            doc_parts.append(f"  Risco ({r.severidade}): {r.descricao}")
+    contexto = "\n".join(doc_parts)
+
+    total_count = 0
+    total_items = 0
+    for etapa in etapas:
+        items = session.exec(
+            select(ChecklistItem)
+            .where(ChecklistItem.etapa_id == etapa.id)
+            .where(ChecklistItem.origem == "padrao")
+            .where(ChecklistItem.dado_projeto.is_(None))
+        ).all()
+        total_items += len(items)
+
+        for item in items:
+            try:
+                enrichment = enriquecer_item_unico(
+                    titulo=item.titulo,
+                    descricao=item.descricao or "",
+                    etapa_nome=etapa.nome,
+                    contexto_docs=contexto,
+                )
+                if enrichment.get("severidade"):
+                    item.severidade = enrichment["severidade"]
+                if enrichment.get("traducao_leigo"):
+                    item.traducao_leigo = enrichment["traducao_leigo"]
+                if enrichment.get("norma_referencia"):
+                    item.norma_referencia = enrichment["norma_referencia"]
+                if enrichment.get("confianca") is not None:
+                    item.confianca = int(enrichment["confianca"])
+                if enrichment.get("dado_projeto"):
+                    item.dado_projeto = json.dumps(enrichment["dado_projeto"], ensure_ascii=False)
+                if enrichment.get("verificacoes"):
+                    item.verificacoes = json.dumps(enrichment["verificacoes"], ensure_ascii=False)
+                if enrichment.get("pergunta_engenheiro"):
+                    item.pergunta_engenheiro = json.dumps(enrichment["pergunta_engenheiro"], ensure_ascii=False)
+                if enrichment.get("documentos_a_exigir"):
+                    item.documentos_a_exigir = json.dumps(enrichment["documentos_a_exigir"], ensure_ascii=False)
+                if enrichment.get("como_verificar"):
+                    item.como_verificar = enrichment["como_verificar"]
+                if enrichment.get("medidas_minimas"):
+                    item.medidas_minimas = enrichment["medidas_minimas"]
+                if enrichment.get("explicacao_leigo"):
+                    item.explicacao_leigo = enrichment["explicacao_leigo"]
+                item.origem = "ia"
+                session.add(item)
+                total_count += 1
+            except Exception as e:
+                logger.warning(f"Falha ao enriquecer item {item.id}: {e}")
+
+    session.commit()
+    return {"enriquecidos": total_count, "total": total_items, "etapas": len(etapas)}
+
+
+# ─── Fase 6F: Detalhamento da Obra (cômodos + m²) ────────────────────────────
+
+@app.get("/api/obras/{obra_id}/detalhamento")
+def get_detalhamento(
+    obra_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna o detalhamento da obra (cômodos e metragens extraídas)."""
+    _verify_obra_access(obra_id, current_user, session)
+    det = session.exec(
+        select(ObraDetalhamento)
+        .where(ObraDetalhamento.obra_id == obra_id)
+        .order_by(ObraDetalhamento.updated_at.desc())
+    ).first()
+    if not det:
+        return {"comodos": [], "area_total_m2": None, "fonte_doc_nome": None}
+    return {
+        "id": str(det.id),
+        "comodos": json.loads(det.comodos) if det.comodos else [],
+        "area_total_m2": det.area_total_m2,
+        "fonte_doc_id": str(det.fonte_doc_id) if det.fonte_doc_id else None,
+        "fonte_doc_nome": det.fonte_doc_nome,
+    }
+
+
+@app.post("/api/obras/{obra_id}/extrair-detalhamento")
+def extrair_detalhamento(
+    obra_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_paid),
+):
+    """Extrai cômodos e metragens dos documentos da obra usando IA."""
+    obra = _verify_obra_ownership(obra_id, current_user, session)
+
+    docs = session.exec(
+        select(ProjetoDoc).where(ProjetoDoc.obra_id == obra_id)
+    ).all()
+    if not docs:
+        raise HTTPException(status_code=400, detail="Nenhum documento enviado.")
+
+    # Build context from document summaries
+    doc_parts = []
+    fonte_doc = None
+    for d in docs:
+        if d.resumo_geral:
+            doc_parts.append(f"[{d.arquivo_nome}] {d.resumo_geral}")
+            if fonte_doc is None:
+                fonte_doc = d
+    contexto = "\n".join(doc_parts)
+
+    if not contexto:
+        raise HTTPException(status_code=400, detail="Documentos ainda nao analisados.")
+
+    prompt = f"""Analise os documentos do projeto de construcao abaixo e extraia:
+1. Lista de comodos/ambientes com nome e area em m2 de cada um
+2. Area total da obra em m2
+
+Documentos:
+{contexto[:8000]}
+
+FORMATO DE RESPOSTA (JSON obrigatorio):
+{{
+  "comodos": [
+    {{"nome": "Sala de estar", "area_m2": 25.0}},
+    {{"nome": "Quarto 1", "area_m2": 14.0}}
+  ],
+  "area_total_m2": 180.0
+}}
+
+Se nao conseguir identificar areas especificas, retorne area_m2: null para o comodo.
+Se nao conseguir identificar nenhum comodo, retorne lista vazia.
+Retorne SOMENTE o JSON."""
+
+    # Use the enrichment chain (Claude -> OpenAI -> Gemini)
+    from .checklist_inteligente import _enriquecer_claude, _enriquecer_openai, _enriquecer_gemini
+    providers = [
+        ("Claude", _enriquecer_claude),
+        ("OpenAI", _enriquecer_openai),
+        ("Gemini", _enriquecer_gemini),
+    ]
+    result = None
+    for name, func in providers:
+        try:
+            result = func(prompt)
+            break
+        except Exception as exc:
+            logger.warning(f"Extracao detalhamento falhou via {name}: {exc}")
+
+    if not result:
+        raise HTTPException(status_code=500, detail="Falha ao extrair detalhamento.")
+
+    comodos = result.get("comodos", [])
+    area_total = result.get("area_total_m2")
+
+    # Upsert detalhamento
+    det = session.exec(
+        select(ObraDetalhamento).where(ObraDetalhamento.obra_id == obra_id)
+    ).first()
+    if det:
+        det.comodos = json.dumps(comodos, ensure_ascii=False)
+        det.area_total_m2 = area_total
+        det.fonte_doc_id = fonte_doc.id if fonte_doc else None
+        det.fonte_doc_nome = fonte_doc.arquivo_nome if fonte_doc else None
+        det.updated_at = datetime.utcnow()
+    else:
+        det = ObraDetalhamento(
+            obra_id=obra_id,
+            comodos=json.dumps(comodos, ensure_ascii=False),
+            area_total_m2=area_total,
+            fonte_doc_id=fonte_doc.id if fonte_doc else None,
+            fonte_doc_nome=fonte_doc.arquivo_nome if fonte_doc else None,
+        )
+    session.add(det)
+
+    # Also update obra.area_m2 if extracted
+    if area_total:
+        obra.area_m2 = area_total
+        session.add(obra)
+
+    session.commit()
+    return {
+        "comodos": comodos,
+        "area_total_m2": area_total,
+        "fonte_doc_nome": fonte_doc.arquivo_nome if fonte_doc else None,
+    }

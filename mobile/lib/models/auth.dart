@@ -160,6 +160,13 @@ class ChecklistGeracaoItemModel {
     this.medidasMinimas,
     this.explicacaoLeigo = "",
     this.caracteristicaOrigem = "",
+    // 3 Camadas
+    this.severidade,
+    this.traducaoLeigo,
+    this.dadoProjeto,
+    this.verificacoes,
+    this.perguntaEngenheiro,
+    this.documentosAExigir,
   });
 
   final String id;
@@ -176,6 +183,13 @@ class ChecklistGeracaoItemModel {
   final String? medidasMinimas;
   final String explicacaoLeigo;
   final String caracteristicaOrigem;
+  // 3 Camadas
+  final String? severidade;
+  final String? traducaoLeigo;
+  final String? dadoProjeto;
+  final String? verificacoes;
+  final String? perguntaEngenheiro;
+  final String? documentosAExigir;
 
   factory ChecklistGeracaoItemModel.fromJson(Map<String, dynamic> json) {
     return ChecklistGeracaoItemModel(
@@ -194,6 +208,13 @@ class ChecklistGeracaoItemModel {
       medidasMinimas: json["medidas_minimas"] as String?,
       explicacaoLeigo: json["explicacao_leigo"] as String? ?? "",
       caracteristicaOrigem: json["caracteristica_origem"] as String? ?? "",
+      // 3 Camadas
+      severidade: json["severidade"] as String?,
+      traducaoLeigo: json["traducao_leigo"] as String?,
+      dadoProjeto: json["dado_projeto"] as String?,
+      verificacoes: json["verificacoes"] as String?,
+      perguntaEngenheiro: json["pergunta_engenheiro"] as String?,
+      documentosAExigir: json["documentos_a_exigir"] as String?,
     );
   }
 
@@ -211,6 +232,19 @@ class ChecklistGeracaoItemModel {
                 .join(' ')
             : "Geral",
         "ordem": 0,
+        // Fase 6: campos enriquecidos
+        "como_verificar": comoVerificar,
+        "medidas_minimas": medidasMinimas,
+        "explicacao_leigo": explicacaoLeigo,
+        // 3 Camadas
+        "severidade": severidade,
+        "traducao_leigo": traducaoLeigo,
+        "dado_projeto": dadoProjeto,
+        "verificacoes": verificacoes,
+        "pergunta_engenheiro": perguntaEngenheiro,
+        "documentos_a_exigir": documentosAExigir,
+        "confianca": confianca,
+        "requer_validacao_profissional": requerValidacaoProfissional,
       };
 }
 

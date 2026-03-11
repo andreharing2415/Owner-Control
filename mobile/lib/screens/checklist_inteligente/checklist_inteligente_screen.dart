@@ -4,6 +4,7 @@ import "package:flutter/material.dart";
 import "package:provider/provider.dart";
 
 import "../../models/auth.dart";
+import "../../models/documento.dart";
 import "../../providers/auth_provider.dart";
 import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
@@ -91,7 +92,81 @@ class _ChecklistInteligenteScreenState
     }
   }
 
-  Future<void> _iniciar() async {
+  Future<void> _selecionarDocumentosEIniciar() async {
+    // Load available documents
+    List<ProjetoDoc> docs;
+    try {
+      docs = await widget.api.listarProjetos(widget.obraId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Erro ao carregar documentos: $e")));
+      }
+      return;
+    }
+    if (docs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Nenhum documento enviado. Envie um PDF primeiro.")),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    // Show selection dialog
+    final selected = await showDialog<Set<String>>(
+      context: context,
+      builder: (ctx) {
+        final sel = <String>{...docs.map((d) => d.id)};
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: const Text("Selecionar documentos"),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: ListView(
+                shrinkWrap: true,
+                children: docs.map((doc) {
+                  final analisado = doc.status == "concluido";
+                  return CheckboxListTile(
+                    value: sel.contains(doc.id),
+                    onChanged: (v) => setDialogState(() {
+                      if (v == true) {
+                        sel.add(doc.id);
+                      } else {
+                        sel.remove(doc.id);
+                      }
+                    }),
+                    title: Text(doc.arquivoNome, style: const TextStyle(fontSize: 14)),
+                    subtitle: analisado
+                        ? const Text("Já analisado", style: TextStyle(color: Colors.green, fontSize: 12))
+                        : null,
+                    dense: true,
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text("Cancelar"),
+              ),
+              FilledButton(
+                onPressed: sel.isEmpty ? null : () => Navigator.pop(ctx, sel),
+                child: Text("Gerar (${sel.length} doc${sel.length != 1 ? 's' : ''})"),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (selected == null || selected.isEmpty) return;
+    _iniciar(projetoIds: selected.toList());
+  }
+
+  Future<void> _iniciar({List<String>? projetoIds}) async {
     setState(() {
       _loading = true;
       _erro = null;
@@ -100,8 +175,10 @@ class _ChecklistInteligenteScreenState
     });
 
     try {
-      final log =
-          await widget.api.iniciarChecklistInteligente(widget.obraId);
+      final log = await widget.api.iniciarChecklistInteligente(
+        widget.obraId,
+        projetoIds: projetoIds,
+      );
       if (mounted) {
         setState(() {
           _log = log;
@@ -371,7 +448,7 @@ class _ChecklistInteligenteScreenState
                       ),
                     )
                   : FilledButton.icon(
-                      onPressed: _loading ? null : _iniciar,
+                      onPressed: _loading ? null : _selecionarDocumentosEIniciar,
                       icon: _loading
                           ? const SizedBox(
                               width: 18,

@@ -11,12 +11,14 @@ class LancarDespesaScreen extends StatefulWidget {
     required this.api,
     this.etapaId,
     this.etapaNome,
+    this.categoriaInicial,
   });
 
   final String obraId;
   final ApiClient api;
   final String? etapaId;
   final String? etapaNome;
+  final String? categoriaInicial;
 
   @override
   State<LancarDespesaScreen> createState() => _LancarDespesaScreenState();
@@ -38,6 +40,9 @@ class _LancarDespesaScreenState extends State<LancarDespesaScreen> {
   void initState() {
     super.initState();
     _etapaIdSelecionada = widget.etapaId;
+    if (widget.categoriaInicial != null) {
+      _categoriaController.text = widget.categoriaInicial!;
+    }
     _carregarEtapas();
   }
 

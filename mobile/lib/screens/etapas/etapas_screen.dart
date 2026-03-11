@@ -1,5 +1,6 @@
 import "dart:io";
 import "package:flutter/material.dart";
+import "package:flutter/services.dart" show FilteringTextInputFormatter;
 import "package:open_filex/open_filex.dart";
 import "package:path_provider/path_provider.dart";
 
@@ -108,31 +109,145 @@ class _EtapasScreenState extends State<EtapasScreen> {
     );
   }
 
+  Future<void> _mostrarDetalhamento() async {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollController) => _DetalhamentoSheet(
+          api: widget.api,
+          obraId: widget.obra.id,
+          scrollController: scrollController,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editarFinanceiro(Etapa etapa) async {
+    final previstoCtrl = TextEditingController(
+      text: etapa.valorPrevisto?.toStringAsFixed(0) ?? "",
+    );
+    final gastoCtrl = TextEditingController(
+      text: etapa.valorGasto?.toStringAsFixed(0) ?? "",
+    );
+
+    final salvar = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text("Financeiro — ${etapa.nome}",
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: previstoCtrl,
+              decoration: const InputDecoration(
+                labelText: "Valor Previsto (R\$)",
+                prefixText: "R\$ ",
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r"[\d.,]"))],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: gastoCtrl,
+              decoration: const InputDecoration(
+                labelText: "Valor Gasto (R\$)",
+                prefixText: "R\$ ",
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r"[\d.,]"))],
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text("Salvar"),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (salvar != true) return;
+
+    final previsto = double.tryParse(
+        previstoCtrl.text.replaceAll(".", "").replaceAll(",", ".").trim());
+    final gasto = double.tryParse(
+        gastoCtrl.text.replaceAll(".", "").replaceAll(",", ".").trim());
+
+    previstoCtrl.dispose();
+    gastoCtrl.dispose();
+
+    try {
+      await widget.api.salvarOrcamento(widget.obra.id, [
+        {
+          "etapa_id": etapa.id,
+          "valor_previsto": previsto ?? 0,
+          "valor_realizado": gasto ?? 0,
+        },
+      ]);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Financeiro atualizado")),
+        );
+        _refresh();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Erro: $e")));
+      }
+    }
+  }
+
   Widget _buildOrcamentoBar(Etapa etapa) {
     if (etapa.valorPrevisto == null || etapa.valorPrevisto! <= 0) {
-      return const SizedBox.shrink();
+      return GestureDetector(
+        onTap: () => _editarFinanceiro(etapa),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text("Definir orçamento",
+              style: TextStyle(fontSize: 12, color: Colors.blue[600])),
+        ),
+      );
     }
     final pct = (etapa.valorGasto ?? 0) / etapa.valorPrevisto!;
     final estourado = pct > 1.0;
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LinearProgressIndicator(
-            value: pct.clamp(0.0, 1.0),
-            backgroundColor: Colors.grey[200],
-            color: estourado ? Colors.red : Colors.green,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "R\$ ${(etapa.valorGasto ?? 0).toStringAsFixed(0)} / R\$ ${etapa.valorPrevisto!.toStringAsFixed(0)}",
-            style: TextStyle(
-              fontSize: 12,
-              color: estourado ? Colors.red : Colors.grey[600],
+    return GestureDetector(
+      onTap: () => _editarFinanceiro(etapa),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LinearProgressIndicator(
+              value: pct.clamp(0.0, 1.0),
+              backgroundColor: Colors.grey[200],
+              color: estourado ? Colors.red : Colors.green,
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              "R\$ ${(etapa.valorGasto ?? 0).toStringAsFixed(0)} / R\$ ${etapa.valorPrevisto!.toStringAsFixed(0)}",
+              style: TextStyle(
+                fontSize: 12,
+                color: estourado ? Colors.red : Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -154,6 +269,11 @@ class _EtapasScreenState extends State<EtapasScreen> {
       appBar: AppBar(
         title: Text(widget.obra.nome),
         actions: [
+          IconButton(
+            onPressed: _mostrarDetalhamento,
+            icon: const Icon(Icons.home_outlined),
+            tooltip: "Detalhes da casa",
+          ),
           IconButton(onPressed: _refresh, icon: const Icon(Icons.refresh)),
           _exportando
               ? const Padding(
@@ -576,6 +696,182 @@ class _ComentariosSheetState extends State<_ComentariosSheet> {
           ],
         );
       },
+    );
+  }
+}
+
+
+class _DetalhamentoSheet extends StatefulWidget {
+  const _DetalhamentoSheet({
+    required this.api,
+    required this.obraId,
+    required this.scrollController,
+  });
+
+  final ApiClient api;
+  final String obraId;
+  final ScrollController scrollController;
+
+  @override
+  State<_DetalhamentoSheet> createState() => _DetalhamentoSheetState();
+}
+
+class _DetalhamentoSheetState extends State<_DetalhamentoSheet> {
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  bool _extracting = false;
+  String? _erro;
+
+  @override
+  void initState() {
+    super.initState();
+    _carregar();
+  }
+
+  Future<void> _carregar() async {
+    try {
+      final data = await widget.api.getDetalhamento(widget.obraId);
+      if (mounted) setState(() { _data = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _erro = "$e"; });
+    }
+  }
+
+  Future<void> _extrair() async {
+    setState(() { _extracting = true; _erro = null; });
+    try {
+      final data = await widget.api.extrairDetalhamento(widget.obraId);
+      if (mounted) setState(() { _data = data; _extracting = false; });
+    } catch (e) {
+      if (mounted) setState(() { _extracting = false; _erro = "$e"; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final comodos = (_data?["comodos"] as List<dynamic>?) ?? [];
+    final areaTotal = _data?["area_total_m2"] as double?;
+    final fonteDoc = _data?["fonte_doc_nome"] as String?;
+
+    return Column(
+      children: [
+        Container(
+          margin: const EdgeInsets.only(top: 8),
+          width: 40, height: 4,
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.home_outlined, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Text("Detalhes da Casa", style: theme.textTheme.titleLarge),
+            ],
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView(
+                  controller: widget.scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    if (_erro != null)
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(_erro!, style: const TextStyle(color: Colors.red)),
+                      ),
+
+                    // Area total
+                    if (areaTotal != null)
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.square_foot, color: Colors.blue),
+                          title: Text("${areaTotal.toStringAsFixed(1)} m²"),
+                          subtitle: const Text("Área total"),
+                        ),
+                      ),
+
+                    // Fonte
+                    if (fonteDoc != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Text("Fonte: $fonteDoc",
+                            style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                      ),
+
+                    // Cômodos
+                    if (comodos.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text("Cômodos (${comodos.length})",
+                          style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      ...comodos.map((c) {
+                        final nome = c["nome"] as String? ?? "—";
+                        final area = c["area_m2"] as num?;
+                        return Card(
+                          child: ListTile(
+                            dense: true,
+                            title: Text(nome),
+                            trailing: area != null
+                                ? Text("${area.toStringAsFixed(1)} m²",
+                                    style: const TextStyle(fontWeight: FontWeight.w600))
+                                : null,
+                          ),
+                        );
+                      }),
+                    ],
+
+                    if (comodos.isEmpty && areaTotal == null) ...[
+                      const SizedBox(height: 32),
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.home_work_outlined,
+                                size: 48, color: Colors.grey[400]),
+                            const SizedBox(height: 12),
+                            const Text("Nenhum detalhamento extraído"),
+                            const SizedBox(height: 8),
+                            Text(
+                              "Envie documentos do projeto e clique em extrair para a IA identificar cômodos e metragens.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: _extracting ? null : _extrair,
+                      icon: _extracting
+                          ? const SizedBox(
+                              width: 18, height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome),
+                      label: Text(_extracting
+                          ? "Extraindo..."
+                          : comodos.isEmpty
+                              ? "Extrair detalhamento com IA"
+                              : "Atualizar detalhamento"),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+        ),
+      ],
     );
   }
 }

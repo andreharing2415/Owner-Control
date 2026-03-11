@@ -145,6 +145,44 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
             maxHeight: 1920);
         if (img == null) return;
         await widget.api.uploadEvidenciaImagem(itemId: _item.id, image: img);
+        // Offer AI analysis
+        if (mounted) {
+          final analisar = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text("Analisar com IA?"),
+              content: const Text(
+                  "Deseja enviar esta foto para análise visual com inteligência artificial?"),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text("Não")),
+                FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text("Sim")),
+              ],
+            ),
+          );
+          if (analisar == true && mounted) {
+            try {
+              final analise = await widget.api.enviarAnaliseVisual(
+                etapaId: _item.etapaId,
+                image: img,
+                grupo: _item.grupo,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(
+                        "Análise concluída: ${analise.achados?.length ?? 0} achado(s)")));
+              }
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Erro na análise IA: $e")));
+              }
+            }
+          }
+        }
       } else if (opcao == "galeria") {
         final img = await _imagePicker.pickImage(
             source: ImageSource.gallery,
@@ -241,6 +279,25 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
             ],
           ),
 
+          // ── Documento de origem ──────────────────────────────────────
+          if (_item.projetoDocNome != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(Icons.description_outlined,
+                    size: 13, color: Colors.grey[500]),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    "Origem: ${_item.projetoDocNome}",
+                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+
           // ── Descrição ───────────────────────────────────────────────
           if (_item.descricao != null && _item.descricao!.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -249,8 +306,76 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
             Text(_item.descricao!, style: const TextStyle(fontSize: 14)),
           ],
 
-          // ── Tradução leigo ──────────────────────────────────────────
-          if (_item.traducaoLeigo != null) ...[
+          // ── Por que é importante ──────────────────────────────────
+          if (_item.explicacaoLeigo != null &&
+              _item.explicacaoLeigo!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.lightbulb_outline,
+                      size: 18, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Por que é importante",
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.amber[800])),
+                        const SizedBox(height: 4),
+                        Text(_item.explicacaoLeigo!,
+                            style: const TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Como verificar ────────────────────────────────────────
+          if (_item.comoVerificar != null &&
+              _item.comoVerificar!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _BlocoExpansivel(
+              titulo: "Como verificar",
+              icon: Icons.checklist_rtl,
+              cor: Colors.blue,
+              initiallyExpanded: true,
+              children: [
+                Text(_item.comoVerificar!,
+                    style: const TextStyle(fontSize: 14)),
+              ],
+            ),
+          ],
+
+          // ── Medidas mínimas ───────────────────────────────────────
+          if (_item.medidasMinimas != null &&
+              _item.medidasMinimas!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _BlocoExpansivel(
+              titulo: "Medidas mínimas",
+              icon: Icons.straighten,
+              cor: Colors.teal,
+              children: [
+                Text(_item.medidasMinimas!,
+                    style: const TextStyle(fontSize: 14)),
+              ],
+            ),
+          ],
+
+          // ── Tradução leigo (legado) ───────────────────────────────
+          if (_item.traducaoLeigo != null &&
+              _item.explicacaoLeigo == null) ...[
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),

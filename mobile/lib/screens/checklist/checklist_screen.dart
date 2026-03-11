@@ -8,6 +8,7 @@ import "../../providers/auth_provider.dart";
 import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
 import "../subscription/paywall_screen.dart";
+import "../financeiro/lancar_despesa_screen.dart";
 import "detalhe_item_screen.dart";
 
 class ChecklistScreen extends StatefulWidget {
@@ -23,6 +24,8 @@ class ChecklistScreen extends StatefulWidget {
 class _ChecklistScreenState extends State<ChecklistScreen> {
   late Future<List<ChecklistItem>> _itensFuture;
   late Etapa _etapa;
+  final Set<String> _expandedGroups = {};
+  String? _filtroOrigem; // null=todos, "padrao", "ia", ou docId
 
   @override
   void initState() {
@@ -37,8 +40,18 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     });
   }
 
-  // Agrupa e ordena itens: por grupo, depois por ordem dentro do grupo.
-  // Grupo "Geral" sempre por último.
+  List<ChecklistItem> _aplicarFiltro(List<ChecklistItem> itens) {
+    if (_filtroOrigem == null) return itens;
+    if (_filtroOrigem == "padrao") {
+      return itens.where((i) => i.origem == "padrao").toList();
+    }
+    if (_filtroOrigem == "ia") {
+      return itens.where((i) => i.origem == "ia").toList();
+    }
+    // Filter by specific document
+    return itens.where((i) => i.projetoDocId == _filtroOrigem).toList();
+  }
+
   Map<String, List<ChecklistItem>> _agrupar(List<ChecklistItem> itens) {
     final map = <String, List<ChecklistItem>>{};
     for (final item in itens) {
@@ -47,7 +60,6 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     for (final grupo in map.keys) {
       map[grupo]!.sort((a, b) => a.ordem.compareTo(b.ordem));
     }
-    // Ordenar grupos: "Geral" por último
     final grupos = map.keys.toList()
       ..sort((a, b) {
         if (a == "Geral") return 1;
@@ -55,6 +67,19 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         return a.compareTo(b);
       });
     return {for (final g in grupos) g: map[g]!};
+  }
+
+  /// Extract unique document sources for filter chips
+  List<_DocFilter> _extractDocFilters(List<ChecklistItem> allItens) {
+    final docs = <String, String>{};
+    for (final item in allItens) {
+      if (item.projetoDocId != null && item.projetoDocNome != null) {
+        docs[item.projetoDocId!] = item.projetoDocNome!;
+      }
+    }
+    return docs.entries
+        .map((e) => _DocFilter(id: e.key, nome: e.value))
+        .toList();
   }
 
   Future<void> _criarItem() async {
@@ -366,7 +391,6 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
           final sub = context.watch<SubscriptionProvider>();
           final user = context.read<AuthProvider>().user;
           final isConvidado = user?.isConvidado ?? false;
-          // Convidado pode criar, Dono pode criar, Free não pode
           final canCreate = isConvidado || sub.canCreateChecklistItems;
           if (!canCreate) {
             return FloatingActionButton(
@@ -405,8 +429,8 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               ),
             );
           }
-          final itens = snapshot.data ?? [];
-          if (itens.isEmpty) {
+          final allItens = snapshot.data ?? [];
+          if (allItens.isEmpty) {
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -419,53 +443,87 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
               ),
             );
           }
-          final grupos = _agrupar(itens);
+
+          final docFilters = _extractDocFilters(allItens);
+          final filteredItens = _aplicarFiltro(allItens);
+          final grupos = _agrupar(filteredItens);
+
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 80),
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 80),
               children: [
-                for (final entry in grupos.entries) ...[
-                  _GrupoHeader(
-                    nome: entry.key,
+                // ── Filter chips ──
+                _FilterChipsRow(
+                  filtroAtual: _filtroOrigem,
+                  docFilters: docFilters,
+                  hasIaItems: allItens.any((i) => i.origem == "ia"),
+                  onChanged: (filtro) =>
+                      setState(() => _filtroOrigem = filtro),
+                ),
+                const SizedBox(height: 8),
+                // ── Collapsible groups ──
+                for (final entry in grupos.entries)
+                  _GrupoExpansivel(
+                    grupoNome: entry.key,
                     itens: entry.value,
-                  ),
-                  const SizedBox(height: 4),
-                  for (final item in entry.value)
-                    Builder(
-                      builder: (context) {
-                        final sub = context.read<SubscriptionProvider>();
-                        final canDelete = sub.isDono;
-                        return _ItemCard(
-                          item: item,
-                          statusColor: _statusColor(item.status),
-                          statusLabel: _statusLabel(item.status),
-                          canDelete: canDelete,
-                          onTap: () async {
-                            await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => DetalheItemScreen(
-                                  item: item,
-                                  api: widget.api,
-                                  etapaNome: _etapa.nome,
-                                ),
+                    expanded: _expandedGroups.contains(entry.key),
+                    onToggle: () {
+                      setState(() {
+                        if (_expandedGroups.contains(entry.key)) {
+                          _expandedGroups.remove(entry.key);
+                        } else {
+                          _expandedGroups.add(entry.key);
+                        }
+                      });
+                    },
+                    onDespesa: () {
+                      final user = context.read<AuthProvider>().user;
+                      if (user?.isConvidado ?? false) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LancarDespesaScreen(
+                            api: widget.api,
+                            obraId: _etapa.obraId,
+                            etapaId: _etapa.id,
+                            etapaNome: _etapa.nome,
+                            categoriaInicial: entry.key,
+                          ),
+                        ),
+                      );
+                    },
+                    itemBuilder: (item) {
+                      final sub = context.read<SubscriptionProvider>();
+                      final canDelete = sub.isDono;
+                      return _ItemCard(
+                        item: item,
+                        statusColor: _statusColor(item.status),
+                        statusLabel: _statusLabel(item.status),
+                        canDelete: canDelete,
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DetalheItemScreen(
+                                item: item,
+                                api: widget.api,
+                                etapaNome: _etapa.nome,
                               ),
-                            );
-                            await _refresh();
-                          },
-                          onDelete: canDelete
-                              ? () async {
-                                  if (await _confirmarRemocao(item)) {
-                                    await _deletarItem(item);
-                                  }
+                            ),
+                          );
+                          await _refresh();
+                        },
+                        onDelete: canDelete
+                            ? () async {
+                                if (await _confirmarRemocao(item)) {
+                                  await _deletarItem(item);
                                 }
-                              : null,
-                        );
-                      },
-                    ),
-                  const SizedBox(height: 8),
-                ],
+                              }
+                            : null,
+                      );
+                    },
+                  ),
               ],
             ),
           );
@@ -475,39 +533,182 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   }
 }
 
-// ─── Widgets auxiliares ──────────────────────────────────────────────────────
+// ─── Filter chips row ────────────────────────────────────────────────────────
 
-class _GrupoHeader extends StatelessWidget {
-  const _GrupoHeader({required this.nome, required this.itens});
-
+class _DocFilter {
+  final String id;
   final String nome;
-  final List<ChecklistItem> itens;
+  _DocFilter({required this.id, required this.nome});
+}
+
+class _FilterChipsRow extends StatelessWidget {
+  const _FilterChipsRow({
+    required this.filtroAtual,
+    required this.docFilters,
+    required this.hasIaItems,
+    required this.onChanged,
+  });
+
+  final String? filtroAtual;
+  final List<_DocFilter> docFilters;
+  final bool hasIaItems;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final concluidos = itens.where((i) => i.status == "ok").length;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          Text(
-            nome,
-            style: Theme.of(context)
-                .textTheme
-                .titleSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+          FilterChip(
+            label: const Text("Todos"),
+            selected: filtroAtual == null,
+            onSelected: (_) => onChanged(null),
           ),
-          const SizedBox(width: 8),
-          Text(
-            "$concluidos/${itens.length}",
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          const SizedBox(width: 6),
+          FilterChip(
+            label: const Text("Padrão"),
+            selected: filtroAtual == "padrao",
+            onSelected: (_) =>
+                onChanged(filtroAtual == "padrao" ? null : "padrao"),
           ),
-          const Expanded(child: Divider(indent: 8)),
+          if (hasIaItems) ...[
+            const SizedBox(width: 6),
+            FilterChip(
+              label: const Text("IA"),
+              avatar: const Icon(Icons.auto_awesome, size: 14),
+              selected: filtroAtual == "ia",
+              onSelected: (_) =>
+                  onChanged(filtroAtual == "ia" ? null : "ia"),
+            ),
+          ],
+          for (final doc in docFilters) ...[
+            const SizedBox(width: 6),
+            FilterChip(
+              label: Text(
+                doc.nome.length > 20
+                    ? "${doc.nome.substring(0, 20)}..."
+                    : doc.nome,
+              ),
+              avatar: const Icon(Icons.description_outlined, size: 14),
+              selected: filtroAtual == doc.id,
+              onSelected: (_) =>
+                  onChanged(filtroAtual == doc.id ? null : doc.id),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+
+// ─── Collapsible group ───────────────────────────────────────────────────────
+
+class _GrupoExpansivel extends StatelessWidget {
+  const _GrupoExpansivel({
+    required this.grupoNome,
+    required this.itens,
+    required this.expanded,
+    required this.onToggle,
+    required this.onDespesa,
+    required this.itemBuilder,
+  });
+
+  final String grupoNome;
+  final List<ChecklistItem> itens;
+  final bool expanded;
+  final VoidCallback onToggle;
+  final VoidCallback onDespesa;
+  final Widget Function(ChecklistItem) itemBuilder;
+
+  @override
+  Widget build(BuildContext context) {
+    final concluidos = itens.where((i) => i.status == "ok").length;
+    final total = itens.length;
+    final pct = total > 0 ? concluidos / total : 0.0;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    expanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 22,
+                    color: Colors.grey[600],
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          grupoNome,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              "$concluidos/$total",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: LinearProgressIndicator(
+                                value: pct,
+                                backgroundColor: Colors.grey[200],
+                                minHeight: 4,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.attach_money, size: 20),
+                    tooltip: "Lançar despesa",
+                    onPressed: onDespesa,
+                    visualDensity: VisualDensity.compact,
+                    style: IconButton.styleFrom(
+                      foregroundColor: Colors.green[700],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Column(
+                children: itens.map(itemBuilder).toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Item card ───────────────────────────────────────────────────────────────
 
 class _ItemCard extends StatelessWidget {
   const _ItemCard({
@@ -530,11 +731,13 @@ class _ItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final card = Card(
       margin: const EdgeInsets.only(bottom: 4),
+      elevation: 0,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
               Expanded(
@@ -550,8 +753,28 @@ class _ItemCard extends StatelessWidget {
                           item.descricao!,
                           style: TextStyle(
                               fontSize: 12, color: Colors.grey[600]),
-                          maxLines: 2,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    // Show document origin discreetly
+                    if (item.projetoDocNome != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            Icon(Icons.description_outlined,
+                                size: 11, color: Colors.grey[500]),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                item.projetoDocNome!,
+                                style: TextStyle(
+                                    fontSize: 10, color: Colors.grey[500]),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],
@@ -577,7 +800,6 @@ class _ItemCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  // Severity badge
                   if (item.severidade != null) ...[
                     const SizedBox(height: 4),
                     Container(
@@ -598,7 +820,6 @@ class _ItemCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  // Critical badge
                   if (item.critico) ...[
                     const SizedBox(height: 4),
                     Container(
@@ -614,7 +835,6 @@ class _ItemCard extends StatelessWidget {
                       ),
                     ),
                   ],
-                  // AI enriched icon
                   if (item.isEnriquecido) ...[
                     const SizedBox(height: 4),
                     Icon(Icons.auto_awesome,
@@ -666,7 +886,6 @@ class _ItemCard extends StatelessWidget {
       child: card,
     );
   }
-
 }
 
 Color _severidadeColor(String severidade) {

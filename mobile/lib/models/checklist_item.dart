@@ -13,6 +13,12 @@ class ChecklistItem {
     this.grupo = 'Geral',
     this.ordem = 0,
     this.criadoEm,
+    this.origem = 'padrao',
+    this.projetoDocId,
+    this.projetoDocNome,
+    this.comoVerificar,
+    this.medidasMinimas,
+    this.explicacaoLeigo,
     // 3 Camadas
     this.severidade,
     this.traducaoLeigo,
@@ -38,6 +44,12 @@ class ChecklistItem {
   final String grupo;
   final int ordem;
   final DateTime? criadoEm;
+  final String origem;
+  final String? projetoDocId;
+  final String? projetoDocNome;
+  final String? comoVerificar;
+  final String? medidasMinimas;
+  final String? explicacaoLeigo;
   // 3 Camadas
   final String? severidade;
   final String? traducaoLeigo;
@@ -68,6 +80,12 @@ class ChecklistItem {
       criadoEm: json["created_at"] != null
           ? DateTime.tryParse(json["created_at"] as String)
           : null,
+      origem: json["origem"] as String? ?? "padrao",
+      projetoDocId: json["projeto_doc_id"] as String?,
+      projetoDocNome: json["projeto_doc_nome"] as String?,
+      comoVerificar: json["como_verificar"] as String?,
+      medidasMinimas: json["medidas_minimas"] as String?,
+      explicacaoLeigo: json["explicacao_leigo"] as String?,
       // 3 Camadas
       severidade: json["severidade"] as String?,
       traducaoLeigo: json["traducao_leigo"] as String?,

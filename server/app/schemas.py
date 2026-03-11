@@ -83,6 +83,7 @@ class ObraCreate(SQLModel):
     data_fim: Optional[date] = None
     orcamento: Optional[float] = None
     localizacao: Optional[str] = None
+    area_m2: Optional[float] = None
 
 
 class ObraRead(ObraCreate):
@@ -150,6 +151,12 @@ class ChecklistItemRead(SQLModel):
     status_verificacao: str = "pendente"
     confianca: Optional[int] = None
     requer_validacao_profissional: bool = False
+    # Fase 6 fields
+    projeto_doc_id: Optional[UUID] = None
+    projeto_doc_nome: Optional[str] = None
+    como_verificar: Optional[str] = None
+    medidas_minimas: Optional[str] = None
+    explicacao_leigo: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -548,6 +555,16 @@ class ItemParaAplicar(SQLModel):
     documentos_a_exigir: Optional[str] = None
     confianca: Optional[int] = None
     requer_validacao_profissional: bool = False
+    # Fase 6 fields
+    como_verificar: Optional[str] = None
+    medidas_minimas: Optional[str] = None
+    explicacao_leigo: Optional[str] = None
+    projeto_doc_id: Optional[UUID] = None
+    projeto_doc_nome: Optional[str] = None
+
+
+class IniciarChecklistRequest(SQLModel):
+    projeto_ids: Optional[List[str]] = None
 
 
 class AplicarChecklistRequest(SQLModel):
@@ -591,6 +608,8 @@ class ChecklistGeracaoItemRead(SQLModel):
     medidas_minimas: Optional[str] = None
     explicacao_leigo: str
     caracteristica_origem: str
+    projeto_doc_id: Optional[str] = None
+    projeto_doc_nome: Optional[str] = None
     # 3 Camadas (new)
     dado_projeto: Optional[str] = None
     verificacoes: Optional[str] = None

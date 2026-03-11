@@ -199,8 +199,13 @@ REGRAS OBRIGATORIAS:
 10. Para cada item, inclua MEDIDAS MINIMAS exigidas pela norma e uma EXPLICACAO \
 para leigo do que significa na pratica
 11. Para cada item, gere os 3 blocos de orientacao ao proprietario:
-    - dado_projeto: dados concretos que o proprietario deve encontrar no projeto
-    - verificacoes: lista de verificacoes praticas que o proprietario pode fazer na obra
+    - dado_projeto: dados concretos que o proprietario deve encontrar no projeto.
+      IMPORTANTE: "especificacao" DEVE conter valores CONCRETOS extraidos do projeto quando disponiveis
+      (ex: "2 ralos de fundo na piscina a 2m um do outro", "parede de 19cm", "laje de 12cm").
+      Se o projeto nao detalha, use valores minimos normativos.
+    - verificacoes: lista de verificacoes praticas que o proprietario pode fazer na obra.
+      IMPORTANTE: cada "instrucao" deve REFERENCIAR o projeto quando disponivel
+      (ex: "os ralos devem estar a 2m de distancia conforme projeto") ou a norma quando nao ha dados do projeto.
     - pergunta_engenheiro: pergunta colaborativa para o engenheiro caso algo pareca diferente
     - documentos_a_exigir: documentos que o proprietario deve solicitar
 
@@ -496,16 +501,16 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
   "traducao_leigo": "explicacao simples para proprietario leigo (max 200 chars)",
   "dado_projeto": {{
     "descricao": "o que este item representa no projeto (max 150 chars)",
-    "especificacao": "especificacao tecnica esperada",
-    "fonte": "onde encontrar no projeto",
-    "valor_referencia": "valor de referencia"
+    "especificacao": "especificacao tecnica com VALORES CONCRETOS do projeto (ex: 'parede de 19cm', '2 ralos a 2m'). Se projeto nao detalha, use minimo normativo.",
+    "fonte": "onde encontrar no projeto (ex: 'Planta Estrutural - Folha 3')",
+    "valor_referencia": "valor numerico ou descritivo de referencia"
   }},
   "verificacoes": [
     {{
-      "instrucao": "instrucao simples do que fazer (max 100 chars)",
+      "instrucao": "instrucao simples REFERENCIANDO o projeto quando disponivel (ex: 'conforme projeto, os ralos devem estar a 2m') ou a norma (max 100 chars)",
       "tipo": "medicao | visual | documento",
       "valor_esperado": "o que esperar",
-      "como_medir": "como realizar a verificacao (max 150 chars)"
+      "como_medir": "como realizar a verificacao na pratica (max 150 chars)"
     }}
   ],
   "pergunta_engenheiro": {{
@@ -515,7 +520,10 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
   }},
   "norma_referencia": "norma ABNT/NBR aplicavel ou null",
   "documentos_a_exigir": ["nome do documento 1"],
-  "confianca": 0-100
+  "confianca": 0-100,
+  "como_verificar": "instrucao pratica em 1-2 frases de COMO o proprietario verifica este item na obra",
+  "medidas_minimas": "exigencias normativas concretas (dimensoes, espessuras, inclinacoes) ou null se nao aplicavel",
+  "explicacao_leigo": "explicacao simples e curta do POR QUE este item e importante para a seguranca/qualidade da obra (max 200 chars)"
 }}
 
 Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
@@ -750,7 +758,7 @@ def gerar_checklist_stream(
 
 def processar_checklist_background(
     log_id: UUID,
-    projetos_info: list[tuple[str, str]],  # (arquivo_url, arquivo_nome)
+    projetos_info: list[tuple[str, str, str]],  # (arquivo_url, arquivo_nome, doc_id)
     localizacao: Optional[str],
     database_url: str,
     bucket: str,
@@ -769,17 +777,17 @@ def processar_checklist_background(
     engine = create_engine(database_url, echo=False)
 
     # Download PDFs here (inside thread) so the HTTP handler returns immediately
-    pdfs: list[tuple[bytes, str]] = []
-    for arquivo_url, arquivo_nome in projetos_info:
+    pdfs: list[tuple[bytes, str, str]] = []  # (pdf_bytes, nome, doc_id)
+    for arquivo_url, arquivo_nome, doc_id in projetos_info:
         object_key = extract_object_key(arquivo_url, bucket)
         pdf_bytes = download_by_url(arquivo_url, bucket, object_key)
-        pdfs.append((pdf_bytes, arquivo_nome))
+        pdfs.append((pdf_bytes, arquivo_nome, doc_id))
 
     try:
         # Count total pages
         total_pages = 0
         pdf_page_counts: list[int] = []
-        for pdf_bytes, nome in pdfs:
+        for pdf_bytes, nome, _doc_id in pdfs:
             count = contar_paginas(pdf_bytes)
             pdf_page_counts.append(count)
             total_pages += count
@@ -799,7 +807,7 @@ def processar_checklist_background(
         global_page = 0
         total_itens = 0
 
-        for pdf_idx, (pdf_bytes, nome) in enumerate(pdfs):
+        for pdf_idx, (pdf_bytes, nome, current_doc_id) in enumerate(pdfs):
             num_pages = pdf_page_counts[pdf_idx]
 
             for page_idx in range(num_pages):
@@ -855,6 +863,8 @@ def processar_checklist_background(
                                         medidas_minimas=item_data.get("medidas_minimas"),
                                         explicacao_leigo=item_data.get("explicacao_leigo", ""),
                                         caracteristica_origem=carac_id,
+                                        projeto_doc_id=current_doc_id,
+                                        projeto_doc_nome=nome,
                                         # 3 Camadas
                                         dado_projeto=json.dumps(item_data["dado_projeto"], ensure_ascii=False) if item_data.get("dado_projeto") else None,
                                         verificacoes=json.dumps(item_data["verificacoes"], ensure_ascii=False) if item_data.get("verificacoes") else None,
