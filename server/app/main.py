@@ -2631,7 +2631,9 @@ async def stripe_webhook(
             if status_val == "active":
                 sub.status = "active"
                 sub.plan = "dono_da_obra"
-                sub.expires_at = datetime.utcfromtimestamp(data_object.get("current_period_end", 0))
+                period_end = data_object.get("current_period_end")
+                if period_end:
+                    sub.expires_at = datetime.utcfromtimestamp(period_end)
                 if user:
                     user.plan = "dono_da_obra"
                     user.updated_at = datetime.utcnow()
