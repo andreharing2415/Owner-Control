@@ -6,8 +6,9 @@ Pipeline incremental por pagina com SSE streaming:
 2. Para cada caracteristica NOVA -> gera itens de checklist com normas detalhadas
 3. Envia resultados ao cliente via Server-Sent Events em tempo real
 
-Cadeia de fallback para identificacao: Gemini -> Claude -> OpenAI
+Cadeia de fallback para identificacao: Gemini -> OpenAI -> Claude
 Cadeia de fallback para geracao: Gemini -> OpenAI (web search)
+Cadeia de fallback para enriquecimento: Gemini -> OpenAI -> Claude
 
 Guardrails obrigatorios (RULES.md):
 - Nunca apresentar como parecer tecnico ou opiniao profissional
@@ -21,7 +22,7 @@ import base64
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Generator, Optional
 from uuid import UUID
 
@@ -29,6 +30,7 @@ import anthropic
 from openai import OpenAI
 
 from .pdf_utils import extrair_pagina_individual, contar_paginas
+from .utils import clean_json_response
 
 logger = logging.getLogger(__name__)
 
@@ -36,88 +38,100 @@ logger = logging.getLogger(__name__)
 
 CARACTERISTICA_ETAPA_MAP: dict[str, list[str]] = {
     "piscina": [
-        "Fundacoes e Estrutura",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Fundacao e Estrutura",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "ar_condicionado": [
-        "Planejamento e Projeto",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Planejamento",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "elevador": [
-        "Fundacoes e Estrutura",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Fundacao e Estrutura",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "aquecimento_solar": [
-        "Alvenaria e Cobertura",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "energia_solar_fotovoltaica": [
-        "Alvenaria e Cobertura",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "automacao_residencial": [
-        "Planejamento e Projeto",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Planejamento",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "lareira": [
-        "Alvenaria e Cobertura",
-        "Instalacoes e Acabamentos",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
     ],
     "churrasqueira": [
-        "Alvenaria e Cobertura",
-        "Instalacoes e Acabamentos",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
     ],
     "adega": [
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "sauna": [
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "aquecimento_piso": [
-        "Instalacoes e Acabamentos",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
     ],
     "sistema_incendio": [
-        "Planejamento e Projeto",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Planejamento",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "gas_encanado": [
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "cisterna_reuso": [
-        "Preparacao do Terreno",
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Fundacao e Estrutura",
+        "Alvenaria e Infraestrutura",
+        "Entrega e Testes",
     ],
     "paisagismo_irrigacao": [
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "home_theater": [
-        "Instalacoes e Acabamentos",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
     ],
     "gerador": [
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "portao_automatico": [
-        "Instalacoes e Acabamentos",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "cerca_eletrica": [
-        "Instalacoes e Acabamentos",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
     "cftv": [
-        "Instalacoes e Acabamentos",
-        "Entrega e Pos-obra",
+        "Alvenaria e Infraestrutura",
+        "Acabamentos",
+        "Entrega e Testes",
     ],
 }
 
@@ -125,160 +139,178 @@ CARACTERISTICA_ETAPA_MAP: dict[str, list[str]] = {
 # ─── Prompt para analise de pagina individual ────────────────────────────────
 
 PHASE1_PAGE_PROMPT = """\
-Voce e um especialista em analise de projetos de construcao civil.
+Voce e um Especialista em Leitura de Projetos de Construcao Civil.
+Sua missao e analisar os documentos anexados e varrer a prancha em busca de \
+SISTEMAS ESPECIAIS e INFRAESTRUTURAS ESPECIFICAS.
 
-Analise esta UNICA pagina de um projeto de construcao e identifique \
-TODAS as caracteristicas especiais e sistemas presentes.
+DIRETRIZES DE EXTRACAO (REGRA DE ZERO INFERENCIA):
+1. Identifique SOMENTE as caracteristicas que estao CLARAMENTE escritas, \
+desenhadas com simbologia tecnica explicita ou cotadas.
+2. NUNCA ESPECULE. Um banheiro grande nao significa "sauna" a menos que \
+esteja escrito ou tenha o equipamento especificado.
+3. Nao liste equipamentos padrao (torneiras comuns, chuveiros eletricos, \
+tomadas simples, interruptores).
+4. Cite a evidencia exata que o fez identificar o sistema (texto lido ou simbolo visto).
 
-REGRAS OBRIGATORIAS:
-1. Identifique SOMENTE caracteristicas que voce pode VER CLARAMENTE escritas, desenhadas ou cotadas na pagina
-2. NAO ESPECULE. Se nao ha texto, simbolo ou desenho EXPLICITO de uma caracteristica, NAO a inclua
-3. Para cada caracteristica, cite o TEXTO EXATO ou SIMBOLO que voce viu na pagina como evidencia
-4. Indique nivel de confianca (0-100) para cada caracteristica
-5. Confianca abaixo de 70: NAO inclua a caracteristica. So reporte o que e CERTO
-6. Se a pagina e uma planta baixa generica sem sistemas especiais, retorne lista VAZIA
-7. NUNCA confunda equipamentos padrao (torneiras, chuveiros, tomadas) com sistemas especiais
+SISTEMAS ALVO (Busque apenas por estes ou similares de alta complexidade):
+- Lazer/Agua: Piscina, spa, espelho d'agua, sauna (seca/umida).
+- Climatizacao: Ar condicionado (VRF, Split, Central), aquecimento de piso, lareira.
+- Energia/Aquecimento: Aquecimento solar (boiler/placas), energia solar fotovoltaica, gerador.
+- Tecnologia/Seguranca: Automacao residencial (Smart Home), CFTV, cerca eletrica, \
+portao automatico, home theater (acustica).
+- Instalacoes Especiais: Elevador/Plataforma, sistema de combate a incendio \
+(SPDA, sprinklers), gas encanado, cisterna/reuso de agua, irrigacao automatica.
 
-LISTA DE CARACTERISTICAS A BUSCAR:
-- piscina (piscina, spa, espelho d'agua com sistema)
-- ar_condicionado (HVAC, ar condicionado, climatizacao, split, VRF)
-- elevador (elevador residencial, plataforma elevatoria)
-- aquecimento_solar (aquecedor solar, placas de aquecimento, boiler solar)
-- energia_solar_fotovoltaica (paineis fotovoltaicos, sistema on-grid, off-grid)
-- automacao_residencial (domotica, automacao, smart home, KNX, Alexa)
-- lareira (lareira, leira, forno a lenha interno)
-- churrasqueira (churrasqueira, area gourmet com fogo)
-- adega (adega climatizada, wine cellar)
-- sauna (sauna seca, sauna umida)
-- aquecimento_piso (piso aquecido, piso radiante)
-- sistema_incendio (SPDA, sprinklers, sistema contra incendio, hidrantes)
-- gas_encanado (gas encanado, gas natural, central de gas GLP)
-- cisterna_reuso (cisterna, reuso de agua, captacao pluvial)
-- paisagismo_irrigacao (irrigacao automatica, sistema de irrigacao)
-- home_theater (home theater, sala de cinema, tratamento acustico)
-- gerador (gerador, nobreak central, grupo gerador)
-- portao_automatico (portao automatizado, portao eletrico)
-- cerca_eletrica (cerca eletrica, alarme perimetral)
-- cftv (cameras, CFTV, circuito fechado, vigilancia)
-
-FORMATO DE RESPOSTA (JSON obrigatorio):
+FORMATO DE RESPOSTA OBRIGATORIO (JSON puro):
 {
-  "caracteristicas": [
+  "resumo_prancha": "Descricao concisa do conteudo desta pagina \
+(ex: Planta de cobertura e telhado).",
+  "sistemas_especiais_encontrados": [
     {
-      "id": "piscina",
-      "nome_legivel": "Piscina",
-      "descricao_no_projeto": "onde e como aparece na pagina (max 200 chars)",
-      "evidencia_textual": "texto ou rotulo EXATO que voce leu na pagina (ex: 'PISCINA 24 m2')",
-      "confianca": numero 0-100
+      "categoria_id": "Identificador padronizado (ex: energia_solar_fotovoltaica)",
+      "nome_encontrado": "Nome exato encontrado no projeto (ex: Placas Fotovoltaicas 400W)",
+      "localizacao_na_prancha": "Onde esta localizado o detalhe \
+(ex: Canto superior direito, na legenda)",
+      "evidencia_visual_ou_textual": "Texto exato ou descricao do simbolo tecnico \
+que prova a existencia do sistema."
     }
-  ],
-  "resumo_pagina": "descricao breve do conteudo desta pagina (max 150 chars)"
+  ]
 }
-
-IMPORTANTE: Na maioria das paginas NAO ha caracteristicas especiais. E NORMAL retornar lista vazia.
-Se nenhuma caracteristica especial for encontrada, retorne:
-{"caracteristicas": [], "resumo_pagina": "descricao do conteudo"}
-
-Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
+IMPORTANTE: Se a pagina for apenas uma planta generica sem nenhum dos sistemas \
+acima, retorne a lista "sistemas_especiais_encontrados" VAZIA [].
+Retorne APENAS o JSON valido."""
 
 
 # ─── Prompt Fase 2: Geracao de itens (atualizado com normas explicativas) ────
 
 PHASE2_SYSTEM_PROMPT = """\
-Voce e um especialista em normas tecnicas brasileiras de construcao civil com \
-foco em fiscalizacao de obras de alto padrao pelo proprietario.
+Voce e um Auditor de Obras de Alto Padrao e Especialista em Normas Tecnicas (ABNT/NR).
+Sua missao e gerar um checklist de fiscalizacao pratico para um PROPRIETARIO DE OBRA \
+leigo, focado exclusivamente no seguinte sistema especial identificado no projeto.
 
-Sua funcao e, dada uma CARACTERISTICA especifica de um projeto de construcao, \
-gerar itens de checklist que o proprietario deve verificar durante a obra.
+DIRETRIZES DO CHECKLIST:
+1. O proprietario NAO e engenheiro. Traduza qualquer jargao para o impacto pratico \
+na rotina, seguranca ou bolso dele.
+2. Cada item deve ser uma acao de verificacao fisica ou documental que o proprietario \
+consiga fazer sozinho.
+3. Classifique rigorosamente a Etapa da Obra (Planejamento, Fundacao e Estrutura, \
+Alvenaria e Infraestrutura, Acabamentos, Entrega e Testes).
+4. Informe sempre a Norma Tecnica (ABNT/NR/NTC) de referencia. Se nao houver, \
+indique "Boas praticas de engenharia".
 
-REGRAS OBRIGATORIAS:
-1. Cada item deve ser uma ACAO CONCRETA que o proprietario pode verificar ou solicitar
-2. Inclua a norma tecnica aplicavel (ABNT, NR, codigo de obras) quando houver
-3. Escreva em linguagem SIMPLES e DIRETA para leigo
-4. Indique COMO o proprietario deve verificar (o que olhar, o que perguntar, que documento pedir)
-5. Classifique o risco: "alto" (seguranca/estrutural), "medio" (funcional), "baixo" (estetico/preventivo)
-6. Itens de risco "alto" DEVEM ter requer_validacao_profissional: true
-7. Distribua os itens nas etapas corretas da obra
-8. Indique nivel de confianca (0-100) baseado na qualidade da fonte normativa
-9. NUNCA apresente como parecer tecnico
-10. Para cada item, inclua MEDIDAS MINIMAS exigidas pela norma e uma EXPLICACAO \
-para leigo do que significa na pratica
-11. Para cada item, gere os 3 blocos de orientacao ao proprietario:
-    - dado_projeto: dados concretos que o proprietario deve encontrar no projeto.
-      IMPORTANTE: "especificacao" DEVE conter valores CONCRETOS extraidos do projeto quando disponiveis
-      (ex: "2 ralos de fundo na piscina a 2m um do outro", "parede de 19cm", "laje de 12cm").
-      Se o projeto nao detalha, use valores minimos normativos.
-    - verificacoes: lista de verificacoes praticas que o proprietario pode fazer na obra.
-      IMPORTANTE: cada "instrucao" deve REFERENCIAR o projeto quando disponivel
-      (ex: "os ralos devem estar a 2m de distancia conforme projeto") ou a norma quando nao ha dados do projeto.
-    - pergunta_engenheiro: pergunta colaborativa para o engenheiro caso algo pareca diferente
-    - documentos_a_exigir: documentos que o proprietario deve solicitar
-
-As 6 etapas da obra sao:
-- Planejamento e Projeto
-- Preparacao do Terreno
-- Fundacoes e Estrutura
-- Alvenaria e Cobertura
-- Instalacoes e Acabamentos
-- Entrega e Pos-obra
-
-FORMATO DE RESPOSTA (JSON obrigatorio):
+FORMATO DE RESPOSTA OBRIGATORIO (JSON puro):
 {
-  "caracteristica": "id da caracteristica",
-  "itens": [
+  "sistema_analisado": "identificador do sistema (ex: piscina)",
+  "introducao_ao_proprietario": "Breve explicacao do porque este sistema exige \
+atencao especial na obra (max 3 linhas).",
+  "checklist": [
     {
-      "etapa_nome": "nome exato da etapa (uma das 6 acima)",
-      "titulo": "titulo curto do item de checklist (max 80 chars)",
-      "descricao": "descricao detalhada: o que verificar, como verificar, que documento pedir (max 300 chars)",
-      "norma_referencia": "norma aplicavel (ex: NBR 5410:2004) ou null",
-      "critico": true | false,
-      "risco_nivel": "alto" | "medio" | "baixo",
-      "requer_validacao_profissional": true | false,
-      "confianca": numero 0-100,
-      "como_verificar": "instrucao pratica em 1-2 frases de COMO o proprietario verifica este item",
-      "medidas_minimas": "exigencias normativas concretas ou null",
-      "explicacao_leigo": "explicacao simples do POR QUE e importante (max 200 chars)",
-      "dado_projeto": {
-        "descricao": "o que este item representa no projeto (max 150 chars)",
-        "especificacao": "especificacao tecnica esperada (ex: espessura 19cm)",
-        "fonte": "onde encontrar no projeto (ex: Planta Estrutural - Folha 3)",
-        "valor_referencia": "valor numerico ou descritivo de referencia"
+      "etapa_da_obra": "Planejamento | Fundacao e Estrutura | Alvenaria e Infraestrutura \
+| Acabamentos | Entrega e Testes",
+      "risco": "ALTO | MEDIO | BAIXO",
+      "titulo_verificacao": "O que verificar (ex: Impermeabilizacao do fosso do elevador)",
+      "norma_tecnica": "Ex: NBR NM 313 ou ABNT NBR 5410",
+      "por_que_isso_importa": "Explicacao para o leigo do que acontece se der errado \
+(ex: Se infiltrar agua, a placa do elevador queima).",
+      "como_o_proprietario_verifica": {
+        "acao_pratica": "Instrucao visual ou documental (ex: Peca o laudo de \
+estanqueidade antes de fecharem a caixa).",
+        "medida_ou_regra_minima": "Exigencia normativa concreta (ex: O poco deve ter \
+no minimo 1.50m de profundidade)."
       },
-      "verificacoes": [
-        {
-          "instrucao": "instrucao simples do que fazer (max 100 chars)",
-          "tipo": "medicao | visual | documento",
-          "valor_esperado": "o que esperar (ex: minimo 19cm)",
-          "como_medir": "como realizar a verificacao na pratica (max 150 chars)"
-        }
-      ],
-      "pergunta_engenheiro": {
-        "contexto": "contexto para o engenheiro (max 150 chars)",
-        "pergunta": "pergunta colaborativa e respeitosa (max 150 chars)",
-        "tom": "colaborativo"
+      "dialogo_com_engenheiro": {
+        "pergunta_pronta": "Pergunta educada e direta para mandar no WhatsApp do engenheiro.",
+        "resposta_tranquilizadora": "O que o proprietario deve esperar ouvir para saber \
+que o profissional domina o assunto."
       },
-      "documentos_a_exigir": ["nome do documento 1", "nome do documento 2"]
+      "documento_para_exibir": "Nome do laudo, ART ou certificado a ser cobrado na etapa (ou null)"
     }
   ]
 }
+Retorne APENAS o JSON valido. Certifique-se de criar de 3 a 5 itens de checklist \
+altamente relevantes e especificos para o sistema."""
 
-Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
+
+# ─── Normalizadores: converte resposta IA nova → formato interno ─────────────
+
+def _normalizar_fase1(raw: dict) -> dict:
+    """Converte resposta da Fase 1 (novo formato) para o formato interno usado pelo pipeline."""
+    sistemas = raw.get("sistemas_especiais_encontrados", [])
+    caracteristicas = []
+    for s in sistemas:
+        caracteristicas.append({
+            "id": s.get("categoria_id", ""),
+            "nome_legivel": s.get("nome_encontrado", s.get("categoria_id", "")),
+            "descricao_no_projeto": (
+                f"{s.get('localizacao_na_prancha', '')} — "
+                f"{s.get('evidencia_visual_ou_textual', '')}"
+            )[:200],
+            "evidencia_textual": s.get("evidencia_visual_ou_textual", ""),
+            "confianca": 90,  # zero-inference = alta confianca implicita
+        })
+    return {
+        "caracteristicas": caracteristicas,
+        "resumo_pagina": raw.get("resumo_prancha", ""),
+    }
+
+
+def _normalizar_fase2(raw: dict) -> dict:
+    """Converte resposta da Fase 2 (novo formato) para o formato interno de itens."""
+    itens = []
+    introducao = raw.get("introducao_ao_proprietario", "")
+    for item in raw.get("checklist", []):
+        risco_raw = (item.get("risco", "BAIXO") or "BAIXO").upper()
+        risco_map = {"ALTO": "alto", "MEDIO": "medio", "MÉDIO": "medio", "BAIXO": "baixo"}
+        risco = risco_map.get(risco_raw, "baixo")
+        is_alto = risco == "alto"
+
+        verificacao = item.get("como_o_proprietario_verifica", {}) or {}
+        dialogo = item.get("dialogo_com_engenheiro", {}) or {}
+        doc = item.get("documento_para_exibir")
+
+        itens.append({
+            "etapa_nome": item.get("etapa_da_obra", "Acabamentos"),
+            "titulo": item.get("titulo_verificacao", "")[:80],
+            "descricao": item.get("por_que_isso_importa", "")[:300],
+            "norma_referencia": item.get("norma_tecnica"),
+            "critico": is_alto,
+            "risco_nivel": risco,
+            "requer_validacao_profissional": is_alto,
+            "confianca": 85,
+            "como_verificar": verificacao.get("acao_pratica", ""),
+            "medidas_minimas": verificacao.get("medida_ou_regra_minima"),
+            "explicacao_leigo": item.get("por_que_isso_importa", "")[:200],
+            "dado_projeto": {
+                "descricao": item.get("titulo_verificacao", "")[:150],
+                "especificacao": verificacao.get("medida_ou_regra_minima", ""),
+                "fonte": "Projeto de construcao",
+                "valor_referencia": verificacao.get("medida_ou_regra_minima", ""),
+            },
+            "verificacoes": [
+                {
+                    "instrucao": verificacao.get("acao_pratica", "")[:100],
+                    "tipo": "visual",
+                    "valor_esperado": verificacao.get("medida_ou_regra_minima", ""),
+                    "como_medir": verificacao.get("acao_pratica", "")[:150],
+                }
+            ],
+            "pergunta_engenheiro": {
+                "contexto": item.get("titulo_verificacao", "")[:150],
+                "pergunta": dialogo.get("pergunta_pronta", "")[:150],
+                "tom": "colaborativo",
+                "resposta_esperada": dialogo.get("resposta_tranquilizadora", ""),
+            },
+            "documentos_a_exigir": [doc] if doc else [],
+        })
+
+    return {
+        "caracteristica": raw.get("sistema_analisado", ""),
+        "introducao_ao_proprietario": introducao,
+        "itens": itens,
+    }
 
 
 # ─── Funcoes auxiliares ──────────────────────────────────────────────────────
-
-def _clean_json_response(text: str) -> str:
-    """Remove blocos de markdown se presentes na resposta da IA."""
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        cleaned = (
-            "\n".join(lines[1:-1])
-            if lines[-1].strip() == "```"
-            else "\n".join(lines[1:])
-        )
-    return cleaned
-
 
 def _sse_event(event: str, data: dict) -> str:
     """Formata um evento SSE."""
@@ -294,7 +326,7 @@ def _analisar_pagina_claude(img_b64: str, page_label: str) -> dict:
 
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=2048,
         messages=[{
             "role": "user",
@@ -315,7 +347,7 @@ def _analisar_pagina_claude(img_b64: str, page_label: str) -> dict:
     text = response.content[0].text if response.content else ""
     if not text:
         raise ValueError("Claude nao retornou resposta")
-    return json.loads(_clean_json_response(text))
+    return json.loads(clean_json_response(text))
 
 
 def _analisar_pagina_openai(img_b64: str, page_label: str) -> dict:
@@ -325,7 +357,7 @@ def _analisar_pagina_openai(img_b64: str, page_label: str) -> dict:
 
     client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         max_tokens=2048,
         messages=[{
             "role": "user",
@@ -339,7 +371,7 @@ def _analisar_pagina_openai(img_b64: str, page_label: str) -> dict:
     text = response.choices[0].message.content or ""
     if not text:
         raise ValueError("OpenAI nao retornou resposta")
-    return json.loads(_clean_json_response(text))
+    return json.loads(clean_json_response(text))
 
 
 def _analisar_pagina_gemini(img_b64: str, page_label: str) -> dict:
@@ -362,20 +394,24 @@ def _analisar_pagina_gemini(img_b64: str, page_label: str) -> dict:
     text = response.text
     if not text:
         raise ValueError("Gemini nao retornou resposta")
-    return json.loads(_clean_json_response(text))
+    return json.loads(clean_json_response(text))
 
 
 def analisar_pagina(img_b64: str, page_label: str) -> dict:
-    """Analisa uma pagina individual com fallback chain: Gemini -> Claude -> OpenAI."""
+    """Analisa uma pagina individual com fallback chain: Gemini -> OpenAI -> Claude.
+    Normaliza resposta do novo formato (sistemas_especiais) para formato interno."""
     providers = [
         ("Gemini", _analisar_pagina_gemini),
-        ("Claude", _analisar_pagina_claude),
         ("OpenAI", _analisar_pagina_openai),
+        ("Claude", _analisar_pagina_claude),
     ]
     last_error = None
     for name, func in providers:
         try:
             result = func(img_b64, page_label)
+            # Normaliza se veio no novo formato (sistemas_especiais_encontrados)
+            if "sistemas_especiais_encontrados" in result:
+                result = _normalizar_fase1(result)
             logger.info("Pagina '%s' analisada via %s", page_label, name)
             return result
         except Exception as exc:
@@ -394,7 +430,7 @@ def _gerar_itens_openai(query: str) -> dict:
 
     client = OpenAI(api_key=api_key)
     response = client.responses.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         tools=[{"type": "web_search_preview"}],
         input=f"{PHASE2_SYSTEM_PROMPT}\n\nConsulta: {query}",
     )
@@ -411,7 +447,7 @@ def _gerar_itens_openai(query: str) -> dict:
 
     if not output_text:
         raise ValueError("OpenAI nao retornou resposta valida")
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 def _gerar_itens_gemini(query: str) -> dict:
@@ -430,7 +466,7 @@ def _gerar_itens_gemini(query: str) -> dict:
     output_text = response.text
     if not output_text:
         raise ValueError("Gemini nao retornou resposta valida")
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 def gerar_itens_para_caracteristica(
@@ -448,15 +484,12 @@ def gerar_itens_para_caracteristica(
     loc_str = f" na regiao de {localizacao}" if localizacao else " no Brasil"
 
     query = (
-        f"Gere itens de checklist para fiscalizacao de obra residencial de alto padrao "
-        f"que possui {caracteristica_nome}. "
-        f"Detalhes do projeto: {descricao_no_projeto}. "
-        f"Localizacao{loc_str}. "
-        f"Os itens devem ser distribuidos nas seguintes etapas: {etapas_str}. "
-        f"Pesquise normas ABNT, NRs e regulamentacoes aplicaveis a {caracteristica_nome} "
-        f"em construcao civil residencial brasileira. "
-        f"Para cada item, inclua as MEDIDAS MINIMAS exigidas pela norma e uma "
-        f"EXPLICACAO EM LINGUAGEM SIMPLES do por que e importante."
+        f"Sistema identificado no projeto: {caracteristica_nome}. "
+        f"Detalhes encontrados no projeto: {descricao_no_projeto}. "
+        f"Localizacao da obra{loc_str}. "
+        f"Foque nos itens das seguintes etapas: {etapas_str}. "
+        f"Gere de 3 a 5 itens de checklist altamente relevantes e especificos "
+        f"para fiscalizacao deste sistema pelo proprietario leigo."
     )
 
     providers = [
@@ -467,6 +500,9 @@ def gerar_itens_para_caracteristica(
     for name, func in providers:
         try:
             result = func(query)
+            # Normaliza se veio no novo formato (checklist[])
+            if "checklist" in result and "itens" not in result:
+                result = _normalizar_fase2(result)
             logger.info("Fase 2 (%s) concluida via %s", caracteristica_id, name)
             return result
         except Exception as exc:
@@ -482,10 +518,9 @@ def gerar_itens_para_caracteristica(
 # ─── Enriquecimento unitario de item padrao ─────────────────────────────────
 
 ENRICH_PROMPT_TEMPLATE = """\
-Voce e um especialista em normas tecnicas brasileiras de construcao civil.
-
+Voce e um Auditor de Obras de Alto Padrao e Especialista em Normas Tecnicas (ABNT/NR).
 Analise este item de checklist de obra no contexto dos documentos do projeto \
-e enriqueca com informacoes detalhadas para o proprietario.
+e enriqueca com orientacoes praticas para o PROPRIETARIO leigo.
 
 Item: {titulo}
 Descricao: {descricao}
@@ -494,11 +529,12 @@ Etapa: {etapa_nome}
 Documentos do projeto:
 {contexto_docs}
 
-REGRAS:
-1. Linguagem SIMPLES e DIRETA para proprietario leigo
-2. Inclua norma tecnica aplicavel (ABNT, NR) quando houver
-3. Indique nivel de confianca (0-100)
-4. NUNCA apresente como parecer tecnico
+DIRETRIZES:
+1. O proprietario NAO e engenheiro. Traduza jargao para impacto pratico.
+2. Cada orientacao deve ser uma acao que o proprietario consiga fazer sozinho.
+3. Informe a Norma Tecnica (ABNT/NR) de referencia. Se nao houver, \
+indique "Boas praticas de engenharia".
+4. NUNCA apresente como parecer tecnico.
 
 FORMATO DE RESPOSTA (JSON obrigatorio):
 {{
@@ -506,13 +542,14 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
   "traducao_leigo": "explicacao simples para proprietario leigo (max 200 chars)",
   "dado_projeto": {{
     "descricao": "o que este item representa no projeto (max 150 chars)",
-    "especificacao": "especificacao tecnica com VALORES CONCRETOS do projeto (ex: 'parede de 19cm', '2 ralos a 2m'). Se projeto nao detalha, use minimo normativo.",
+    "especificacao": "especificacao tecnica com VALORES CONCRETOS do projeto. \
+Se projeto nao detalha, use minimo normativo.",
     "fonte": "onde encontrar no projeto (ex: 'Planta Estrutural - Folha 3')",
     "valor_referencia": "valor numerico ou descritivo de referencia"
   }},
   "verificacoes": [
     {{
-      "instrucao": "instrucao simples REFERENCIANDO o projeto quando disponivel (ex: 'conforme projeto, os ralos devem estar a 2m') ou a norma (max 100 chars)",
+      "instrucao": "instrucao simples de verificacao (max 100 chars)",
       "tipo": "medicao | visual | documento",
       "valor_esperado": "o que esperar",
       "como_medir": "como realizar a verificacao na pratica (max 150 chars)"
@@ -520,15 +557,16 @@ FORMATO DE RESPOSTA (JSON obrigatorio):
   ],
   "pergunta_engenheiro": {{
     "contexto": "contexto para o engenheiro (max 150 chars)",
-    "pergunta": "pergunta colaborativa e respeitosa (max 150 chars)",
-    "tom": "colaborativo"
+    "pergunta": "pergunta educada e direta para mandar no WhatsApp do engenheiro (max 150 chars)",
+    "tom": "colaborativo",
+    "resposta_esperada": "o que o proprietario deve esperar ouvir para saber que o profissional domina o assunto"
   }},
-  "norma_referencia": "norma ABNT/NBR aplicavel ou null",
-  "documentos_a_exigir": ["nome do documento 1"],
+  "norma_referencia": "norma ABNT/NBR aplicavel ou 'Boas praticas de engenharia'",
+  "documentos_a_exigir": ["nome do laudo, ART ou certificado"],
   "confianca": 0-100,
-  "como_verificar": "instrucao pratica em 1-2 frases de COMO o proprietario verifica este item na obra",
-  "medidas_minimas": "exigencias normativas concretas (dimensoes, espessuras, inclinacoes) ou null se nao aplicavel",
-  "explicacao_leigo": "explicacao simples e curta do POR QUE este item e importante para a seguranca/qualidade da obra (max 200 chars)"
+  "como_verificar": "instrucao pratica em 1-2 frases de COMO o proprietario verifica este item",
+  "medidas_minimas": "exigencia normativa concreta (dimensoes, espessuras, inclinacoes) ou null",
+  "explicacao_leigo": "explicacao do que acontece se der errado — impacto pratico (max 200 chars)"
 }}
 
 Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
@@ -540,14 +578,14 @@ def _enriquecer_claude(prompt: str) -> dict:
         raise ValueError("ANTHROPIC_API_KEY nao configurada")
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.content[0].text if response.content else ""
     if not text:
         raise ValueError("Claude nao retornou resposta")
-    return json.loads(_clean_json_response(text))
+    return json.loads(clean_json_response(text))
 
 
 def _enriquecer_openai(prompt: str) -> dict:
@@ -556,14 +594,14 @@ def _enriquecer_openai(prompt: str) -> dict:
         raise ValueError("OPENAI_API_KEY nao configurada")
     client = OpenAI(api_key=api_key)
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         max_tokens=2048,
         messages=[{"role": "user", "content": prompt}],
     )
     text = response.choices[0].message.content or ""
     if not text:
         raise ValueError("OpenAI nao retornou resposta")
-    return json.loads(_clean_json_response(text))
+    return json.loads(clean_json_response(text))
 
 
 def _enriquecer_gemini(prompt: str) -> dict:
@@ -577,7 +615,7 @@ def _enriquecer_gemini(prompt: str) -> dict:
     text = response.text
     if not text:
         raise ValueError("Gemini nao retornou resposta")
-    return json.loads(_clean_json_response(text))
+    return json.loads(clean_json_response(text))
 
 
 def enriquecer_item_unico(
@@ -588,7 +626,7 @@ def enriquecer_item_unico(
 ) -> dict:
     """Enriquece um item de checklist padrao com analise IA.
 
-    Cadeia de fallback: Claude -> OpenAI -> Gemini.
+    Cadeia de fallback: Gemini -> OpenAI -> Claude.
     Retorna dict com campos dos 3 blocos de orientacao.
     """
     prompt = ENRICH_PROMPT_TEMPLATE.format(
@@ -600,8 +638,8 @@ def enriquecer_item_unico(
 
     providers = [
         ("Gemini", _enriquecer_gemini),
-        ("Claude", _enriquecer_claude),
         ("OpenAI", _enriquecer_openai),
+        ("Claude", _enriquecer_claude),
     ]
     last_error = None
     for name, func in providers:
@@ -709,7 +747,7 @@ def gerar_checklist_stream(
                     })
 
                     etapas_alvo = CARACTERISTICA_ETAPA_MAP.get(
-                        carac_id, ["Instalacoes e Acabamentos"]
+                        carac_id, ["Acabamentos"]
                     )
 
                     try:
@@ -726,6 +764,7 @@ def gerar_checklist_stream(
 
                         yield _sse_event("itens", {
                             "caracteristica": carac_id,
+                            "introducao": itens_resultado.get("introducao_ao_proprietario", ""),
                             "itens": itens,
                         })
 
@@ -775,15 +814,14 @@ def processar_checklist_background(
     """
     Runs the full checklist pipeline in a background thread.
     Downloads PDFs inside the thread to avoid blocking the HTTP handler.
-    Creates its own DB session (threads cannot share SQLModel sessions).
+    Uses shared DB engine (threads cannot share SQLModel sessions, but can share engines).
     Saves results incrementally to ChecklistGeracaoItem.
     Updates ChecklistGeracaoLog with progress and final status.
     """
-    from sqlmodel import Session, create_engine
+    from sqlmodel import Session
     from .models import ChecklistGeracaoLog, ChecklistGeracaoItem
     from .storage import download_by_url, extract_object_key
-
-    engine = create_engine(database_url, echo=False)
+    from .db import engine
 
     # Download PDFs here (inside thread) so the HTTP handler returns immediately
     pdfs: list[tuple[bytes, str, str]] = []  # (pdf_bytes, nome, doc_id)
@@ -806,7 +844,7 @@ def processar_checklist_background(
             if log:
                 log.total_paginas = total_pages
                 log.total_docs_analisados = len(pdfs)
-                log.updated_at = datetime.utcnow()
+                log.updated_at = datetime.now(timezone.utc)
                 session.add(log)
                 session.commit()
 
@@ -844,7 +882,7 @@ def processar_checklist_background(
                         caracteristicas_encontradas[carac_id] = carac
 
                         etapas_alvo = CARACTERISTICA_ETAPA_MAP.get(
-                            carac_id, ["Instalacoes e Acabamentos"]
+                            carac_id, ["Acabamentos"]
                         )
 
                         try:
@@ -903,7 +941,7 @@ def processar_checklist_background(
                             list(caracteristicas_encontradas.keys())
                         )
                         log.total_itens_sugeridos = total_itens
-                        log.updated_at = datetime.utcnow()
+                        log.updated_at = datetime.now(timezone.utc)
                         session.add(log)
                         session.commit()
 
@@ -918,7 +956,7 @@ def processar_checklist_background(
                     "Esta analise e informativa e NAO substitui parecer tecnico "
                     "de engenheiro ou arquiteto habilitado."
                 )
-                log.updated_at = datetime.utcnow()
+                log.updated_at = datetime.now(timezone.utc)
                 session.add(log)
                 session.commit()
 
@@ -930,7 +968,7 @@ def processar_checklist_background(
                 if log:
                     log.status = "erro"
                     log.erro_detalhe = str(exc)
-                    log.updated_at = datetime.utcnow()
+                    log.updated_at = datetime.now(timezone.utc)
                     session.add(log)
                     session.commit()
         except Exception:

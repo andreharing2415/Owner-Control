@@ -8,6 +8,7 @@ import '../../services/api_client.dart';
 import '../convites/convites_screen.dart';
 import '../prestadores/prestadores_screen.dart';
 import '../conta/minha_conta_screen.dart';
+import '../../widgets/ad_banner_widget.dart';
 import '../subscription/paywall_screen.dart';
 
 class PerfilScreen extends StatelessWidget {
@@ -56,15 +57,20 @@ class PerfilScreen extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyMedium),
                 const SizedBox(height: 8),
                 Chip(
-                  label:
-                      Text(sub.isDono ? "Plano Dono da Obra" : "Plano Gratuito"),
+                  label: Text(
+                    sub.isCompleto ? "Plano Completo"
+                    : sub.isEssencial ? "Plano Essencial"
+                    : sub.isDono ? "Plano Dono da Obra"
+                    : "Plano Gratuito",
+                  ),
                   backgroundColor:
-                      sub.isDono ? Colors.green.shade100 : Colors.grey.shade200,
+                      sub.isPaid ? Colors.green.shade100 : Colors.grey.shade200,
                 ),
               ],
             ),
           ),
 
+          const AdBannerWidget(),
           // Opcoes
           ListTile(
             leading: const Icon(Icons.swap_horiz),
@@ -100,10 +106,10 @@ class PerfilScreen extends StatelessWidget {
             const Divider(height: 1),
           ],
 
-          if (!sub.isDono && !isConvidado) ...[
+          if (!sub.isPaid && !isConvidado) ...[
             ListTile(
               leading: const Icon(Icons.star, color: Colors.amber),
-              title: const Text("Assinar Plano Dono"),
+              title: const Text("Assinar Plano"),
               subtitle: const Text("Desbloqueie todas as funcionalidades"),
               onTap: () => PaywallScreen.show(context),
             ),

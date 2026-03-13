@@ -17,7 +17,14 @@ class SubscriptionProvider extends ChangeNotifier {
 
   String get plan => _info?.plan ?? "gratuito";
   bool get isGratuito => plan == "gratuito";
-  bool get isDono => plan == "dono_da_obra";
+  bool get isEssencial => _info?.isEssencial ?? false;
+  bool get isCompleto => _info?.isCompleto ?? false;
+  bool get isDono => _info?.isDono ?? false;
+  bool get isPaid => _info?.isPaid ?? false;
+
+  // Ads
+  bool get showAds => _info?.showAds ?? true;
+  bool get canWatchRewarded => _info?.canWatchRewarded ?? false;
 
   // Quick access to plan config
   bool get canDeleteDoc => _info?.canDeleteDoc ?? false;
@@ -67,15 +74,13 @@ class SubscriptionProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final result = await api.cancelSubscription();
-      await load(); // Reload subscription info
+      await load(); // Reload subscription info (already calls notifyListeners)
       return result;
     } catch (e) {
       _error = e.toString();
-      notifyListeners();
-      rethrow;
-    } finally {
       _loading = false;
       notifyListeners();
+      rethrow;
     }
   }
 

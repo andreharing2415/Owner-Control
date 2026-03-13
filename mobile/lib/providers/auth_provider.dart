@@ -20,10 +20,7 @@ class AuthProvider extends ChangeNotifier {
 
   final _googleSignIn = GoogleSignIn(
     scopes: ["email", "profile"],
-    serverClientId: const String.fromEnvironment(
-      "GOOGLE_CLIENT_ID",
-      defaultValue: "530484413221-ce3hk4ahk234gq35s8tll80u8v9pbde8.apps.googleusercontent.com",
-    ),
+    serverClientId: const String.fromEnvironment("GOOGLE_CLIENT_ID"),
   );
   final _localAuth = LocalAuthentication();
 

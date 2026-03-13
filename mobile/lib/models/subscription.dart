@@ -20,9 +20,19 @@ class SubscriptionInfo {
   final String status;
 
   bool get isGratuito => plan == "gratuito";
+  bool get isEssencial =>
+      plan == "essencial" &&
+      (status == "active" || status == "grace_period");
+  bool get isCompleto =>
+      plan == "completo" &&
+      (status == "active" || status == "grace_period");
   bool get isDono =>
       plan == "dono_da_obra" &&
       (status == "active" || status == "grace_period");
+  bool get isPaid => isEssencial || isCompleto || isDono;
+
+  bool get showAds => planConfig["show_ads"] as bool? ?? true;
+  bool get canWatchRewarded => planConfig["can_watch_rewarded"] as bool? ?? false;
 
   int? get maxObras => planConfig["max_obras"] as int?;
   int? get maxDocUploads => planConfig["max_doc_uploads"] as int?;

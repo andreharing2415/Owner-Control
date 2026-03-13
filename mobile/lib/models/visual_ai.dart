@@ -23,14 +23,14 @@ class AnaliseVisual {
 
   factory AnaliseVisual.fromJson(Map<String, dynamic> json) {
     return AnaliseVisual(
-      id: json["id"] as String,
-      etapaId: json["etapa_id"] as String,
-      imagemUrl: json["imagem_url"] as String,
-      etapaInferida: json["etapa_inferida"] as String?,
+      id: json["id"]?.toString() ?? "",
+      etapaId: json["etapa_id"]?.toString() ?? "",
+      imagemUrl: json["imagem_url"]?.toString() ?? "",
+      etapaInferida: json["etapa_inferida"]?.toString(),
       confianca: (json["confianca"] as num?)?.toInt() ?? 0,
-      status: json["status"] as String,
-      resumoGeral: json["resumo_geral"] as String?,
-      avisoLegal: json["aviso_legal"] as String?,
+      status: json["status"]?.toString() ?? "concluida",
+      resumoGeral: json["resumo_geral"]?.toString(),
+      avisoLegal: json["aviso_legal"]?.toString(),
       achados: json["achados"] != null
           ? (json["achados"] as List<dynamic>)
               .map((e) => Achado.fromJson(e as Map<String, dynamic>))
@@ -63,11 +63,11 @@ class Achado {
 
   factory Achado.fromJson(Map<String, dynamic> json) {
     return Achado(
-      id: json["id"] as String,
-      analiseId: json["analise_id"] as String,
-      descricao: json["descricao"] as String,
-      severidade: json["severidade"] as String,
-      acaoRecomendada: json["acao_recomendada"] as String,
+      id: json["id"]?.toString() ?? "",
+      analiseId: json["analise_id"]?.toString() ?? "",
+      descricao: json["descricao"]?.toString() ?? "",
+      severidade: json["severidade"]?.toString() ?? "baixo",
+      acaoRecomendada: json["acao_recomendada"]?.toString() ?? "",
       requerEvidenciaAdicional:
           json["requer_evidencia_adicional"] as bool? ?? false,
       requerValidacaoProfissional:

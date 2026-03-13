@@ -6,6 +6,7 @@ import "../../models/checklist_item.dart";
 import "../../services/api_client.dart";
 import "../normas/normas_screen.dart";
 import "verificacao_inline_widget.dart";
+import "../../utils/theme_helpers.dart";
 
 class DetalheItemScreen extends StatefulWidget {
   const DetalheItemScreen({
@@ -27,6 +28,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
   final ImagePicker _imagePicker = ImagePicker();
   late ChecklistItem _item;
   late TextEditingController _obsController;
+  late Future<List<dynamic>> _evidenciasFuture;
   bool _salvandoObs = false;
   bool _salvandoStatus = false;
   bool _mostrarFormVerificacao = false;
@@ -37,6 +39,13 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
     super.initState();
     _item = widget.item;
     _obsController = TextEditingController(text: _item.observacao ?? "");
+    _evidenciasFuture = widget.api.listarEvidencias(_item.id);
+  }
+
+  void _recarregarEvidencias() {
+    setState(() {
+      _evidenciasFuture = widget.api.listarEvidencias(_item.id);
+    });
   }
 
   @override
@@ -199,7 +208,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Evidência enviada.")));
-        setState(() {});
+        _recarregarEvidencias();
       }
     } catch (e) {
       if (mounted) {
@@ -587,6 +596,26 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
                             ),
                           ),
                         ],
+                        if (_item.perguntaEngenheiro!["resposta_esperada"] != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(Icons.check_circle_outline,
+                                  size: 16, color: Colors.green[700]),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  "Resposta esperada: ${_item.perguntaEngenheiro!["resposta_esperada"]}",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.green[800],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -761,7 +790,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
           ),
           const SizedBox(height: 8),
           FutureBuilder(
-            future: widget.api.listarEvidencias(_item.id),
+            future: _evidenciasFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -845,18 +874,7 @@ class _DetalheItemScreenState extends State<DetalheItemScreen> {
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
-Color _severidadeColor(String severidade) {
-  switch (severidade) {
-    case "alto":
-      return Colors.red;
-    case "medio":
-      return Colors.orange;
-    case "baixo":
-      return Colors.green;
-    default:
-      return Colors.grey;
-  }
-}
+Color _severidadeColor(String s) => severidadeColor(s);
 
 IconData _tipoVerificacaoIcon(String tipo) {
   switch (tipo) {

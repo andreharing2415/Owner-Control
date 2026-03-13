@@ -68,30 +68,52 @@ class ApiClient {
       };
 
   Future<http.Response> _get(String path) async {
-    final response = await _client.get(_uri(path), headers: _authHeaders);
+    const maxRetries = 2;
+    const timeout = Duration(seconds: 30);
+    late http.Response response;
+    for (var attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        response = await _client
+            .get(_uri(path), headers: _authHeaders)
+            .timeout(timeout);
+        break;
+      } on Exception catch (e) {
+        if (attempt == maxRetries) rethrow;
+        final isRetryable = e is TimeoutException ||
+            e is SocketException ||
+            e.toString().contains('connection abort') ||
+            e.toString().contains('Connection reset');
+        if (!isRetryable) rethrow;
+        await Future.delayed(Duration(seconds: attempt + 1));
+      }
+    }
     if (response.statusCode == 401 && _refreshToken != null) {
       final refreshed = await _tryRefresh();
       if (refreshed) {
-        return _client.get(_uri(path), headers: _authHeaders);
+        return _client
+            .get(_uri(path), headers: _authHeaders)
+            .timeout(timeout);
       }
     }
     return response;
   }
 
-  Future<http.Response> _post(String path, {Object? body}) async {
-    final response = await _client.post(
-      _uri(path),
-      headers: _headers,
-      body: body != null ? jsonEncode(body) : null,
-    );
-    if (response.statusCode == 401 && _refreshToken != null) {
-      final refreshed = await _tryRefresh();
-      if (refreshed) {
-        return _client.post(
+  Future<http.Response> _post(String path,
+      {Object? body, Duration? timeout}) async {
+    Future<http.Response> doPost() => _client.post(
           _uri(path),
           headers: _headers,
           body: body != null ? jsonEncode(body) : null,
         );
+    var response = timeout != null
+        ? await doPost().timeout(timeout)
+        : await doPost();
+    if (response.statusCode == 401 && _refreshToken != null) {
+      final refreshed = await _tryRefresh();
+      if (refreshed) {
+        response = timeout != null
+            ? await doPost().timeout(timeout)
+            : await doPost();
       }
     }
     return response;
@@ -829,13 +851,22 @@ class ApiClient {
     if (grupo != null) {
       request.fields["grupo"] = grupo;
     }
-    final streamResp = await request.send();
+    final streamResp = await request.send().timeout(
+      const Duration(seconds: 120),
+    );
     final resp = await http.Response.fromStream(streamResp);
     if (resp.statusCode != 200) {
       throw Exception("Erro ao enviar análise visual");
     }
-    return AnaliseVisual.fromJson(
-        jsonDecode(resp.body) as Map<String, dynamic>);
+    final json = jsonDecode(resp.body) as Map<String, dynamic>;
+    // Backend returns nested {analise: {...}, achados: [...]}
+    if (json.containsKey("analise")) {
+      final analiseJson =
+          json["analise"] as Map<String, dynamic>;
+      analiseJson["achados"] = json["achados"];
+      return AnaliseVisual.fromJson(analiseJson);
+    }
+    return AnaliseVisual.fromJson(json);
   }
 
   Future<List<AnaliseVisual>> listarAnalisesVisuais(String etapaId) async {
@@ -854,8 +885,14 @@ class ApiClient {
     if (response.statusCode != 200) {
       throw Exception("Erro ao obter análise visual");
     }
-    return AnaliseVisual.fromJson(
-        jsonDecode(response.body) as Map<String, dynamic>);
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    if (json.containsKey("analise")) {
+      final analiseJson =
+          json["analise"] as Map<String, dynamic>;
+      analiseJson["achados"] = json["achados"];
+      return AnaliseVisual.fromJson(analiseJson);
+    }
+    return AnaliseVisual.fromJson(json);
   }
 
   // ─── Prestadores ───────────────────────────────────────────────────────────
@@ -1106,8 +1143,11 @@ class ApiClient {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> extrairDetalhamento(String obraId) async {
-    final response = await _post("/api/obras/$obraId/extrair-detalhamento");
+  Future<Map<String, dynamic>> extrairDetalhamento(String obraId, {double peDireito = 2.70}) async {
+    final response = await _post(
+      "/api/obras/$obraId/extrair-detalhamento?pe_direito=$peDireito",
+      timeout: const Duration(seconds: 180),
+    );
     if (response.statusCode == 403) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final msg = body["detail"] as String? ?? "Funcionalidade exclusiva do plano Dono da Obra";
@@ -1139,10 +1179,24 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> createCheckoutSession() async {
-    final response = await _post("/api/subscription/create-checkout");
+  Future<Map<String, dynamic>> createCheckoutSession({String plan = "essencial"}) async {
+    final response = await _post(
+      "/api/subscription/create-checkout?plan=$plan",
+    );
     if (response.statusCode != 200) {
       throw Exception("Erro ao criar sessão de checkout");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> rewardUsage(String feature) async {
+    final response = await _post(
+      "/api/subscription/reward-usage",
+      body: {"feature": feature},
+    );
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao registrar reward");
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }

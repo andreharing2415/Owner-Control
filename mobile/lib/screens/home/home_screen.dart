@@ -14,6 +14,8 @@ import '../etapas/etapas_screen.dart';
 import '../financeiro/financeiro_screen.dart';
 import '../ia/ia_hub_screen.dart';
 import '../perfil/perfil_screen.dart';
+import '../../utils/format_helpers.dart';
+import '../../widgets/ad_banner_widget.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +33,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _resetNavKeys() {
     _navKeys = List.generate(4, (_) => GlobalKey<NavigatorState>());
+    _pages = null;
+    _cachedObra = null;
   }
 
   static const _navItems = <BottomNavigationBarItem>[
@@ -56,6 +60,53 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Obra? _cachedObra;
+  List<Widget>? _pages;
+
+  List<Widget> _buildPages(Obra obra) {
+    if (_cachedObra?.id == obra.id && _pages != null) return _pages!;
+    _cachedObra = obra;
+    _pages = <Widget>[
+      Navigator(
+        key: _navKeys[0],
+        onGenerateRoute: (_) => MaterialPageRoute(
+          builder: (_) => _DashboardPage(
+            obra: obra,
+            api: _api,
+            onSelectObra: _selecionarObra,
+          ),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[1],
+        onGenerateRoute: (_) => MaterialPageRoute(
+          builder: (_) => EtapasScreen(obra: obra, api: _api),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[2],
+        onGenerateRoute: (_) => MaterialPageRoute(
+          builder: (_) => IAHubScreen(
+            obra: obra,
+            api: _api,
+            onNavigateToObra: () => setState(() => _currentTab = 1),
+          ),
+        ),
+      ),
+      Navigator(
+        key: _navKeys[3],
+        onGenerateRoute: (_) => MaterialPageRoute(
+          builder: (_) => PerfilScreen(
+            obra: obra,
+            api: _api,
+            onSelectObra: _selecionarObra,
+          ),
+        ),
+      ),
+    ];
+    return _pages!;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<ObraAtualProvider>(
@@ -63,44 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final obra = provider.obraAtual;
         if (obra == null) return _buildSemObra();
 
-        final pages = <Widget>[
-          Navigator(
-            key: _navKeys[0],
-            onGenerateRoute: (_) => MaterialPageRoute(
-              builder: (_) => _DashboardPage(
-                obra: obra,
-                api: _api,
-                onSelectObra: _selecionarObra,
-              ),
-            ),
-          ),
-          Navigator(
-            key: _navKeys[1],
-            onGenerateRoute: (_) => MaterialPageRoute(
-              builder: (_) => EtapasScreen(obra: obra, api: _api),
-            ),
-          ),
-          Navigator(
-            key: _navKeys[2],
-            onGenerateRoute: (_) => MaterialPageRoute(
-              builder: (_) => IAHubScreen(
-                obra: obra,
-                api: _api,
-                onNavigateToObra: () => setState(() => _currentTab = 1),
-              ),
-            ),
-          ),
-          Navigator(
-            key: _navKeys[3],
-            onGenerateRoute: (_) => MaterialPageRoute(
-              builder: (_) => PerfilScreen(
-                obra: obra,
-                api: _api,
-                onSelectObra: _selecionarObra,
-              ),
-            ),
-          ),
-        ];
+        final pages = _buildPages(obra);
 
         final safeTab = _currentTab < pages.length ? _currentTab : 0;
 
@@ -230,15 +244,19 @@ class _DashboardPageState extends State<_DashboardPage> {
     });
     try {
       final etapas = await widget.api.listarEtapas(widget.obra.id);
-      final List<ChecklistItem> pendentes = [];
-      for (final etapa in etapas.take(6)) {
-        try {
-          final itens = await widget.api.listarItens(etapa.id);
-          pendentes.addAll(itens.where((item) => item.status == 'pendente'));
-        } catch (_) {
-          // Ignora erro individual por etapa
-        }
-      }
+      final futures = etapas.take(6).map((e) =>
+          widget.api.listarItens(e.id).catchError((_) => <ChecklistItem>[]));
+      final results = await Future.wait(futures);
+      final pendentes = results
+          .expand((itens) => itens.where((item) => item.status == 'pendente'))
+          .toList()
+        ..sort((a, b) {
+          if (a.critico != b.critico) return a.critico ? -1 : 1;
+          if (a.criadoEm != null && b.criadoEm != null) {
+            return a.criadoEm!.compareTo(b.criadoEm!);
+          }
+          return 0;
+        });
       if (mounted) {
         setState(() {
           _etapas = etapas;
@@ -296,7 +314,10 @@ class _DashboardPageState extends State<_DashboardPage> {
                     ),
                   );
                 }
-                if (sub.isDono) {
+                if (sub.isPaid) {
+                  final label = sub.isCompleto ? "Completo"
+                      : sub.isEssencial ? "Essencial"
+                      : "Premium";
                   return Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
@@ -311,7 +332,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                             size: 12, color: Colors.amber.shade700),
                         const SizedBox(width: 2),
                         Text(
-                          "Dono",
+                          label,
                           style: TextStyle(
                               fontSize: 10,
                               color: Colors.amber.shade700,
@@ -372,6 +393,7 @@ class _DashboardPageState extends State<_DashboardPage> {
             itensCriticosPendentes: _itensCriticosPendentes,
             totalItensPendentes: _itensPendentes.length,
           ),
+          const AdBannerWidget(),
           if (obra.orcamento != null &&
               !(context.read<AuthProvider>().user?.isConvidado ??
                   false)) ...[
@@ -583,19 +605,6 @@ class _OrcamentoCard extends StatelessWidget {
   final double orcamento;
   final VoidCallback onTap;
 
-  String _formatarValor(double v) {
-    final str = v.toStringAsFixed(2);
-    final parts = str.split('.');
-    final intPart = parts[0];
-    final decPart = parts[1];
-    final buffer = StringBuffer();
-    for (int i = 0; i < intPart.length; i++) {
-      if (i > 0 && (intPart.length - i) % 3 == 0) buffer.write('.');
-      buffer.write(intPart[i]);
-    }
-    return 'R\$ ${buffer.toString()},$decPart';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -607,7 +616,7 @@ class _OrcamentoCard extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              _formatarValor(orcamento),
+              formatCurrency(orcamento),
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,
@@ -630,14 +639,7 @@ class _ItensPendentesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ordenados = [...itens]..sort((a, b) {
-        if (a.critico != b.critico) return a.critico ? -1 : 1;
-        if (a.criadoEm != null && b.criadoEm != null) {
-          return a.criadoEm!.compareTo(b.criadoEm!);
-        }
-        return 0;
-      });
-    final exibir = ordenados.take(5).toList();
+    final exibir = itens.take(5).toList();
 
     return Card(
       child: Padding(

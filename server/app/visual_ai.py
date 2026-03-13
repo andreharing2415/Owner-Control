@@ -20,6 +20,8 @@ import os
 import anthropic
 from openai import OpenAI
 
+from .utils import clean_json_response
+
 logger = logging.getLogger(__name__)
 
 # ─── Etapas padrão para contextualização ─────────────────────────────────────
@@ -91,19 +93,6 @@ def _detect_media_type(imagem_nome: str) -> str:
     return media_type_map.get(ext, "image/jpeg")
 
 
-def _clean_json_response(text: str) -> str:
-    """Remove blocos de markdown se presentes na resposta da IA."""
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        cleaned = (
-            "\n".join(lines[1:-1])
-            if lines[-1].strip() == "```"
-            else "\n".join(lines[1:])
-        )
-    return cleaned
-
-
 def _analisar_com_claude(imagem_b64: str, media_type: str, etapa_nome: str, grupo: str | None = None) -> dict:
     """Analisa imagem via Claude Vision API."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -147,7 +136,7 @@ def _analisar_com_claude(imagem_b64: str, media_type: str, etapa_nome: str, grup
     if not output_text:
         raise ValueError("Claude não retornou resposta válida")
 
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 def _analisar_com_openai(imagem_b64: str, media_type: str, etapa_nome: str, grupo: str | None = None) -> dict:
@@ -189,7 +178,7 @@ def _analisar_com_openai(imagem_b64: str, media_type: str, etapa_nome: str, grup
     if not output_text:
         raise ValueError("OpenAI não retornou resposta válida")
 
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str, grupo: str | None = None) -> dict:
@@ -223,7 +212,7 @@ def _analisar_com_gemini(imagem_b64: str, media_type: str, etapa_nome: str, grup
     if not output_text:
         raise ValueError("Gemini nao retornou resposta valida")
 
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 def analisar_imagem(imagem_bytes: bytes, imagem_nome: str, etapa_nome: str, grupo: str | None = None) -> dict:

@@ -15,6 +15,7 @@ import "../checklist/checklist_screen.dart";
 import "../normas/normas_screen.dart";
 import "../financeiro/lancar_despesa_screen.dart";
 import "../visual_ai/visual_ai_screen.dart";
+import "detalhamento_comodos_screen.dart";
 
 const _statusEtapaLabels = {
   "pendente": "Pendente",
@@ -375,12 +376,13 @@ class _EtapasScreenState extends State<EtapasScreen> {
                       onSelected: (value) async {
                         switch (value) {
                           case "checklist":
-                            Navigator.push(
+                            await Navigator.push(
                               context,
                               MaterialPageRoute(
                                   builder: (_) => ChecklistScreen(
                                       etapa: etapa, api: widget.api)),
-                            ).then((_) => _refresh());
+                            );
+                            if (mounted) _refresh();
                           case "status":
                             _atualizarStatus(etapa);
                           case "normas":
@@ -738,13 +740,60 @@ class _DetalhamentoSheetState extends State<_DetalhamentoSheet> {
   }
 
   Future<void> _extrair() async {
+    // Ask user for pé-direito before extraction
+    final peDireito = await _askPeDireito();
+    if (peDireito == null) return; // user cancelled
+
     setState(() { _extracting = true; _erro = null; });
     try {
-      final data = await widget.api.extrairDetalhamento(widget.obraId);
+      final data = await widget.api.extrairDetalhamento(widget.obraId, peDireito: peDireito);
       if (mounted) setState(() { _data = data; _extracting = false; });
     } catch (e) {
       if (mounted) setState(() { _extracting = false; _erro = "$e"; });
     }
+  }
+
+  Future<double?> _askPeDireito() async {
+    final controller = TextEditingController(text: "2.70");
+    return showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Altura do Pé-Direito"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              "Informe a altura do pé-direito (em metros) para calcular revestimentos de parede nas áreas molhadas.",
+              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: "Pé-direito (metros)",
+                hintText: "Ex: 2.70",
+                suffixText: "m",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancelar"),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = double.tryParse(controller.text.replaceAll(",", "."));
+              Navigator.pop(ctx, value ?? 2.70);
+            },
+            child: const Text("Extrair"),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -810,18 +859,90 @@ class _DetalhamentoSheetState extends State<_DetalhamentoSheet> {
                             style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                       ),
 
+                    // Totais estimados
+                    if (_data?["totais_estimados"] != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Card(
+                              color: Colors.blue.shade50,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.grid_view, color: Colors.blue, size: 20),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "${((_data!["totais_estimados"]["total_pisos_m2"] as num?) ?? 0).toStringAsFixed(1)} m²",
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    Text("Pisos", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Card(
+                              color: Colors.teal.shade50,
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.wallpaper, color: Colors.teal, size: 20),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      "${((_data!["totais_estimados"]["total_azulejos_m2"] as num?) ?? 0).toStringAsFixed(1)} m²",
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                    ),
+                                    Text("Azulejos", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+
                     // Cômodos
                     if (comodos.isNotEmpty) ...[
                       const SizedBox(height: 8),
-                      Text("Cômodos (${comodos.length})",
-                          style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text("Cômodos (${comodos.length})",
+                              style: theme.textTheme.titleMedium),
+                          TextButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => DetalhamentoComodosScreen(
+                                    data: _data!,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.open_in_new, size: 16),
+                            label: const Text("Ver detalhes"),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
                       ...comodos.map((c) {
                         final nome = c["nome"] as String? ?? "—";
-                        final area = c["area_m2"] as num?;
+                        final area = (c["area_liquida_m2"] as num?) ?? (c["area_m2"] as num?);
+                        final isMolhada = c["area_molhada"] == true;
                         return Card(
                           child: ListTile(
                             dense: true,
+                            leading: Icon(
+                              isMolhada ? Icons.water_drop : Icons.home_outlined,
+                              color: isMolhada ? Colors.blue : Colors.grey,
+                              size: 20,
+                            ),
                             title: Text(nome),
                             trailing: area != null
                                 ? Text("${area.toStringAsFixed(1)} m²",

@@ -81,16 +81,17 @@ class _RiscosReviewScreenState extends State<RiscosReviewScreen> {
   Widget _severidadeBadge(String? severidade) {
     final Color cor;
     final String label;
-    switch (severidade) {
-      case "alto":
+    final sev = (severidade ?? "").toUpperCase();
+    switch (sev) {
+      case "ALTA" || "alto":
         cor = Colors.red;
-        label = "ALTO";
-      case "medio":
+        label = "ALTA";
+      case "MEDIA" || "MÉDIA" || "medio":
         cor = Colors.orange;
-        label = "MÉDIO";
+        label = "MÉDIA";
       default:
         cor = Colors.blue;
-        label = "BAIXO";
+        label = "BAIXA";
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),

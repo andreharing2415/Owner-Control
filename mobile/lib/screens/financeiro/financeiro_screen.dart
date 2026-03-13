@@ -8,6 +8,7 @@ import "alertas_config_screen.dart";
 import "curva_s_screen.dart";
 import "lancar_despesa_screen.dart";
 import "orcamento_edit_screen.dart";
+import "../../utils/format_helpers.dart";
 
 class FinanceiroScreen extends StatefulWidget {
   const FinanceiroScreen({
@@ -36,23 +37,6 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
     setState(() {
       _relatorioFuture = widget.api.relatorioFinanceiro(widget.obraId);
     });
-  }
-
-  String _formatCurrency(double value) {
-    final parts = value.toStringAsFixed(2).split(".");
-    final intPart = parts[0];
-    final decPart = parts[1];
-    final negative = intPart.startsWith("-");
-    final digits = negative ? intPart.substring(1) : intPart;
-    final buffer = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && (digits.length - i) % 3 == 0) {
-        buffer.write(".");
-      }
-      buffer.write(digits[i]);
-    }
-    final formatted = "R\$ ${negative ? "-" : ""}$buffer,$decPart";
-    return formatted;
   }
 
   Color _desvioColor(double desvio) {
@@ -267,7 +251,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _formatCurrency(relatorio.totalPrevisto),
+                        formatCurrency(relatorio.totalPrevisto),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(color: Colors.blue),
                       ),
@@ -284,7 +268,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _formatCurrency(relatorio.totalRealizado),
+                        formatCurrency(relatorio.totalRealizado),
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(color: desvioColor),
                       ),
@@ -379,7 +363,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    "Prev: ${_formatCurrency(etapa.previsto)}",
+                    "Prev: ${formatCurrency(etapa.previsto)}",
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall
@@ -388,7 +372,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                 ),
                 Expanded(
                   child: Text(
-                    "Real: ${_formatCurrency(etapa.realizado)}",
+                    "Real: ${formatCurrency(etapa.realizado)}",
                     style: Theme.of(context)
                         .textTheme
                         .bodySmall

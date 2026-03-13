@@ -21,106 +21,72 @@ import anthropic
 from openai import OpenAI
 
 from .pdf_utils import extrair_paginas_como_imagens
+from .utils import clean_json_response
 
 logger = logging.getLogger(__name__)
 
 # ─── Prompt do sistema ────────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """Voce e um especialista em analise de projetos de construcao civil, com foco em conformidade normativa e gestao de riscos para proprietarios de obras de alto padrao.
+SYSTEM_PROMPT = """Voce e um Consultor de Obras e Gestor de Riscos atuando como o "Anjo da Guarda" de proprietarios de obras de alto padrao.
+Sua funcao e analisar as pranchas de projeto anexadas e identificar inconsistencias, omissoes ou pontos criticos de atencao.
 
-Sua funcao e analisar as paginas de um documento de projeto e identificar riscos, inconsistencias e pontos de atencao em linguagem acessivel ao proprietario leigo.
+O usuario final e o PROPRIETARIO. Ele nao tem formacao tecnica. Ele usara seu relatorio para saber exatamente o que perguntar e o que cobrar dos profissionais contratados.
 
-CONTEXTO IMPORTANTE: O usuario e o PROPRIETARIO da obra. Ele NAO e engenheiro, arquiteto, nem tem formacao tecnica. Ele precisa saber EXATAMENTE o que fazer e o que cobrar dos profissionais contratados.
+DIRETRIZES DE ANALISE:
+1. Identifique riscos concretos baseados estritamente nos documentos fornecidos.
+2. Traduza problemas complexos (ex: "falta de compatibilizacao estrutural") para o impacto real ("sua parede pode precisar ser quebrada depois").
+3. Forneca perguntas prontas e polidas para o proprietario enviar ao engenheiro/arquiteto no WhatsApp.
+4. Jamais atue como parecerista legal ou juridico.
 
-REGRAS OBRIGATORIAS:
-1. Identifique riscos concretos e especificos do documento analisado
-2. Para cada risco, indique a norma tecnica aplicavel quando houver (ABNT, NR, codigo de obras municipal)
-3. Classifique a severidade: "alto" (impacto financeiro ou de seguranca elevado), "medio" (exige atencao), "baixo" (observacao)
-4. Traduza o risco tecnico em linguagem clara e objetiva para o proprietario — SEM termos tecnicos
-5. Indique nivel de confianca (0-100) baseado na clareza do documento analisado
-6. Riscos de nivel "alto" DEVEM ter requer_validacao_profissional: true
-7. NUNCA apresente como parecer tecnico ou opiniao juridica
-8. Se o documento nao for um projeto de construcao civil, retorne uma lista de riscos vazia com resumo explicativo
-9. Para cada risco, forneca instrucoes PRATICAS e CONCRETAS para o proprietario, incluindo:
-   - O que pedir ao engenheiro/arquiteto (sem jargao tecnico)
-   - Perguntas prontas para fazer ao profissional, COM a resposta que o proprietario deve esperar ouvir para saber que esta tudo certo
-   - Documentos e laudos que deve exigir (ART, RRT, laudos, revisoes de projeto, etc.), quando aplicavel
+REGRAS DO JSON:
+- "disciplina": Classifique o risco em "Arquitetura", "Eletrica", "Hidraulica", "Estrutural" ou "Geral".
+- "severidade": Use "ALTA" (Risco financeiro/seguranca grave), "MEDIA" (Retrabalho possivel), "BAIXA" (Dica de melhoria).
+- "dado_projeto": Preencha apenas se a informacao estiver explicitamente escrita ou desenhada na prancha. Se for inferencia, retorne null.
+- "verificacoes": Acoes fisicas que o proprietario pode fazer na obra com uma trena ou os proprios olhos.
 
-FORMATO DE RESPOSTA (JSON obrigatorio):
+FORMATO DE RESPOSTA OBRIGATORIO (JSON puro):
 {
-  "resumo_geral": "resumo em 2-3 frases do documento analisado e dos principais achados",
-  "aviso_legal": "Esta analise e informativa e NAO substitui parecer tecnico de engenheiro ou arquiteto habilitado.",
-  "riscos": [
+  "resumo_executivo": "Resumo em 2 linhas focado no que o proprietario precisa saber hoje.",
+  "aviso_legal": "Esta analise e preventiva e educacional. Nao substitui o acompanhamento tecnico de um profissional com CREA/CAU.",
+  "riscos_e_alertas": [
     {
-      "descricao": "descricao tecnica do risco ou ponto de atencao encontrado no documento",
-      "severidade": "alto" | "medio" | "baixo",
-      "norma_referencia": "norma aplicavel (ex: NBR 6118:2023, NR-18) ou null",
-      "norma_url": "URL para consulta da norma (site da ABNT, planalto.gov.br, etc.) ou null se nao souber a URL exata",
-      "traducao_leigo": "o que isso significa para voce como proprietario, em linguagem simples, sem termos tecnicos (max 300 chars)",
-      "acao_proprietario": "instrucao direta do que pedir ao engenheiro/arquiteto, sem linguagem tecnica (max 300 chars)",
+      "disciplina": "Arquitetura | Eletrica | Hidraulica | Estrutural | Geral",
+      "descricao_tecnica": "O que esta no projeto",
+      "severidade": "ALTA" | "MEDIA" | "BAIXA",
+      "traducao_para_leigo": "O que isso significa no seu bolso ou na sua rotina (max 250 caracteres).",
+      "acao_imediata": "O que voce deve pedir hoje para a equipe tecnica.",
+      "norma_referencia": "Nome da NBR/NR aplicavel (se houver)",
       "dado_projeto": {
-        "descricao": "descricao do elemento do projeto (ex: 'Parede estrutural do quarto 1')",
-        "especificacao": "especificacao tecnica extraida do documento (ex: 'Espessura 19cm, bloco ceramico 14x19x29')",
-        "fonte": "onde no documento esta a informacao (ex: 'Planta Estrutural - Folha 3')",
-        "valor_referencia": "valor numerico ou parametro de referencia para comparacao (ex: '19cm')"
+        "elemento": "Ex: Ralo oculto banheiro master",
+        "prancha_ou_fonte": "Ex: Projeto Hidraulico Folha 05",
+        "especificacao_encontrada": "Ex: Tubo de 40mm"
       },
-      "verificacoes": [
-        {
-          "instrucao": "instrucao simples para o proprietario verificar na obra (ex: 'Meca a espessura da parede com trena')",
-          "tipo": "medicao | visual | documento",
-          "valor_esperado": "valor ou condicao esperada (ex: 'minimo 19cm')",
-          "como_medir": "passo a passo pratico de como verificar (ex: 'Posicione a trena na lateral da parede, sem reboco')"
-        }
-      ],
-      "pergunta_engenheiro": {
-        "contexto": "contexto para o proprietario usar ao abordar o engenheiro (ex: 'Notei que a parede esta com [X]cm, mas o projeto indica 19cm')",
-        "pergunta": "pergunta colaborativa e respeitosa (ex: 'Houve alguma alteracao ou ajuste tecnico?')",
-        "tom": "colaborativo"
+      "verificacao_na_obra": {
+        "o_que_olhar": "Como o proprietario verifica visualmente",
+        "ferramenta": "Olho nu | Trena | Nivel",
+        "condicao_ideal": "Como deve estar para estar certo"
       },
-      "perguntas_para_profissional": [
-        {
-          "pergunta": "pergunta pronta que o proprietario deve fazer ao engenheiro",
-          "resposta_esperada": "resumo da mensagem-chave que deve estar na resposta do engenheiro"
-        }
-      ],
-      "documentos_a_exigir": ["documento ou laudo que o proprietario deve cobrar"],
-      "requer_validacao_profissional": true | false,
-      "confianca": numero 0-100
+      "mensagem_para_o_profissional": {
+        "texto_whatsapp": "Sugestao de mensagem educada e colaborativa para copiar e colar para o engenheiro.",
+        "resposta_que_voce_deve_ouvir": "O que o profissional deve responder para provar que tem a situacao sob controle."
+      },
+      "documento_para_exigir": ["Ex: ART de projeto", "Laudo de sondagem"]
     }
   ]
 }
-
-REGRAS PARA OS CAMPOS DE 3 CAMADAS:
-- dado_projeto: SOMENTE preencha se encontrar dados concretos e verificaveis no documento. Se nao houver dado especifico, use null.
-- verificacoes: SOMENTE gere verificacoes que o proprietario consiga fazer sozinho (medir, olhar, comparar documento). Nao gere verificacoes vagas.
-- pergunta_engenheiro: tom SEMPRE colaborativo e respeitoso. O proprietario pergunta, nao cobra.
-- confianca < 50: NAO gere o risco. Filtre riscos vagos ou genericos.
-
-Retorne SOMENTE o JSON, sem markdown, sem texto adicional."""
+Retorne APENAS o objeto JSON."""
 
 
 # ─── Funcoes auxiliares ──────────────────────────────────────────────────────
-
-def _clean_json_response(text: str) -> str:
-    """Remove blocos de markdown se presentes na resposta da IA."""
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        cleaned = (
-            "\n".join(lines[1:-1])
-            if lines[-1].strip() == "```"
-            else "\n".join(lines[1:])
-        )
-    return cleaned
 
 
 def _build_user_text(arquivo_nome: str, num_pages: int) -> str:
     return (
         f"{SYSTEM_PROMPT}\n\n"
-        f"Analise TODAS as {num_pages} paginas do documento de projeto "
-        f"'{arquivo_nome}' acima. Examine cada pagina individualmente e "
-        f"identifique todos os riscos, inconsistencias e pontos de atencao "
-        f"relevantes para o proprietario da obra."
+        f"Analise TODAS as {num_pages} pranchas do documento de projeto "
+        f"'{arquivo_nome}' acima. Examine cada prancha individualmente e "
+        f"identifique todas as inconsistencias, omissoes e pontos criticos "
+        f"de atencao relevantes para o proprietario da obra."
     )
 
 
@@ -164,7 +130,7 @@ def _analisar_com_claude(paginas: list[tuple[str, int]], arquivo_nome: str) -> d
     if not output_text:
         raise ValueError("Claude nao retornou resposta valida")
 
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 # ─── Analise via OpenAI (pagina por pagina) ──────────────────────────────────
@@ -203,7 +169,7 @@ def _analisar_com_openai(paginas: list[tuple[str, int]], arquivo_nome: str) -> d
     if not output_text:
         raise ValueError("OpenAI nao retornou resposta valida")
 
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 # ─── Analise via Gemini (pagina por pagina) ──────────────────────────────────
@@ -234,7 +200,7 @@ def _analisar_com_gemini(paginas: list[tuple[str, int]], arquivo_nome: str) -> d
     if not output_text:
         raise ValueError("Gemini nao retornou resposta valida")
 
-    return json.loads(_clean_json_response(output_text))
+    return json.loads(clean_json_response(output_text))
 
 
 # ─── Funcao principal ────────────────────────────────────────────────────────

@@ -1,8 +1,13 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
+from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 # ─── Fase 7 — Autenticação ──────────────────────────────────────────────────
@@ -16,10 +21,10 @@ class User(SQLModel, table=True):
     nome: str
     telefone: Optional[str] = None
     role: str = Field(default="owner")  # "owner" | "admin" | "convidado"
-    plan: str = Field(default="gratuito")  # "gratuito" | "dono_da_obra"
+    plan: str = Field(default="gratuito")  # "gratuito" | "essencial" | "completo" | "dono_da_obra" (legacy)
     ativo: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Core ────────────────────────────────────────────────────────────────────
@@ -33,8 +38,8 @@ class Obra(SQLModel, table=True):
     orcamento: Optional[float] = None
     localizacao: Optional[str] = None
     area_m2: Optional[float] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class Etapa(SQLModel, table=True):
@@ -46,8 +51,8 @@ class Etapa(SQLModel, table=True):
     score: Optional[float] = None
     prazo_previsto: Optional[date] = None
     prazo_executado: Optional[date] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class ChecklistItem(SQLModel, table=True):
@@ -79,8 +84,8 @@ class ChecklistItem(SQLModel, table=True):
     status_verificacao: str = Field(default="pendente")  # "pendente" | "conforme" | "divergente" | "duvida"
     confianca: Optional[int] = None                  # 0-100, confiança da IA
     requer_validacao_profissional: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class Evidencia(SQLModel, table=True):
@@ -90,20 +95,21 @@ class Evidencia(SQLModel, table=True):
     arquivo_nome: str
     mime_type: Optional[str] = None
     tamanho_bytes: Optional[int] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class NormaLog(SQLModel, table=True):
     """Registro auditável de cada consulta normativa realizada."""
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    user_id: Optional[UUID] = Field(default=None, index=True, foreign_key="user.id")
     etapa_nome: str
     disciplina: Optional[str] = None
     localizacao: Optional[str] = None
     query_texto: str
-    data_consulta: datetime = Field(default_factory=datetime.utcnow)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    data_consulta: datetime = Field(default_factory=_utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class NormaResultado(SQLModel, table=True):
@@ -121,8 +127,8 @@ class NormaResultado(SQLModel, table=True):
     nivel_confianca: int = Field(default=0)  # 0–100
     risco_nivel: Optional[str] = None        # "alto" | "medio" | "baixo" | None
     requer_validacao_profissional: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Fase 2 — Governança Financeira ──────────────────────────────────────────
@@ -134,8 +140,8 @@ class OrcamentoEtapa(SQLModel, table=True):
     etapa_id: UUID = Field(index=True, foreign_key="etapa.id")
     valor_previsto: float
     valor_realizado: Optional[float] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class Despesa(SQLModel, table=True):
@@ -148,8 +154,8 @@ class Despesa(SQLModel, table=True):
     data: date
     categoria: Optional[str] = None
     comprovante_url: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class AlertaConfig(SQLModel, table=True):
@@ -158,8 +164,8 @@ class AlertaConfig(SQLModel, table=True):
     obra_id: UUID = Field(index=True, foreign_key="obra.id")
     percentual_desvio_threshold: float = Field(default=10.0)
     notificacao_ativa: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Fase 3 — Document AI ─────────────────────────────────────────────────────
@@ -173,33 +179,34 @@ class ProjetoDoc(SQLModel, table=True):
     status: str = Field(default="pendente")  # pendente | processando | concluido | erro
     resumo_geral: Optional[str] = None
     aviso_legal: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class Risco(SQLModel, table=True):
     """Risco identificado num documento de projeto pela IA."""
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     projeto_id: UUID = Field(index=True, foreign_key="projetodoc.id")
-    descricao: str
-    severidade: str  # "alto" | "medio" | "baixo"
+    descricao: str                                  # descricao_tecnica
+    severidade: str                                 # "ALTA" | "MEDIA" | "BAIXA"
+    disciplina: Optional[str] = None                # "Arquitetura" | "Eletrica" | "Hidraulica" | "Estrutural" | "Geral"
     norma_referencia: Optional[str] = None
     norma_url: Optional[str] = None
-    traducao_leigo: str
-    acao_proprietario: Optional[str] = None
-    perguntas_para_profissional: Optional[str] = None  # JSON string
+    traducao_leigo: str                             # traducao_para_leigo
+    acao_proprietario: Optional[str] = None         # acao_imediata
+    perguntas_para_profissional: Optional[str] = None  # JSON string (legado)
     documentos_a_exigir: Optional[str] = None           # JSON string
     requer_validacao_profissional: bool = Field(default=False)
     confianca: int = Field(default=0)  # 0–100
     # ─── 3 Camadas de Risco ─────────────────────────────────────────────
     dado_projeto: Optional[str] = None            # JSON: dados concretos extraídos do PDF
-    verificacoes: Optional[str] = None             # JSON: checklist de verificações para o proprietário
-    pergunta_engenheiro: Optional[str] = None      # JSON: pergunta colaborativa para o engenheiro
+    verificacoes: Optional[str] = None             # JSON: verificacao_na_obra
+    pergunta_engenheiro: Optional[str] = None      # JSON: mensagem_para_o_profissional
     registro_proprietario: Optional[str] = None    # JSON: preenchido pelo usuário (medições, fotos)
     resultado_cruzamento: Optional[str] = None     # JSON: resultado da comparação IA
     status_verificacao: str = Field(default="pendente")  # "pendente" | "conforme" | "divergente" | "duvida"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Push Notifications ───────────────────────────────────────────────────────
@@ -210,8 +217,8 @@ class DeviceToken(SQLModel, table=True):
     obra_id: UUID = Field(index=True, foreign_key="obra.id")
     token: str = Field(index=True)
     platform: str = Field(default="android")  # "android" | "ios"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Fase 4 — Visual AI ───────────────────────────────────────────────────────
@@ -227,8 +234,8 @@ class AnaliseVisual(SQLModel, table=True):
     status: str = Field(default="processando")  # processando | concluida | erro
     resumo_geral: Optional[str] = None
     aviso_legal: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class Achado(SQLModel, table=True):
@@ -241,8 +248,8 @@ class Achado(SQLModel, table=True):
     requer_evidencia_adicional: bool = Field(default=False)
     requer_validacao_profissional: bool = Field(default=False)
     confianca: int = Field(default=0)  # 0–100
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Fase 5 — Prestadores e Fornecedores ─────────────────────────────────────
@@ -256,8 +263,8 @@ class Prestador(SQLModel, table=True):
     regiao: Optional[str] = Field(default=None, index=True)
     telefone: Optional[str] = None
     email: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class Avaliacao(SQLModel, table=True):
@@ -272,8 +279,8 @@ class Avaliacao(SQLModel, table=True):
     nota_prazo_entrega: Optional[int] = None
     nota_qualidade_material: Optional[int] = None
     comentario: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Fase 6 — Checklist Inteligente ─────────────────────────────────────────
@@ -292,8 +299,8 @@ class ChecklistGeracaoLog(SQLModel, table=True):
     resumo_geral: Optional[str] = None
     aviso_legal: Optional[str] = None
     erro_detalhe: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class ChecklistGeracaoItem(SQLModel, table=True):
@@ -319,40 +326,43 @@ class ChecklistGeracaoItem(SQLModel, table=True):
     verificacoes: Optional[str] = None
     pergunta_engenheiro: Optional[str] = None
     documentos_a_exigir: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Monetização — Subscription ──────────────────────────────────────────────
 
 class Subscription(SQLModel, table=True):
-    """Assinatura do usuário via RevenueCat / Store."""
+    """Assinatura do usuário via Stripe."""
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     user_id: UUID = Field(foreign_key="user.id", unique=True, index=True)
-    plan: str = Field(default="gratuito")  # "gratuito" | "dono_da_obra"
+    plan: str = Field(default="gratuito")  # "gratuito" | "essencial" | "completo" | "dono_da_obra" (legacy)
     status: str = Field(default="active")  # "active" | "expired" | "cancelled" | "grace_period"
-    revenuecat_customer_id: Optional[str] = Field(default=None, index=True)
+    stripe_customer_id: Optional[str] = Field(default=None, index=True)
     store: Optional[str] = None  # "play_store" | "app_store"
-    product_id: Optional[str] = None
+    stripe_subscription_id: Optional[str] = None
     original_purchase_date: Optional[datetime] = None
     expires_at: Optional[datetime] = None
     grace_period_expires_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class UsageTracking(SQLModel, table=True):
     """Rastreamento de uso de features limitadas por período."""
+    __table_args__ = (
+        UniqueConstraint("user_id", "feature", "period", name="uq_usage_user_feature_period"),
+    )
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     user_id: UUID = Field(foreign_key="user.id", index=True)
     feature: str  # "ai_visual" | "checklist_inteligente" | "doc_upload"
     period: str   # "2026-03" (YYYY-MM)
     count: int = Field(default=0)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
-class RevenueCatEvent(SQLModel, table=True):
-    """Log de eventos recebidos do RevenueCat webhook."""
+class StripeWebhookEvent(SQLModel, table=True):
+    """Log de eventos recebidos do Stripe webhook."""
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     event_type: str  # "INITIAL_PURCHASE" | "RENEWAL" | "EXPIRATION" etc.
     app_user_id: str = Field(index=True)
@@ -362,7 +372,7 @@ class RevenueCatEvent(SQLModel, table=True):
     expiration_at: Optional[datetime] = None
     raw_payload: Optional[str] = None  # JSON completo para debug
     processed: bool = Field(default=False)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
 
 
 # ─── Monetização — Convites ──────────────────────────────────────────────────
@@ -378,7 +388,7 @@ class ObraConvite(SQLModel, table=True):
     status: str = Field(default="pendente")  # "pendente" | "aceito" | "removido"
     token: str = Field(index=True)
     token_expires_at: datetime
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
     accepted_at: Optional[datetime] = None
 
 
@@ -390,8 +400,8 @@ class ObraDetalhamento(SQLModel, table=True):
     area_total_m2: Optional[float] = None
     fonte_doc_id: Optional[UUID] = Field(default=None, foreign_key="projetodoc.id")
     fonte_doc_nome: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
 
 
 class EtapaComentario(SQLModel, table=True):
@@ -400,4 +410,4 @@ class EtapaComentario(SQLModel, table=True):
     etapa_id: UUID = Field(foreign_key="etapa.id", index=True)
     user_id: UUID = Field(foreign_key="user.id")
     texto: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utcnow)

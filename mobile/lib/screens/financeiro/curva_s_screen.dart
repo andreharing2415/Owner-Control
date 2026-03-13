@@ -1,5 +1,6 @@
 import "dart:math" as math;
 
+import "package:flutter/foundation.dart" show listEquals;
 import "package:flutter/material.dart";
 
 import "../../models/financeiro.dart";
@@ -316,6 +317,6 @@ class _CurvaSPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CurvaSPainter oldDelegate) {
-    return oldDelegate.pontos != pontos;
+    return !listEquals(oldDelegate.pontos, pontos);
   }
 }

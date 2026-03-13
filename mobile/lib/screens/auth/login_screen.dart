@@ -246,8 +246,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     height: 48,
                     child: OutlinedButton.icon(
                       onPressed: _carregando ? null : _loginGoogle,
-                      icon: Image.asset(
-                        "assets/images/google_logo.png",
+                      icon: SvgPicture.asset(
+                        "assets/images/google_logo.svg",
                         width: 20,
                         height: 20,
                       ),

@@ -9,6 +9,7 @@ import "../../providers/subscription_provider.dart";
 import "../../services/api_client.dart";
 import "../subscription/paywall_screen.dart";
 import "detalhe_achado_screen.dart";
+import "../../utils/theme_helpers.dart";
 
 class VisualAiScreen extends StatefulWidget {
   const VisualAiScreen({super.key, required this.etapa, required this.api, this.grupo});
@@ -100,17 +101,7 @@ class _VisualAiScreenState extends State<VisualAiScreen> {
     }
   }
 
-  Color _severidadeColor(String severidade) {
-    switch (severidade.toLowerCase()) {
-      case "alta":
-      case "critica":
-        return Colors.red;
-      case "media":
-        return Colors.orange;
-      default:
-        return Colors.green;
-    }
-  }
+  Color _severidadeColor(String s) => severidadeColor(s);
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {

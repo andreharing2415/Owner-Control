@@ -1,4 +1,5 @@
 import "dart:async";
+import "dart:io";
 
 import "package:app_links/app_links.dart";
 import "package:flutter/material.dart";
@@ -8,21 +9,40 @@ import "providers/auth_provider.dart";
 import "providers/convite_provider.dart";
 import "providers/obra_provider.dart";
 import "providers/subscription_provider.dart";
+import "services/ad_service.dart";
 import "services/api_client.dart";
+import "services/appsflyer_service.dart";
 import "screens/auth/login_screen.dart";
 import "screens/convites/aceitar_convite_screen.dart";
 import "screens/home/home_screen.dart";
 import "screens/subscription/paywall_screen.dart";
+import "widgets/rewarded_dialog.dart";
+
+bool _isNetworkError(Object error) {
+  return error is SocketException ||
+      error is TimeoutException ||
+      error is HttpException ||
+      error.toString().contains('connection abort') ||
+      error.toString().contains('Connection reset') ||
+      error.toString().contains('ClientException');
+}
 
 void main() {
   runZonedGuarded(() {
     WidgetsFlutterBinding.ensureInitialized();
     FlutterError.onError = (details) {
       FlutterError.presentError(details);
-      _globalErrorNotifier.value = details.exceptionAsString();
+      if (!_isNetworkError(details.exception)) {
+        _globalErrorNotifier.value = details.exceptionAsString();
+      }
     };
     runApp(const ObraMasterApp());
   }, (error, stack) {
+    // Network errors should not crash the entire app
+    if (_isNetworkError(error)) {
+      debugPrint("Network error (ignored): $error");
+      return;
+    }
     _globalErrorNotifier.value = "$error\n$stack";
   });
 }
@@ -36,6 +56,16 @@ class ObraMasterApp extends StatefulWidget {
   State<ObraMasterApp> createState() => _ObraMasterAppState();
 }
 
+/// Maps a 403 error message to a feature key for the reward-usage endpoint.
+String _extractFeatureFromMessage(String message) {
+  final lower = message.toLowerCase();
+  if (lower.contains("visual") || lower.contains("foto")) return "ai_visual";
+  if (lower.contains("checklist") || lower.contains("inteligente")) return "checklist_inteligente";
+  if (lower.contains("norma")) return "normas";
+  if (lower.contains("documento") || lower.contains("upload") || lower.contains("doc")) return "doc_upload";
+  return "ai_visual"; // fallback
+}
+
 class _ObraMasterAppState extends State<ObraMasterApp> {
   final _api = ApiClient();
   final _navigatorKey = GlobalKey<NavigatorState>();
@@ -45,14 +75,29 @@ class _ObraMasterAppState extends State<ObraMasterApp> {
   @override
   void initState() {
     super.initState();
-    // Global 403 handler — shows paywall bottom sheet
+    // Global 403 handler — shows rewarded dialog (free) or paywall
     _api.onFeatureGate = (message) {
       final ctx = _navigatorKey.currentContext;
-      if (ctx != null) {
+      if (ctx == null) return;
+
+      final sub = ctx.read<SubscriptionProvider>();
+      if (sub.canWatchRewarded) {
+        // Free user can watch a video to earn extra uses
+        final feature = _extractFeatureFromMessage(message);
+        RewardedDialog.show(
+          ctx,
+          feature: feature,
+          featureLabel: message,
+          api: _api,
+        );
+      } else {
         PaywallScreen.show(ctx, message: message);
       }
     };
     _initDeepLinks();
+    // Initialize ad and attribution SDKs
+    AdService.instance.initialize();
+    AppsFlyerService.instance.initialize();
   }
 
   @override
@@ -137,6 +182,25 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   bool _subscriptionLoaded = false;
+  bool _wasAuthenticated = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final auth = context.watch<AuthProvider>();
+    if (!auth.isAuthenticated) {
+      _subscriptionLoaded = false;
+      _wasAuthenticated = false;
+    } else if (!_subscriptionLoaded && !_wasAuthenticated) {
+      _subscriptionLoaded = true;
+      _wasAuthenticated = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.read<SubscriptionProvider>().load();
+        }
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,15 +244,7 @@ class _AuthGateState extends State<_AuthGate> {
           );
         }
         if (!auth.isAuthenticated) {
-          _subscriptionLoaded = false;
           return const LoginScreen();
-        }
-        // Load subscription info once after authentication
-        if (!_subscriptionLoaded) {
-          _subscriptionLoaded = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.read<SubscriptionProvider>().load();
-          });
         }
         return const HomeScreen();
       },

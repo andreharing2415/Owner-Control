@@ -267,7 +267,7 @@ class _ChecklistInteligenteScreenState
     }
   }
 
-  void _verDetalhesJob(ChecklistInteligenteLog job) async {
+  Future<void> _verDetalhesJob(ChecklistInteligenteLog job) async {
     try {
       final status =
           await widget.api.statusChecklistInteligente(widget.obraId, job.id);

@@ -71,7 +71,7 @@ class _NormasScreenState extends State<NormasScreen> {
     super.dispose();
   }
 
-  Future<void> _buscar() async {
+  Future<void> _buscar({String? disciplina}) async {
     setState(() {
       _buscando = true;
       _resultado = null;
@@ -83,6 +83,7 @@ class _NormasScreenState extends State<NormasScreen> {
         localizacao: _localController.text.trim().isEmpty
             ? null
             : _localController.text.trim(),
+        disciplina: disciplina,
       );
       if (mounted) setState(() => _resultado = resp);
     } catch (e) {
@@ -216,7 +217,7 @@ class _NormasScreenState extends State<NormasScreen> {
                       children: _normasChecklist!.map((norma) => ActionChip(
                         label: Text(norma, style: const TextStyle(fontSize: 12)),
                         onPressed: () {
-                          _buscar();
+                          _buscar(disciplina: norma);
                         },
                       )).toList(),
                     ),

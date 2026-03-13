@@ -106,6 +106,16 @@ class EtapaRead(SQLModel):
     updated_at: datetime
 
 
+class EtapaEnrichedRead(EtapaRead):
+    valor_previsto: Optional[float] = None
+    valor_gasto: float = 0.0
+
+
+class ObraDetailResponse(SQLModel):
+    obra: ObraRead
+    etapas: List[EtapaEnrichedRead] = []
+
+
 class ChecklistItemCreate(SQLModel):
     titulo: str
     descricao: Optional[str] = None
@@ -615,7 +625,7 @@ class ChecklistGeracaoItemRead(SQLModel):
     medidas_minimas: Optional[str] = None
     explicacao_leigo: str
     caracteristica_origem: str
-    projeto_doc_id: Optional[str] = None
+    projeto_doc_id: Optional[UUID] = None
     projeto_doc_nome: Optional[str] = None
     # 3 Camadas (new)
     dado_projeto: Optional[str] = None
@@ -650,6 +660,20 @@ class SubscriptionInfoResponse(SQLModel):
     convite_count: int = 0
     expires_at: Optional[datetime] = None
     status: str = "active"
+    show_ads: bool = True
+    can_watch_rewarded: bool = False
+
+
+class RewardUsageRequest(SQLModel):
+    """Request para conceder usos extras via rewarded ad."""
+    feature: str  # "ai_visual" | "checklist_inteligente" | "doc_upload" | "normas"
+
+
+class RewardUsageResponse(SQLModel):
+    """Response após conceder usos extras via rewarded ad."""
+    feature: str
+    new_count: int
+    bonus_granted: int
 
 
 # ─── Monetização — Convites ──────────────────────────────────────────────────
@@ -697,3 +721,9 @@ class ComentarioRead(SQLModel):
     user_nome: str = ""
     texto: str
     created_at: datetime
+
+
+# ─── Aplicar Riscos ─────────────────────────────────────────────────────────
+
+class AplicarRiscosRequest(SQLModel):
+    risco_ids: List[str]

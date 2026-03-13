@@ -5,17 +5,30 @@ import '../../models/obra.dart';
 import '../../models/etapa.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_client.dart';
+import '../../widgets/ad_banner_widget.dart';
 import '../visual_ai/visual_ai_screen.dart';
 import '../documentos/documentos_screen.dart';
 import '../checklist_inteligente/checklist_inteligente_screen.dart';
 import '../normas/normas_screen.dart';
 
-class IAHubScreen extends StatelessWidget {
+class IAHubScreen extends StatefulWidget {
   final Obra obra;
   final ApiClient api;
   final VoidCallback? onNavigateToObra;
 
   const IAHubScreen({super.key, required this.obra, required this.api, this.onNavigateToObra});
+
+  @override
+  State<IAHubScreen> createState() => _IAHubScreenState();
+}
+
+class _IAHubScreenState extends State<IAHubScreen> {
+  bool _loading = false;
+  String? _loadingLabel;
+
+  void _setLoading(bool value, [String? label]) {
+    if (mounted) setState(() { _loading = value; _loadingLabel = label; });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,11 +51,11 @@ class IAHubScreen extends StatelessWidget {
             final result = await Navigator.push<String>(
               context,
               MaterialPageRoute(
-                builder: (_) => DocumentosScreen(obraId: obra.id, api: api),
+                builder: (_) => DocumentosScreen(obraId: widget.obra.id, api: widget.api),
               ),
             );
             if (result == "navigate_obra") {
-              onNavigateToObra?.call();
+              widget.onNavigateToObra?.call();
             }
           },
         ),
@@ -54,8 +67,8 @@ class IAHubScreen extends StatelessWidget {
             context,
             MaterialPageRoute(
               builder: (_) => ChecklistInteligenteScreen(
-                obraId: obra.id,
-                api: api,
+                obraId: widget.obra.id,
+                api: widget.api,
                 autoStart: false,
               ),
             ),
@@ -75,7 +88,7 @@ class IAHubScreen extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => NormasScreen(api: api),
+            builder: (_) => NormasScreen(api: widget.api),
           ),
         ),
       ),
@@ -85,11 +98,40 @@ class IAHubScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text("Inteligência Artificial"),
       ),
-      body: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: acoes.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (ctx, i) => _buildActionCard(context, acoes[i]),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              for (int i = 0; i < acoes.length; i++) ...[
+                if (i > 0) const SizedBox(height: 12),
+                _buildActionCard(context, acoes[i]),
+                if (i == 1) const AdBannerWidget(),
+              ],
+            ],
+          ),
+          if (_loading)
+            Container(
+              color: Colors.black26,
+              child: Center(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (_loadingLabel != null) ...[
+                          const SizedBox(height: 16),
+                          Text(_loadingLabel!),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -105,67 +147,89 @@ class IAHubScreen extends StatelessWidget {
             Text(acao.titulo, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(acao.descricao),
         trailing: const Icon(Icons.chevron_right),
-        onTap: acao.onTap,
+        onTap: _loading ? null : acao.onTap,
       ),
     );
   }
 
   Future<void> _selecionarEtapaParaFoto(BuildContext context) async {
-    final etapas = await api.listarEtapas(obra.id);
-    if (!context.mounted) return;
-    final etapa = await showDialog<Etapa>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text("Selecione a etapa"),
-        children: etapas
-            .map((e) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(ctx, e),
-                  child: Text(e.nome),
-                ))
-            .toList(),
-      ),
-    );
-    if (etapa == null || !context.mounted) return;
-
-    // Second dialog: select category (optional)
-    String? grupo;
+    _setLoading(true, "Carregando etapas...");
     try {
-      final itens = await api.listarItens(etapa.id);
-      final grupos = itens.map((i) => i.grupo).toSet().toList()..sort();
-      if (grupos.isNotEmpty && context.mounted) {
-        grupo = await showDialog<String>(
-          context: context,
-          builder: (ctx) => SimpleDialog(
-            title: const Text("Categoria (opcional)"),
-            children: [
-              SimpleDialogOption(
-                onPressed: () => Navigator.pop(ctx, null),
-                child: const Text("Nenhuma — análise geral",
-                    style: TextStyle(color: Colors.grey)),
-              ),
-              ...grupos.map((g) => SimpleDialogOption(
-                    onPressed: () => Navigator.pop(ctx, g),
-                    child: Text(g),
-                  )),
-            ],
-          ),
-        );
-      }
-    } catch (_) {
-      // If loading items fails, proceed without group
-    }
+      final etapas = await widget.api.listarEtapas(widget.obra.id);
+      _setLoading(false);
+      if (!context.mounted) return;
+      final etapa = await showDialog<Etapa>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text("Selecione a etapa"),
+          children: etapas
+              .map((e) => SimpleDialogOption(
+                    onPressed: () => Navigator.pop(ctx, e),
+                    child: Text(e.nome),
+                  ))
+              .toList(),
+        ),
+      );
+      if (etapa == null || !context.mounted) return;
 
-    if (!context.mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => VisualAiScreen(etapa: etapa, api: api, grupo: grupo),
-      ),
-    );
+      // Second dialog: select category (optional)
+      String? grupo;
+      try {
+        final itens = await widget.api.listarItens(etapa.id);
+        final grupos = itens.map((i) => i.grupo).toSet().toList()..sort();
+        if (grupos.isNotEmpty && context.mounted) {
+          grupo = await showDialog<String>(
+            context: context,
+            builder: (ctx) => SimpleDialog(
+              title: const Text("Categoria (opcional)"),
+              children: [
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, null),
+                  child: const Text("Nenhuma — análise geral",
+                      style: TextStyle(color: Colors.grey)),
+                ),
+                ...grupos.map((g) => SimpleDialogOption(
+                      onPressed: () => Navigator.pop(ctx, g),
+                      child: Text(g),
+                    )),
+              ],
+            ),
+          );
+        }
+      } catch (_) {
+        // If loading items fails, proceed without group
+      }
+
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => VisualAiScreen(etapa: etapa, api: widget.api, grupo: grupo),
+        ),
+      );
+    } catch (e) {
+      _setLoading(false);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao carregar etapas: $e")),
+      );
+    }
   }
 
   Future<void> _selecionarEtapaParaEnriquecer(BuildContext context) async {
-    final etapas = await api.listarEtapas(obra.id);
+    _setLoading(true, "Carregando etapas...");
+    late List<Etapa> etapas;
+    try {
+      etapas = await widget.api.listarEtapas(widget.obra.id);
+    } catch (e) {
+      _setLoading(false);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao carregar etapas: $e")),
+      );
+      return;
+    }
+    _setLoading(false);
     if (!context.mounted) return;
 
     // Use a sentinel value for "all etapas"
@@ -189,19 +253,22 @@ class IAHubScreen extends StatelessWidget {
     );
     if (opcao == null || !context.mounted) return;
 
+    _setLoading(true, "Enriquecendo itens com IA...");
     try {
       final Map<String, dynamic> result;
       if (opcao == "__todas__") {
-        result = await api.enriquecerTodos(obra.id);
+        result = await widget.api.enriquecerTodos(widget.obra.id);
       } else {
-        result = await api.enriquecerChecklist(opcao);
+        result = await widget.api.enriquecerChecklist(opcao);
       }
+      _setLoading(false);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text("${result['enriquecidos']} itens enriquecidos!")),
       );
     } catch (e) {
+      _setLoading(false);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Erro: $e")),

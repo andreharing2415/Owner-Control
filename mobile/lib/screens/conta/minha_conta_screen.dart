@@ -64,11 +64,14 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
                 children: [
                   _buildInfoRow(
                     "Plano",
-                    sub.isDono ? "Dono da Obra" : "Gratuito",
-                    icon: sub.isDono
+                    sub.isCompleto ? "Completo"
+                    : sub.isEssencial ? "Essencial"
+                    : sub.isDono ? "Dono da Obra"
+                    : "Gratuito",
+                    icon: sub.isPaid
                         ? Icons.workspace_premium
                         : Icons.card_membership,
-                    iconColor: sub.isDono ? Colors.amber : Colors.grey,
+                    iconColor: sub.isPaid ? Colors.amber : Colors.grey,
                   ),
                   if (sub.info?.status != null) ...[
                     const SizedBox(height: 8),
@@ -84,7 +87,7 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
                       _formatDate(sub.info!.expiresAt!),
                     ),
                   ],
-                  if (sub.isDono && sub.info?.status == "active") ...[
+                  if (sub.isPaid && sub.info?.status == "active") ...[
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,

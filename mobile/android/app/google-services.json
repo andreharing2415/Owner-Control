@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "530484413221",
+    "project_id": "mestreobra",
+    "storage_bucket": "mestreobra.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:530484413221:android:6716d928e187db474810cc",
+        "android_client_info": {
+          "package_name": "br.mestredaobra.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "530484413221-ce3hk4ahk234gq35s8tll80u8v9pbde8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD576Hz9M09insiQTx0wiPTAvUqsQPac2U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "530484413221-ce3hk4ahk234gq35s8tll80u8v9pbde8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -15,7 +15,7 @@ Guardrails obrigatórios (RULES.md):
 
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from openai import OpenAI
@@ -214,7 +214,7 @@ def buscar_normas(
         resultado = _parse_normas_json(output_text)
 
     resultado["query_texto"] = query
-    resultado["data_consulta"] = datetime.utcnow().isoformat()
+    resultado["data_consulta"] = datetime.now(timezone.utc).isoformat()
     resultado["etapa_nome"] = etapa_nome
     resultado["disciplina"] = disciplina
     resultado["localizacao"] = localizacao

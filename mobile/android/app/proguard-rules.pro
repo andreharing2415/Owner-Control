@@ -18,6 +18,14 @@
 # Keep Google Play Core (used by some plugins)
 -dontwarn com.google.android.play.core.**
 
+# Google Sign-In / Credential Manager
+-keep class com.google.android.gms.** { *; }
+-dontwarn com.google.android.gms.**
+-keep class com.google.android.libraries.identity.** { *; }
+-dontwarn com.google.android.libraries.identity.**
+-keep class androidx.credentials.** { *; }
+-dontwarn androidx.credentials.**
+
 # Prevent stripping of annotations
 -keepattributes *Annotation*
 -keepattributes Signature

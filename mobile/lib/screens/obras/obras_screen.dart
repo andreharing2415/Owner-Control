@@ -114,6 +114,11 @@ class _ObrasScreenState extends State<ObrasScreen> {
         }
       }
     }
+
+    nomeController.dispose();
+    localController.dispose();
+    orcamentoController.dispose();
+    areaController.dispose();
   }
 
   @override

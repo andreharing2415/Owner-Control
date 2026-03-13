@@ -3,10 +3,17 @@
 import logging
 import os
 import smtplib
+import sys
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger(__name__)
+
+
+def _log(msg: str) -> None:
+    """Force flush to stderr so Cloud Run captures it."""
+    print(msg, file=sys.stderr, flush=True)
 
 
 def enviar_email_convite(
@@ -60,18 +67,35 @@ def enviar_email_convite(
         f"Este link expira em 7 dias."
     )
 
-    # 1. Gmail SMTP (primary)
+    # 1. Generic SMTP (primary — Umbler, Gmail, etc.)
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    _log(f"[EMAIL] SMTP config: host={smtp_host}, user={smtp_user}, pass={'SET' if smtp_password else 'MISSING'}")
+    if smtp_host and smtp_user and smtp_password:
+        return _send_via_smtp(
+            smtp_host,
+            int(os.getenv("SMTP_PORT", "587")),
+            smtp_user,
+            smtp_password,
+            destinatario, subject, body_html, body_text,
+        )
+
+    # 2. Legacy Gmail SMTP (fallback)
     gmail_user = os.getenv("GMAIL_USER")
     gmail_app_password = os.getenv("GMAIL_APP_PASSWORD")
     if gmail_user and gmail_app_password:
-        return _send_via_gmail_smtp(gmail_user, gmail_app_password, destinatario, subject, body_html, body_text)
+        return _send_via_smtp(
+            "smtp.gmail.com", 587, gmail_user, gmail_app_password,
+            destinatario, subject, body_html, body_text,
+        )
 
-    # 2. SendGrid
+    # 3. SendGrid
     sendgrid_key = os.getenv("SENDGRID_API_KEY")
     if sendgrid_key:
         return _send_via_sendgrid(sendgrid_key, destinatario, subject, body_html, body_text)
 
-    # 3. Resend
+    # 4. Resend
     resend_key = os.getenv("RESEND_API_KEY")
     if resend_key:
         return _send_via_resend(resend_key, destinatario, subject, body_html)
@@ -84,34 +108,42 @@ def enviar_email_convite(
     return False
 
 
-def _send_via_gmail_smtp(
-    gmail_user: str,
-    gmail_app_password: str,
+def _send_via_smtp(
+    host: str,
+    port: int,
+    user: str,
+    password: str,
     to_email: str,
     subject: str,
     html_content: str,
     text_content: str,
 ) -> bool:
-    """Envia e-mail via Gmail SMTP com App Password."""
+    """Envia e-mail via SMTP genérico (Umbler, Gmail, etc.)."""
     try:
         from_name = os.getenv("EMAIL_FROM_NAME", "Mestre da Obra")
+        from_addr = os.getenv("SMTP_FROM", user)
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = f"{from_name} <{gmail_user}>"
+        msg["From"] = f"{from_name} <{from_addr}>"
         msg["To"] = to_email
 
         msg.attach(MIMEText(text_content, "plain", "utf-8"))
         msg.attach(MIMEText(html_content, "html", "utf-8"))
 
-        with smtplib.SMTP("smtp.gmail.com", 587, timeout=15) as server:
-            server.starttls()
-            server.login(gmail_user, gmail_app_password)
-            server.sendmail(gmail_user, to_email, msg.as_string())
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            if port != 25:
+                try:
+                    server.starttls()
+                except smtplib.SMTPNotSupportedError:
+                    pass  # TLS optional (e.g. Umbler)
+            server.login(user, password)
+            server.sendmail(from_addr, to_email, msg.as_string())
 
-        logger.info("Email enviado via Gmail SMTP para %s", to_email)
+        _log(f"[EMAIL] OK — enviado via SMTP ({host}) para {to_email}")
         return True
     except Exception as exc:
-        logger.error("Gmail SMTP exception: %s", exc)
+        _log(f"[EMAIL] ERRO — SMTP ({host}): {exc}")
         return False
 
 

@@ -2,6 +2,7 @@ import "package:flutter/material.dart";
 
 import "../../models/visual_ai.dart";
 import "../../services/api_client.dart";
+import "../../utils/theme_helpers.dart";
 
 class DetalheAchadoScreen extends StatefulWidget {
   const DetalheAchadoScreen({
@@ -32,17 +33,7 @@ class _DetalheAchadoScreenState extends State<DetalheAchadoScreen> {
     });
   }
 
-  Color _severidadeColor(String severidade) {
-    switch (severidade.toLowerCase()) {
-      case "alta":
-      case "critica":
-        return Colors.red;
-      case "media":
-        return Colors.orange;
-      default:
-        return Colors.green;
-    }
-  }
+  Color _severidadeColor(String s) => severidadeColor(s);
 
   @override
   Widget build(BuildContext context) {

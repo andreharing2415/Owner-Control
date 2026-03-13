@@ -1,3 +1,5 @@
+import "dart:async";
+
 import "package:flutter/material.dart";
 import "package:intl/intl.dart";
 import "package:provider/provider.dart";
@@ -6,10 +8,12 @@ import "../../models/checklist_item.dart";
 import "../../models/etapa.dart";
 import "../../providers/auth_provider.dart";
 import "../../providers/subscription_provider.dart";
+import "../../widgets/ad_banner_widget.dart";
 import "../../services/api_client.dart";
 import "../subscription/paywall_screen.dart";
 import "../financeiro/lancar_despesa_screen.dart";
 import "detalhe_item_screen.dart";
+import "../../utils/theme_helpers.dart";
 
 class ChecklistScreen extends StatefulWidget {
   const ChecklistScreen({super.key, required this.etapa, required this.api});
@@ -89,6 +93,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     String grupo = "Geral";
     int ordem = 0;
     bool buscandoGrupo = false;
+    Timer? debounceTimer;
 
     final created = await showDialog<bool>(
       context: context,
@@ -102,23 +107,26 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                 controller: tituloController,
                 decoration: const InputDecoration(labelText: "Título *"),
                 textCapitalization: TextCapitalization.sentences,
-                onChanged: (_) async {
-                  final t = tituloController.text.trim();
-                  if (t.length < 5) return;
-                  setLocalState(() => buscandoGrupo = true);
-                  try {
-                    final sugestao = await widget.api.sugerirGrupoItem(
-                      etapaId: _etapa.id,
-                      titulo: t,
-                    );
-                    setLocalState(() {
-                      grupo = sugestao["grupo"] as String? ?? "Geral";
-                      ordem = sugestao["ordem"] as int? ?? 0;
-                      buscandoGrupo = false;
-                    });
-                  } catch (_) {
-                    setLocalState(() => buscandoGrupo = false);
-                  }
+                onChanged: (_) {
+                  debounceTimer?.cancel();
+                  debounceTimer = Timer(const Duration(milliseconds: 400), () async {
+                    final t = tituloController.text.trim();
+                    if (t.length < 5) return;
+                    setLocalState(() => buscandoGrupo = true);
+                    try {
+                      final sugestao = await widget.api.sugerirGrupoItem(
+                        etapaId: _etapa.id,
+                        titulo: t,
+                      );
+                      setLocalState(() {
+                        grupo = sugestao["grupo"] as String? ?? "Geral";
+                        ordem = sugestao["ordem"] as int? ?? 0;
+                        buscandoGrupo = false;
+                      });
+                    } catch (_) {
+                      setLocalState(() => buscandoGrupo = false);
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 8),
@@ -336,21 +344,9 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
     );
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case "ok": return Colors.green;
-      case "nao_conforme": return Colors.red;
-      default: return Colors.grey;
-    }
-  }
+  Color _statusColor(String status) => checklistStatusColor(status);
 
-  String _statusLabel(String status) {
-    switch (status) {
-      case "ok": return "OK";
-      case "nao_conforme": return "Não conforme";
-      default: return "Pendente";
-    }
-  }
+  String _statusLabel(String status) => checklistStatusLabel(status);
 
   bool get _prazoPendente =>
       _etapa.prazoPrevisto != null &&
@@ -462,6 +458,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                       setState(() => _filtroOrigem = filtro),
                 ),
                 const SizedBox(height: 8),
+                const AdBannerWidget(),
                 // ── Collapsible groups ──
                 for (final entry in grupos.entries)
                   _GrupoExpansivel(
@@ -495,7 +492,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                     },
                     itemBuilder: (item) {
                       final sub = context.read<SubscriptionProvider>();
-                      final canDelete = sub.isDono;
+                      final canDelete = sub.isPaid;
                       return _ItemCard(
                         item: item,
                         statusColor: _statusColor(item.status),
@@ -888,18 +885,7 @@ class _ItemCard extends StatelessWidget {
   }
 }
 
-Color _severidadeColor(String severidade) {
-  switch (severidade) {
-    case "alto":
-      return Colors.red;
-    case "medio":
-      return Colors.orange;
-    case "baixo":
-      return Colors.green;
-    default:
-      return Colors.grey;
-  }
-}
+Color _severidadeColor(String severidade) => severidadeColor(severidade);
 
 class _DatePickerRow extends StatelessWidget {
   const _DatePickerRow({
