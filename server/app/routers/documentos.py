@@ -383,6 +383,28 @@ def _clean_ai_json(text: str) -> str:
     return cleaned
 
 
+def _normalize_comodos(comodos: list, pe_direito: float = 2.70) -> None:
+    """Normaliza nomes de campos legados e calcula campos derivados ausentes."""
+    PERDA = 0.15
+    MOLHADOS = ("BANHO", "BANH", "LAVABO", "WC", "COZINHA", "LAVANDERIA", "VARANDA GOURMET")
+    for c in comodos:
+        # Gemini retorna "area_m2" em vez de "area_liquida_m2" — normaliza
+        if c.get("area_liquida_m2") is None and c.get("area_m2") is not None:
+            c["area_liquida_m2"] = c["area_m2"]
+        area = c.get("area_liquida_m2")
+        if not area:
+            continue
+        if c.get("estimativa_piso_com_sobra_m2") is None:
+            c["estimativa_piso_com_sobra_m2"] = round(area * (1 + PERDA), 2)
+        if c.get("area_molhada") is None:
+            nome = (c.get("nome") or "").upper()
+            c["area_molhada"] = any(w in nome for w in MOLHADOS)
+        if c.get("estimativa_azulejo_parede_com_sobra_m2") is None and c.get("area_molhada"):
+            perimetro_est = round(4 * (area ** 0.5), 2)
+            area_parede = max(perimetro_est * pe_direito - 2.0, 0)
+            c["estimativa_azulejo_parede_com_sobra_m2"] = round(area_parede * (1 + PERDA), 2)
+
+
 def _detalhamento_result_ok(result: dict) -> bool:
     """Check if AI returned useful data (at least 1 comodo with area)."""
     comodos = result.get("comodos", [])
@@ -471,6 +493,8 @@ def get_detalhamento(
     if not det:
         return {"comodos": [], "area_total_m2": None, "fonte_doc_nome": None, "totais_estimados": None}
     comodos = json.loads(det.comodos) if det.comodos else []
+    # Normalize legacy field names and compute derived fields on the fly
+    _normalize_comodos(comodos)
     # Compute totals from stored comodos
     total_pisos = sum(c.get("estimativa_piso_com_sobra_m2") or 0 for c in comodos)
     total_azulejos = sum(c.get("estimativa_azulejo_parede_com_sobra_m2") or 0 for c in comodos)
@@ -612,21 +636,8 @@ Retorne APENAS o JSON valido."""
         raise HTTPException(status_code=500, detail="Nenhuma planta com comodos/metragens encontrada nos documentos.")
 
     comodos = list(merged_comodos.values())
-    # Fallback: calculate derived fields that the AI may have omitted
-    PERDA = 0.15  # 15% waste factor
-    for c in comodos:
-        area = c.get("area_liquida_m2") or c.get("area_m2")
-        if area:
-            if c.get("estimativa_piso_com_sobra_m2") is None:
-                c["estimativa_piso_com_sobra_m2"] = round(area * (1 + PERDA), 2)
-            if c.get("area_molhada") is None:
-                nome = (c.get("nome") or "").upper()
-                c["area_molhada"] = any(w in nome for w in ("BANHO", "BANH", "LAVABO", "WC", "COZINHA", "LAVANDERIA", "VARANDA GOURMET"))
-            if c.get("estimativa_azulejo_parede_com_sobra_m2") is None and c.get("area_molhada"):
-                perimetro_est = round(4 * (area ** 0.5), 2)  # square approximation
-                area_parede = perimetro_est * pe_direito
-                area_parede -= 2.0  # descontar porta/janela padrão
-                c["estimativa_azulejo_parede_com_sobra_m2"] = round(max(area_parede, 0) * (1 + PERDA), 2)
+    # Normaliza campos legados e calcula campos derivados ausentes
+    _normalize_comodos(comodos, pe_direito=pe_direito)
     # Compute totals
     totais = {
         "total_pisos_m2": sum(c.get("estimativa_piso_com_sobra_m2") or 0 for c in comodos),

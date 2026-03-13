@@ -215,7 +215,7 @@ class _ComodoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final nome = comodo["nome"] as String? ?? "—";
-    final areaLiquida = comodo["area_liquida_m2"] as num?;
+    final areaLiquida = (comodo["area_liquida_m2"] ?? comodo["area_m2"]) as num?;
     final pisoCobra = comodo["estimativa_piso_com_sobra_m2"] as num?;
     final isMolhada = comodo["area_molhada"] == true;
     final azulejo = comodo["estimativa_azulejo_parede_com_sobra_m2"] as num?;
