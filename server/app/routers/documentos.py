@@ -548,9 +548,14 @@ FORMATO DE SAIDA (Obrigatorio JSON):
 }}
 Retorne APENAS o JSON valido."""
 
-    result = None
     fonte_doc = None
     bucket = os.getenv("S3_BUCKET", "")
+    # Accumulate comodo data across all pages (merge by room name)
+    merged_comodos: dict[str, dict] = {}
+    resumo_projeto = None
+    pe_direito_utilizado = None
+    area_total_override = None
+    found_any = False
 
     for d in docs:
         try:
@@ -566,20 +571,68 @@ Retorne APENAS o JSON valido."""
 
         for page in pages:
             page_result = _extrair_detalhamento_vision_single(page, detalhamento_prompt)
-            if page_result and _detalhamento_result_ok(page_result):
-                logger.info("Detalhamento encontrado na pagina %d do doc %s", page[1], d.arquivo_nome)
-                result = page_result
-                break
-        if result:
-            break
+            if not page_result:
+                continue
+            page_comodos = page_result.get("comodos", [])
+            if not page_comodos:
+                continue
+            logger.info("Detalhamento encontrado na pagina %d do doc %s (%d comodos)", page[1], d.arquivo_nome, len(page_comodos))
+            found_any = True
+            if not resumo_projeto:
+                resumo_projeto = page_result.get("resumo_projeto")
+            if not pe_direito_utilizado:
+                pe_direito_utilizado = page_result.get("pe_direito_utilizado")
+            if area_total_override is None and page_result.get("area_total_m2"):
+                area_total_override = page_result.get("area_total_m2")
+            # Merge page comodos into accumulated dict by normalized room name
+            for c in page_comodos:
+                key = (c.get("nome") or "").strip().upper()
+                if not key:
+                    continue
+                if key not in merged_comodos:
+                    merged_comodos[key] = c
+                else:
+                    existing = merged_comodos[key]
+                    # Prefer non-null values from new page for missing fields
+                    for field in ("area_liquida_m2", "estimativa_piso_com_sobra_m2", "area_molhada", "estimativa_azulejo_parede_com_sobra_m2"):
+                        if existing.get(field) is None and c.get(field) is not None:
+                            existing[field] = c[field]
+                    # Merge list fields (deduplicate)
+                    for list_field in ("itens_hidraulicos_e_metais", "itens_eletricos_e_iluminacao"):
+                        existing_list = existing.get(list_field) or []
+                        new_list = c.get(list_field) or []
+                        combined = list(existing_list)
+                        for item in new_list:
+                            if item not in combined:
+                                combined.append(item)
+                        if combined:
+                            existing[list_field] = combined
 
-    if not result:
+    if not found_any:
         raise HTTPException(status_code=500, detail="Nenhuma planta com comodos/metragens encontrada nos documentos.")
 
-    comodos = result.get("comodos", [])
-    # Compute area_total from totais or sum of comodos
-    totais = result.get("totais_estimados", {})
-    area_total = result.get("area_total_m2")
+    comodos = list(merged_comodos.values())
+    # Fallback: calculate derived fields that the AI may have omitted
+    PERDA = 0.15  # 15% waste factor
+    for c in comodos:
+        area = c.get("area_liquida_m2") or c.get("area_m2")
+        if area:
+            if c.get("estimativa_piso_com_sobra_m2") is None:
+                c["estimativa_piso_com_sobra_m2"] = round(area * (1 + PERDA), 2)
+            if c.get("area_molhada") is None:
+                nome = (c.get("nome") or "").upper()
+                c["area_molhada"] = any(w in nome for w in ("BANHO", "BANH", "LAVABO", "WC", "COZINHA", "LAVANDERIA", "VARANDA GOURMET"))
+            if c.get("estimativa_azulejo_parede_com_sobra_m2") is None and c.get("area_molhada"):
+                perimetro_est = round(4 * (area ** 0.5), 2)  # square approximation
+                area_parede = perimetro_est * pe_direito
+                area_parede -= 2.0  # descontar porta/janela padrão
+                c["estimativa_azulejo_parede_com_sobra_m2"] = round(max(area_parede, 0) * (1 + PERDA), 2)
+    # Compute totals
+    totais = {
+        "total_pisos_m2": sum(c.get("estimativa_piso_com_sobra_m2") or 0 for c in comodos),
+        "total_azulejos_m2": sum(c.get("estimativa_azulejo_parede_com_sobra_m2") or 0 for c in comodos),
+    }
+    area_total = area_total_override
     if area_total is None:
         area_total = sum(c.get("area_liquida_m2") or c.get("area_m2") or 0 for c in comodos) or None
 
@@ -612,8 +665,8 @@ Retorne APENAS o JSON valido."""
     return {
         "comodos": comodos,
         "area_total_m2": area_total,
-        "resumo_projeto": result.get("resumo_projeto"),
-        "pe_direito_utilizado": result.get("pe_direito_utilizado"),
+        "resumo_projeto": resumo_projeto,
+        "pe_direito_utilizado": pe_direito_utilizado,
         "totais_estimados": totais,
         "fonte_doc_nome": fonte_doc.arquivo_nome if fonte_doc else None,
     }
