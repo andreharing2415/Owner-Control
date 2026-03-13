@@ -2,7 +2,7 @@ name: mestre_da_obra
 description: "Plataforma premium para proprietários gerenciarem obras de construção."
 publish_to: 'none'
 
-version: 2.3.0+14   # formato: versionName+versionCode
+version: 2.3.0+15   # formato: versionName+versionCode
 
 environment:
   sdk: ^3.11.0
