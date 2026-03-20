@@ -1,32 +1,69 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:flutter/foundation.dart' show FlutterError, PlatformDispatcher, kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
+import 'providers/subscription_provider.dart';
 import 'screens/auth_gate.dart';
 import 'services/auth_service.dart';
+import 'services/ad_service.dart';
 import 'services/notification_service.dart';
 
+/// Se true, Crashlytics foi inicializado com sucesso.
+bool _crashlyticsReady = false;
+
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Captura erros assíncronos na zona raiz
+  runZonedGuarded<Future<void>>(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicializa auth (lê tokens armazenados)
-  await AuthService.instance.initialize();
+    // Inicializa auth (lê tokens armazenados)
+    await AuthService.instance.initialize();
 
-  // Firebase + Push: só inicializa se google-services.json estiver configurado.
-  // Sem ele, Firebase.initializeApp() causa crash nativo no Android.
-  if (!kIsWeb) {
-    try {
-      // Tenta inicializar; em builds sem google-services.json, captura o erro.
-      await Firebase.initializeApp();
-      await NotificationService.instance.initialize();
-    } catch (e) {
-      debugPrint('[Firebase] nao inicializado (push desabilitado): $e');
+    // Firebase + Crashlytics + Push
+    if (!kIsWeb) {
+      try {
+        await Firebase.initializeApp();
+
+        // Crashlytics: captura erros fatais do Flutter
+        await FirebaseCrashlytics.instance
+            .setCrashlyticsCollectionEnabled(!kDebugMode);
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        _crashlyticsReady = true;
+
+        await NotificationService.instance.initialize();
+      } catch (e) {
+        debugPrint('[Firebase] nao inicializado (crashlytics/push desabilitado): $e');
+      }
     }
-  }
 
-  runApp(const MestreDaObraApp());
+    // Captura erros assíncronos não tratados (fora do Flutter framework)
+    PlatformDispatcher.instance.onError = (error, stack) {
+      if (_crashlyticsReady) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      } else {
+        debugPrint('[CRASH] $error\n$stack');
+      }
+      return true;
+    };
+
+    // AdMob: inicializa SDK de anúncios (não bloqueia se falhar)
+    AdService.instance.initialize();
+
+    runApp(const MestreDaObraApp());
+  }, (error, stack) {
+    // Erros da zona raiz (runZonedGuarded)
+    if (_crashlyticsReady) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    } else {
+      debugPrint('[ZONE-CRASH] $error\n$stack');
+    }
+  });
 }
 
 class MestreDaObraApp extends StatelessWidget {
@@ -34,8 +71,11 @@ class MestreDaObraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
+      ],
       child: MaterialApp(
         title: 'Mestre da Obra',
         debugShowCheckedModeBanner: false,

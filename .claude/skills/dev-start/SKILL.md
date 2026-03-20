@@ -14,9 +14,9 @@ allowed-tools: Bash
 | Campo | Valor |
 |-------|-------|
 | **GCP Project** | `mestreobra` |
-| **Region** | `southamerica-east1` |
+| **Region** | `us-central1` |
 | **Service** | `mestreobra-backend` |
-| **URL** | `https://mestreobra-backend-kya4oinfma-rj.a.run.app` |
+| **URL** | `https://mestreobra-backend-530484413221.us-central1.run.app` |
 
 Para verificar:
 ```bash
@@ -25,7 +25,7 @@ Para verificar:
 
 Para testar saúde:
 ```bash
-curl -s -o /dev/null -w "HTTP %{http_code}" https://mestreobra-backend-kya4oinfma-rj.a.run.app/docs
+curl -s -o /dev/null -w "HTTP %{http_code}" https://mestreobra-backend-530484413221.us-central1.run.app/docs
 ```
 
 ### Backend local (Docker)
@@ -54,7 +54,7 @@ C:\Project\ObraMaster\Owner-Control\.claude\worktrees\brave-lovelace
 ```bash
 cd C:\Project\ObraMaster\Owner-Control\.claude\worktrees\brave-lovelace
 flutter run -d chrome --web-port=59026 \
-  --dart-define=API_BASE_URL=https://mestreobra-backend-kya4oinfma-rj.a.run.app
+  --dart-define=API_BASE_URL=https://mestreobra-backend-530484413221.us-central1.run.app
 ```
 
 ### Com backend LOCAL
@@ -103,7 +103,7 @@ const apiBaseUrl = String.fromEnvironment(
 ```
 
 - Se não passar `--dart-define`, usa `http://localhost:8000`
-- Para produção: `--dart-define=API_BASE_URL=https://mestreobra-backend-kya4oinfma-rj.a.run.app`
+- Para produção: `--dart-define=API_BASE_URL=https://mestreobra-backend-530484413221.us-central1.run.app`
 
 ## Variáveis de ambiente (.env do servidor local)
 

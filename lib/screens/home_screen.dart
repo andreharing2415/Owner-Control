@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../api/api.dart';
+import '../providers/tab_refresh_notifier.dart';
 import 'etapas_screen.dart';
+import 'cronograma_screen.dart';
+import 'orcamento_edit_screen.dart';
 import 'prestadores_screen.dart';
+import '../widgets/ad_banner_widget.dart';
 
 final _brl = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$\u00a0');
 
@@ -37,13 +41,14 @@ class _DashboardData {
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.refreshNotifier});
+  final TabRefreshNotifier? refreshNotifier;
 
   @override
-  State<HomeScreen> createState() => HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> {
   final ApiClient _api = ApiClient();
 
   late Future<List<Obra>> _obrasFuture;
@@ -54,10 +59,16 @@ class HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _obrasFuture = _api.listarObras();
+    widget.refreshNotifier?.addListener(_onRefreshRequested);
   }
 
-  /// Chamado pelo MainShell ao trocar para esta aba.
-  void recarregarObras() {
+  @override
+  void dispose() {
+    widget.refreshNotifier?.removeListener(_onRefreshRequested);
+    super.dispose();
+  }
+
+  void _onRefreshRequested() {
     setState(() {
       _obraSelecionada = null;
       _dashFuture = null;
@@ -99,7 +110,7 @@ class HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mestre da Obra'),
+        title: Image.asset('assets/images/logo_horizontal.png', height: 32),
         centerTitle: false,
       ),
       body: FutureBuilder<List<Obra>>(
@@ -175,8 +186,9 @@ class HomeScreenState extends State<HomeScreen> {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) =>
-                                      EtapasScreen(obra: data.obra),
+                                  builder: (_) => data.obra.tipo == "construcao"
+                                      ? CronogramaScreen(obra: data.obra)
+                                      : EtapasScreen(obra: data.obra),
                                 ),
                               ).then((_) => _recarregar()),
                             ),
@@ -185,6 +197,8 @@ class HomeScreenState extends State<HomeScreen> {
                             const SizedBox(height: 14),
                             _AlertaFinanceiro(relatorio: data.relatorio),
                           ],
+                          const SizedBox(height: 14),
+                          const AdBannerWidget(),
                           const SizedBox(height: 24),
                         ],
                       );
@@ -397,6 +411,12 @@ class _KpiRow extends StatelessWidget {
             color: rel.alerta
                 ? Colors.red
                 : (orcPct > 75 ? Colors.orange : Colors.green),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => OrcamentoEditScreen(obraId: data.obra.id),
+              ),
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -431,18 +451,23 @@ class _KpiCard extends StatelessWidget {
     required this.value,
     required this.subtitle,
     required this.color,
+    this.onTap,
   });
   final IconData icon;
   final String label;
   final String value;
   final String subtitle;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       elevation: 0,
-      child: Padding(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -470,6 +495,7 @@ class _KpiCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

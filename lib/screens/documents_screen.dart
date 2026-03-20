@@ -1,19 +1,23 @@
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../api/api.dart';
+import '../providers/tab_refresh_notifier.dart';
 import 'document_analysis_screen.dart';
 import '../utils/auth_error_handler.dart';
+import '../widgets/ad_banner_widget.dart';
 
 class DocumentsScreen extends StatefulWidget {
-  const DocumentsScreen({super.key});
+  const DocumentsScreen({super.key, this.refreshNotifier});
+  final TabRefreshNotifier? refreshNotifier;
 
   @override
-  State<DocumentsScreen> createState() => DocumentsScreenState();
+  State<DocumentsScreen> createState() => _DocumentsScreenState();
 }
 
-class DocumentsScreenState extends State<DocumentsScreen> {
+class _DocumentsScreenState extends State<DocumentsScreen> {
   final ApiClient _api = ApiClient();
 
   late Future<List<Obra>> _obrasFuture;
@@ -25,10 +29,16 @@ class DocumentsScreenState extends State<DocumentsScreen> {
   void initState() {
     super.initState();
     _obrasFuture = _api.listarObras();
+    widget.refreshNotifier?.addListener(_onRefreshRequested);
   }
 
-  /// Chamado pelo MainShell ao trocar para esta aba.
-  void recarregarObras() {
+  @override
+  void dispose() {
+    widget.refreshNotifier?.removeListener(_onRefreshRequested);
+    super.dispose();
+  }
+
+  void _onRefreshRequested() {
     setState(() {
       _obraSelecionada = null;
       _projetosFuture = null;
@@ -53,21 +63,57 @@ class DocumentsScreenState extends State<DocumentsScreen> {
   Future<void> _uploadProjeto() async {
     if (_obraSelecionada == null) return;
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-      withData: true,
-      withReadStream: true,
-    );
+    try {
+      await FilePicker.platform.clearTemporaryFiles();
+    } catch (_) {}
+
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        allowMultiple: true,
+        withData: true,
+      );
+    } on Exception catch (e) {
+      debugPrint('[Upload] pickFiles falhou: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao selecionar arquivo: $e')),
+        );
+      }
+      return;
+    }
     if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
+    // Filter PDF only and read bytes from path
+    final files = <PlatformFile>[];
+    for (final f in result.files) {
+      if (!f.name.toLowerCase().endsWith('.pdf')) continue;
+      if (f.bytes != null && f.bytes!.isNotEmpty) {
+        files.add(f);
+      } else if (f.path != null) {
+        try {
+          final bytes = await File(f.path!).readAsBytes();
+          files.add(PlatformFile(
+            name: f.name,
+            size: bytes.length,
+            bytes: bytes,
+          ));
+        } catch (e) {
+          debugPrint('[Upload] falha ao ler ${f.name}: $e');
+        }
+      }
+    }
+    if (files.isEmpty) return;
 
     setState(() => _enviando = true);
     try {
-      await _api.uploadProjeto(obraId: _obraSelecionada!.id, file: file);
+      for (final file in files) {
+        await _api.uploadProjeto(obraId: _obraSelecionada!.id, file: file);
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Projeto enviado com sucesso!')),
+          SnackBar(content: Text('${files.length} arquivo(s) enviado(s)!')),
         );
         _recarregar();
       }
@@ -85,15 +131,92 @@ class DocumentsScreenState extends State<DocumentsScreen> {
     }
   }
 
+  Future<void> _deletarProjeto(ProjetoDoc projeto) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remover documento'),
+        content: Text('Deseja remover "${projeto.arquivoNome}"?\n\nEssa ação não pode ser desfeita.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remover', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await _api.deletarProjeto(projeto.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Documento removido.')),
+        );
+        _recarregar();
+      }
+    } catch (e) {
+      if (e is AuthExpiredException) { if (mounted) handleApiError(context, e); return; }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao remover: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _analisarPendentes() async {
+    if (_obraSelecionada == null) return;
+    setState(() => _enviando = true);
+    try {
+      final projetos = await _api.listarProjetos(_obraSelecionada!.id);
+      final pendentes = projetos.where((p) => p.status == "pendente").toList();
+      if (pendentes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Nenhum documento pendente para analisar.')),
+          );
+        }
+        return;
+      }
+      for (final p in pendentes) {
+        await _api.dispararAnalise(p.id);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${pendentes.length} documento(s) analisado(s)!')),
+        );
+        _recarregar();
+      }
+    } catch (e) {
+      if (e is AuthExpiredException) { if (mounted) handleApiError(context, e); return; }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao analisar: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Projetos'),
         centerTitle: false,
+        actions: [
+          if (_obraSelecionada != null)
+            IconButton(
+              onPressed: _enviando ? null : _analisarPendentes,
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'Analisar pendentes',
+            ),
+        ],
       ),
       floatingActionButton: _obraSelecionada != null
           ? FloatingActionButton.extended(
+              heroTag: "fab_documents",
               onPressed: _enviando ? null : _uploadProjeto,
               icon: _enviando
                   ? const SizedBox(
@@ -156,10 +279,12 @@ class DocumentsScreenState extends State<DocumentsScreen> {
                 selecionada: _obraSelecionada,
                 onSelect: _selecionarObra,
               ),
+              const AdBannerWidget(),
               Expanded(
                 child: _ProjetosView(
                   future: _projetosFuture,
                   onRefresh: _recarregar,
+                  onDelete: _deletarProjeto,
                   onTap: (p) => Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -218,11 +343,13 @@ class _ProjetosView extends StatelessWidget {
     required this.future,
     required this.onRefresh,
     required this.onTap,
+    required this.onDelete,
   });
 
   final Future<List<ProjetoDoc>>? future;
   final Future<void> Function() onRefresh;
   final void Function(ProjetoDoc) onTap;
+  final void Function(ProjetoDoc) onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -270,7 +397,7 @@ class _ProjetosView extends StatelessWidget {
             itemCount: projetos.length,
             separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (_, i) =>
-                _ProjetoTile(projeto: projetos[i], onTap: onTap),
+                _ProjetoTile(projeto: projetos[i], onTap: onTap, onDelete: onDelete),
           ),
         );
       },
@@ -281,10 +408,11 @@ class _ProjetosView extends StatelessWidget {
 // ─── Tile de Projeto ──────────────────────────────────────────────────────────
 
 class _ProjetoTile extends StatelessWidget {
-  const _ProjetoTile({required this.projeto, required this.onTap});
+  const _ProjetoTile({required this.projeto, required this.onTap, required this.onDelete});
 
   final ProjetoDoc projeto;
   final void Function(ProjetoDoc) onTap;
+  final void Function(ProjetoDoc) onDelete;
 
   (String, Color, IconData) get _statusStyle => switch (projeto.status) {
         'concluido' =>
@@ -340,7 +468,23 @@ class _ProjetoTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+            PopupMenuButton<String>(
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              onSelected: (v) {
+                if (v == 'delete') onDelete(projeto);
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'delete',
+                  child: Row(children: [
+                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Remover', style: TextStyle(color: Colors.red)),
+                  ]),
+                ),
+              ],
+            ),
           ],
         ),
         onTap: () => onTap(projeto),

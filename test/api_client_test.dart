@@ -281,4 +281,169 @@ void main() {
       expect(score, 0.0);
     });
   });
+
+  // ── Obra.tipo ───────────────────────────────────────────────────────────
+
+  group('Obra.fromJson — tipo field', () {
+    test('defaults to construcao when tipo is absent', () {
+      final obra = Obra.fromJson(_obraJson());
+      expect(obra.tipo, 'construcao');
+    });
+
+    test('parses tipo field when present', () {
+      final json = _obraJson();
+      json['tipo'] = 'reforma';
+      final obra = Obra.fromJson(json);
+      expect(obra.tipo, 'reforma');
+    });
+  });
+
+  // ── AtividadeCronograma ────────────────────────────────────────────────
+
+  group('AtividadeCronograma.fromJson', () {
+    test('parses flat activity correctly', () {
+      final json = {
+        'id': 'ativ-1',
+        'obra_id': 'obra-1',
+        'parent_id': null,
+        'nome': 'Fundacao',
+        'descricao': 'Fase de fundacao',
+        'ordem': 1,
+        'nivel': 1,
+        'status': 'pendente',
+        'valor_previsto': 50000.0,
+        'valor_gasto': 0.0,
+        'tipo_projeto': 'Estrutural',
+        'sub_atividades': [],
+        'servicos': [],
+      };
+      final atividade = AtividadeCronograma.fromJson(json);
+      expect(atividade.id, 'ativ-1');
+      expect(atividade.nome, 'Fundacao');
+      expect(atividade.nivel, 1);
+      expect(atividade.valorPrevisto, 50000.0);
+      expect(atividade.subAtividades, isEmpty);
+    });
+
+    test('parses nested sub-activities and services', () {
+      final json = {
+        'id': 'ativ-1',
+        'obra_id': 'obra-1',
+        'nome': 'Fundacao',
+        'ordem': 1,
+        'nivel': 1,
+        'status': 'pendente',
+        'valor_previsto': 50000.0,
+        'valor_gasto': 10000.0,
+        'sub_atividades': [
+          {
+            'id': 'ativ-2',
+            'obra_id': 'obra-1',
+            'parent_id': 'ativ-1',
+            'nome': 'Perfuracao',
+            'ordem': 1,
+            'nivel': 2,
+            'status': 'em_andamento',
+            'valor_previsto': 15000.0,
+            'valor_gasto': 5000.0,
+            'servicos': [
+              {
+                'id': 'svc-1',
+                'atividade_id': 'ativ-2',
+                'descricao': 'Operador de perfuratriz',
+                'categoria': 'empreiteiro',
+              },
+            ],
+          },
+        ],
+        'servicos': [],
+      };
+      final atividade = AtividadeCronograma.fromJson(json);
+      expect(atividade.subAtividades.length, 1);
+      expect(atividade.subAtividades[0].nome, 'Perfuracao');
+      expect(atividade.subAtividades[0].servicos.length, 1);
+      expect(atividade.subAtividades[0].servicos[0].descricao, 'Operador de perfuratriz');
+    });
+
+    test('defaults missing fields gracefully', () {
+      final json = {
+        'id': 'ativ-1',
+        'obra_id': 'obra-1',
+        'nome': 'Alvenaria',
+      };
+      final atividade = AtividadeCronograma.fromJson(json);
+      expect(atividade.ordem, 0);
+      expect(atividade.nivel, 1);
+      expect(atividade.status, 'pendente');
+      expect(atividade.valorPrevisto, 0);
+      expect(atividade.subAtividades, isEmpty);
+      expect(atividade.servicos, isEmpty);
+    });
+  });
+
+  // ── CronogramaResponse ─────────────────────────────────────────────────
+
+  group('CronogramaResponse.fromJson', () {
+    test('parses response with totals', () {
+      final json = {
+        'obra_id': 'obra-1',
+        'total_previsto': 500000.0,
+        'total_gasto': 120000.0,
+        'desvio_percentual': -76.0,
+        'atividades': [
+          {
+            'id': 'ativ-1',
+            'obra_id': 'obra-1',
+            'nome': 'Fundacao',
+            'ordem': 1,
+            'nivel': 1,
+            'status': 'pendente',
+            'valor_previsto': 50000.0,
+            'valor_gasto': 0.0,
+            'sub_atividades': [],
+            'servicos': [],
+          },
+        ],
+      };
+      final response = CronogramaResponse.fromJson(json);
+      expect(response.totalPrevisto, 500000.0);
+      expect(response.totalGasto, 120000.0);
+      expect(response.atividades.length, 1);
+    });
+  });
+
+  // ── ServicoNecessario ──────────────────────────────────────────────────
+
+  group('ServicoNecessario.fromJson', () {
+    test('parses service correctly', () {
+      final json = {
+        'id': 'svc-1',
+        'atividade_id': 'ativ-1',
+        'descricao': 'Pedreiro',
+        'categoria': 'empreiteiro',
+        'prestador_id': null,
+      };
+      final servico = ServicoNecessario.fromJson(json);
+      expect(servico.descricao, 'Pedreiro');
+      expect(servico.categoria, 'empreiteiro');
+      expect(servico.prestadorId, isNull);
+    });
+  });
+
+  // ── TipoProjetoIdentificado ────────────────────────────────────────────
+
+  group('TipoProjetoIdentificado.fromJson', () {
+    test('parses identified project type', () {
+      final json = {
+        'nome': 'Estrutural',
+        'confianca': 95,
+        'projeto_doc_id': 'doc-1',
+        'projeto_doc_nome': 'projeto_estrutural.pdf',
+      };
+      final tipo = TipoProjetoIdentificado.fromJson(json);
+      expect(tipo.nome, 'Estrutural');
+      expect(tipo.confianca, 95);
+      expect(tipo.confirmado, isTrue);
+    });
+  });
 }

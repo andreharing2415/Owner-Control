@@ -114,6 +114,7 @@ class _PrestadoresScreenState extends State<PrestadoresScreen> {
         centerTitle: false,
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: "fab_prestadores",
         onPressed: _abrirCadastro,
         icon: const Icon(Icons.add),
         label: const Text('Cadastrar'),

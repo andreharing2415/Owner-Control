@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../api/api.dart';
 import '../providers/auth_provider.dart';
+import '../providers/subscription_provider.dart';
+import 'minha_conta_screen.dart';
+import 'paywall_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Configurações'),
@@ -15,54 +24,93 @@ class SettingsScreen extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          // Profile section
-          const _SectionHeader('Perfil'),
-          Builder(builder: (ctx) {
-            final auth = ctx.watch<AuthProvider>();
-            return ListTile(
-              leading: CircleAvatar(
-                radius: 22,
-                backgroundColor:
-                    Theme.of(ctx).colorScheme.primaryContainer,
-                child: Icon(
-                  Icons.person,
-                  color: Theme.of(ctx).colorScheme.primary,
+          // ─── Cabeçalho do perfil ──────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 30,
+                  backgroundColor: cs.primaryContainer,
+                  child: Text(
+                    _initials(auth.userName),
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: cs.primary,
+                    ),
+                  ),
                 ),
-              ),
-              title: Text(
-                auth.userName,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              subtitle: Text(auth.userEmail),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showComingSoon(ctx),
-            );
-          }),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        auth.userName,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        auth.userEmail,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const Divider(indent: 16, endIndent: 16),
 
-          // Preferences section
+          // ─── Conta ────────────────────────────────────────────────────
+          const _SectionHeader('Conta'),
+          _SettingsTile(
+            icon: Icons.person_outline,
+            label: 'Minha Conta',
+            subtitle: 'Editar perfil, senha e mais',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MinhaContaScreen()),
+            ),
+          ),
+          Builder(builder: (ctx) {
+            final sub = ctx.watch<SubscriptionProvider>();
+            final planLabel = switch (sub.plan) {
+              'essencial' => 'Essencial',
+              'completo' || 'dono_da_obra' => 'Completo',
+              _ => 'Gratuito',
+            };
+            return _SettingsTile(
+              icon: Icons.workspace_premium,
+              label: 'Plano',
+              subtitle: planLabel,
+              onTap: () async {
+                await Navigator.push(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const PaywallScreen()),
+                );
+                if (ctx.mounted) sub.sync();
+              },
+            );
+          }),
+
+          // ─── Preferências ─────────────────────────────────────────────
           const _SectionHeader('Preferências'),
+          _BiometricsTile(),
           _SettingsTile(
             icon: Icons.notifications_outlined,
             label: 'Notificações',
             subtitle: 'Alertas de documentos e etapas',
             onTap: () => _showComingSoon(context),
           ),
-          _SettingsTile(
-            icon: Icons.language_outlined,
-            label: 'Idioma',
-            subtitle: 'Português (BR)',
-            onTap: () => _showComingSoon(context),
-          ),
-          _SettingsTile(
-            icon: Icons.dark_mode_outlined,
-            label: 'Tema',
-            subtitle: 'Claro (padrão)',
-            onTap: () => _showComingSoon(context),
-          ),
           const Divider(indent: 16, endIndent: 16),
 
-          // About section
+          // ─── Sobre ────────────────────────────────────────────────────
           const _SectionHeader('Sobre'),
           _SettingsTile(
             icon: Icons.info_outlined,
@@ -73,41 +121,20 @@ class SettingsScreen extends StatelessWidget {
           _SettingsTile(
             icon: Icons.privacy_tip_outlined,
             label: 'Política de Privacidade',
-            onTap: () => _showComingSoon(context),
+            onTap: () => _openUrl('$apiBaseUrl/privacy'),
           ),
           _SettingsTile(
             icon: Icons.description_outlined,
             label: 'Termos de Uso',
-            onTap: () => _showComingSoon(context),
+            onTap: () => _openUrl('$apiBaseUrl/terms'),
           ),
           const Divider(indent: 16, endIndent: 16),
 
-          // Sign out
+          // ─── Logout ───────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.all(16),
             child: OutlinedButton.icon(
-              onPressed: () async {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Sair da conta'),
-                    content: const Text('Tem certeza que deseja sair?'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancelar'),
-                      ),
-                      FilledButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Sair'),
-                      ),
-                    ],
-                  ),
-                );
-                if (confirmed == true && context.mounted) {
-                  await context.read<AuthProvider>().logout();
-                }
-              },
+              onPressed: () => _confirmLogout(context),
               icon: const Icon(Icons.logout, color: Colors.red),
               label: const Text(
                 'Sair da conta',
@@ -124,12 +151,98 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  String _initials(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    return 'U';
+  }
+
+  Future<void> _confirmLogout(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair da conta'),
+        content: const Text('Tem certeza que deseja sair?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await context.read<AuthProvider>().logout();
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
   void _showComingSoon(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Disponível em breve.')),
     );
   }
 }
+
+// ─── Toggle de biometria ──────────────────────────────────────────────────────
+
+class _BiometricsTile extends StatefulWidget {
+  @override
+  State<_BiometricsTile> createState() => _BiometricsTileState();
+}
+
+class _BiometricsTileState extends State<_BiometricsTile> {
+  bool _available = false;
+  bool _enabled = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final auth = context.read<AuthProvider>();
+    final available = await auth.isBiometricsAvailable();
+    final enabled = await auth.isBiometricsEnabled();
+    if (mounted) {
+      setState(() {
+        _available = available;
+        _enabled = enabled;
+        _loaded = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || !_available) return const SizedBox.shrink();
+    return SwitchListTile(
+      secondary: const Icon(Icons.fingerprint),
+      title: const Text('Login biométrico'),
+      subtitle: const Text('Entrar com impressão digital ou rosto'),
+      value: _enabled,
+      onChanged: (val) async {
+        await context.read<AuthProvider>().setBiometricsEnabled(val);
+        setState(() => _enabled = val);
+      },
+    );
+  }
+}
+
+// ─── Widgets auxiliares ───────────────────────────────────────────────────────
 
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);

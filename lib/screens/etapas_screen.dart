@@ -8,6 +8,7 @@ import 'checklist_screen.dart';
 import 'normas_screen.dart';
 import 'visual_ai_screen.dart';
 import '../utils/auth_error_handler.dart';
+import '../utils/status_helper.dart';
 
 const _statusEtapaLabels = {
   "pendente": "Pendente",
@@ -89,16 +90,7 @@ class _EtapasScreenState extends State<EtapasScreen> {
     }
   }
 
-  Color _statusColor(String status) {
-    switch (status) {
-      case "concluida":
-        return Colors.green;
-      case "em_andamento":
-        return Colors.orange;
-      default:
-        return Colors.grey;
-    }
-  }
+  Color _statusColor(String status) => etapaStatusColor(status);
 
   @override
   Widget build(BuildContext context) {

@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 
 import '../api/api.dart';
 import 'detalhe_risco_screen.dart';
+import 'pdf_viewer_screen.dart';
+import 'riscos_review_screen.dart';
 import '../utils/auth_error_handler.dart';
 
 class DocumentAnalysisScreen extends StatefulWidget {
@@ -33,11 +35,14 @@ class _DocumentAnalysisScreenState extends State<DocumentAnalysisScreen> {
   Future<void> _dispararAnalise() async {
     setState(() => _disparando = true);
     try {
-      final atualizado = await _api.analisarProjeto(_projeto.id);
+      await _api.dispararAnalise(_projeto.id);
+      final atualizado = await _api.aguardarAnalise(_projeto.id);
       if (!mounted) return;
       setState(() {
         _projeto = atualizado;
-        _analiseFuture = _api.obterAnalise(_projeto.id);
+        if (atualizado.status == 'concluido') {
+          _analiseFuture = _api.obterAnalise(_projeto.id);
+        }
         _disparando = false;
       });
     } catch (e) {
@@ -67,6 +72,21 @@ class _DocumentAnalysisScreenState extends State<DocumentAnalysisScreen> {
       appBar: AppBar(
         title: Text(_projeto.arquivoNome, overflow: TextOverflow.ellipsis),
         centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'Visualizar PDF',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PdfViewerScreen(
+                  url: _projeto.arquivoUrl,
+                  titulo: _projeto.arquivoNome,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
@@ -79,6 +99,7 @@ class _DocumentAnalysisScreenState extends State<DocumentAnalysisScreen> {
           if (_projeto.status == 'pendente' || _projeto.status == 'erro') ...[
             _AnalisarCard(
               status: _projeto.status,
+              erroDetalhe: _projeto.erroDetalhe,
               disparando: _disparando,
               onAnalisar: _dispararAnalise,
             ),
@@ -182,11 +203,13 @@ class _ProjetoInfoCard extends StatelessWidget {
 class _AnalisarCard extends StatelessWidget {
   const _AnalisarCard({
     required this.status,
+    this.erroDetalhe,
     required this.disparando,
     required this.onAnalisar,
   });
 
   final String status;
+  final String? erroDetalhe;
   final bool disparando;
   final VoidCallback onAnalisar;
 
@@ -215,6 +238,21 @@ class _AnalisarCard extends StatelessWidget {
                 fontSize: 13,
               ),
             ),
+            if (isErro && erroDetalhe != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  erroDetalhe!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 11, color: Colors.red),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: disparando ? null : onAnalisar,
@@ -339,6 +377,28 @@ class _AnaliseResultado extends StatelessWidget {
                 label: '$baixos Baixo', color: Colors.green),
           ],
         ),
+        const SizedBox(height: 12),
+
+        // Ações
+        if (riscos.isNotEmpty)
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RiscosReviewScreen(
+                        obraId: analise.projeto.obraId,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.playlist_add_check, size: 18),
+                  label: const Text('Aplicar Riscos'),
+                ),
+              ),
+            ],
+          ),
         const SizedBox(height: 12),
 
         // Lista de riscos

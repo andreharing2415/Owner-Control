@@ -19,9 +19,12 @@ class AuthService {
   static const _keyAccessToken = 'access_token';
   static const _keyRefreshToken = 'refresh_token';
   static const _keyUserJson = 'user_json';
+  static const _keyBiometricsEnabled = 'biometrics_enabled';
+  static const _keyBiometricsPrompted = 'biometrics_prompted';
 
   final _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
   );
 
   String? _accessToken;
@@ -64,6 +67,13 @@ class AuthService {
     await _storage.write(key: _keyUserJson, value: jsonEncode(user));
   }
 
+  // ─── Atualizar dados do usuário em cache ────────────────────────────────
+
+  Future<void> updateCachedUser(Map<String, dynamic> user) async {
+    _userJson = user;
+    await _storage.write(key: _keyUserJson, value: jsonEncode(user));
+  }
+
   // ─── Limpar (logout) ─────────────────────────────────────────────────────
 
   Future<void> clear() async {
@@ -96,6 +106,24 @@ class AuthService {
       debugPrint('[AuthService] refresh failed: $e');
     }
     return false;
+  }
+
+  // ─── Biometria ──────────────────────────────────────────────────────────────
+
+  Future<bool> isBiometricsEnabled() async {
+    return await _storage.read(key: _keyBiometricsEnabled) == 'true';
+  }
+
+  Future<void> setBiometricsEnabled(bool enabled) async {
+    await _storage.write(key: _keyBiometricsEnabled, value: enabled.toString());
+  }
+
+  Future<bool> wasBiometricsPrompted() async {
+    return await _storage.read(key: _keyBiometricsPrompted) == 'true';
+  }
+
+  Future<void> markBiometricsPrompted() async {
+    await _storage.write(key: _keyBiometricsPrompted, value: 'true');
   }
 
   // ─── Validar token salvo (via /me) ────────────────────────────────────────

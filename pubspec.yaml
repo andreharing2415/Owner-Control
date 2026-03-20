@@ -12,6 +12,7 @@ dependencies:
     sdk: flutter
   http: ^1.2.1
   firebase_core: ^3.8.1
+  firebase_crashlytics: ^4.3.2   # MISC-01: crash reporting em produção
   firebase_messaging: ^15.1.5
   flutter_local_notifications: ^18.0.1
   file_picker: ^8.0.0
@@ -25,11 +26,21 @@ dependencies:
   fl_chart: ^0.68.0
   intl: ^0.19.0
   flutter_secure_storage: ^9.2.2
+  google_sign_in: ^6.2.1
+  url_launcher: ^6.2.5
+  local_auth: ^2.3.0
+  syncfusion_flutter_pdfviewer: ^28.2.7
+  google_mobile_ads: ^5.3.0
+  syncfusion_flutter_xlsio: ^28.2.7
+  share_plus: ^10.1.4
+  cached_network_image: ^3.4.1  # PERF-10: cache de imagens de rede
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  mockito: ^5.4.4         # MISC-02: mocking para testes
+  build_runner: ^2.4.9    # MISC-02: code generation para mockito
   flutter_launcher_icons: ^0.14.3
   flutter_native_splash: ^2.4.6
 
@@ -42,10 +53,10 @@ flutter:
 flutter_launcher_icons:
   android: "ic_launcher"
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/icone.png"
   min_sdk_android: 21
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  adaptive_icon_foreground: "assets/images/icone.png"
   web:
     generate: false
   windows:
@@ -56,14 +67,10 @@ flutter_launcher_icons:
 # ─── flutter_native_splash ────────────────────────────────────────────────────
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/images/logo.png
   color_dark: "#FFFFFF"
-  image_dark: assets/images/logo.png
   android: true
   ios: true
   android_12:
-    image: assets/images/logo.png
     color: "#FFFFFF"
-    image_dark: assets/images/logo.png
     color_dark: "#FFFFFF"
   fullscreen: false

@@ -30,14 +30,14 @@ flutter build apk --debug \
 
 ```bash
 flutter build apk --release \
-  --dart-define=API_BASE_URL=https://mestreobra-backend-kya4oinfma-rj.a.run.app
+  --dart-define=API_BASE_URL=https://mestreobra-backend-530484413221.us-central1.run.app
 ```
 
 ### Android — AAB (para Google Play)
 
 ```bash
 flutter build appbundle --release \
-  --dart-define=API_BASE_URL=https://mestreobra-backend-kya4oinfma-rj.a.run.app
+  --dart-define=API_BASE_URL=https://mestreobra-backend-530484413221.us-central1.run.app
 ```
 
 > AAB gerado em: `build/app/outputs/bundle/release/app-release.aab`
@@ -46,14 +46,14 @@ flutter build appbundle --release \
 
 ```bash
 flutter build ipa --release \
-  --dart-define=API_BASE_URL=https://mestreobra-backend-kya4oinfma-rj.a.run.app
+  --dart-define=API_BASE_URL=https://mestreobra-backend-530484413221.us-central1.run.app
 ```
 
 ### Web
 
 ```bash
 flutter build web \
-  --dart-define=API_BASE_URL=https://mestreobra-backend-kya4oinfma-rj.a.run.app
+  --dart-define=API_BASE_URL=https://mestreobra-backend-530484413221.us-central1.run.app
 ```
 
 ## Informações do app

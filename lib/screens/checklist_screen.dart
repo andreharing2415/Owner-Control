@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../api/api.dart';
+import 'detalhe_item_screen.dart';
 import 'evidencias_screen.dart';
 import '../utils/auth_error_handler.dart';
 
@@ -273,6 +274,15 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
                 final item = itens[index];
                 return Card(
                   child: ListTile(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DetalheItemScreen(item: item),
+                        ),
+                      );
+                      _refresh();
+                    },
                     leading: Icon(
                       _statusItemIcon(item.status),
                       color: _statusItemColor(item.status),

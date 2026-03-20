@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
+import '../utils/auth_error_handler.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -42,11 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           );
       // AuthGate vai redirecionar automaticamente
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
-        );
-      }
+      if (mounted) handleApiError(context, e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -110,7 +107,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Informe seu email';
-                      if (!v.contains('@')) return 'Email invalido';
+                      final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+                      if (!emailRegex.hasMatch(v.trim())) return 'Email invalido';
                       return null;
                     },
                   ),

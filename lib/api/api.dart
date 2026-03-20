@@ -7,11 +7,10 @@ import "package:image_picker/image_picker.dart";
 
 import "../services/auth_service.dart";
 
-// 10.0.2.2 é o alias do localhost no emulador Android.
 // ignore: do_not_use_environment
 const apiBaseUrl = String.fromEnvironment(
   "API_BASE_URL",
-  defaultValue: "http://localhost:8000",
+  defaultValue: "https://mestreobra-backend-530484413221.us-central1.run.app",
 );
 
 /// Exceção lançada quando o token JWT expira e não pode ser renovado.
@@ -28,14 +27,16 @@ class Obra {
     this.orcamento,
     this.dataInicio,
     this.dataFim,
+    required this.tipo,
   });
 
   final String id;
   final String nome;
   final String? localizacao;
   final double? orcamento;
-  final String? dataInicio; // "YYYY-MM-DD"
-  final String? dataFim;    // "YYYY-MM-DD"
+  final String? dataInicio;
+  final String? dataFim;
+  final String tipo; // "construcao" | "reforma"
 
   factory Obra.fromJson(Map<String, dynamic> json) {
     return Obra(
@@ -45,6 +46,7 @@ class Obra {
       orcamento: (json["orcamento"] as num?)?.toDouble(),
       dataInicio: json["data_inicio"] as String?,
       dataFim: json["data_fim"] as String?,
+      tipo: json["tipo"] as String? ?? "construcao",
     );
   }
 }
@@ -89,6 +91,11 @@ class ChecklistItem {
     this.observacao,
     this.normaReferencia,
     this.origem = "padrao",
+    this.comoVerificar,
+    this.explicacaoLeigo,
+    this.confianca,
+    this.statusVerificacao,
+    this.group,
   });
 
   final String id;
@@ -100,6 +107,11 @@ class ChecklistItem {
   final String? observacao;
   final String? normaReferencia;
   final String origem; // "padrao" | "ia"
+  final String? comoVerificar;
+  final String? explicacaoLeigo;
+  final int? confianca;
+  final String? statusVerificacao;
+  final String? group;
 
   factory ChecklistItem.fromJson(Map<String, dynamic> json) {
     return ChecklistItem(
@@ -112,6 +124,11 @@ class ChecklistItem {
       observacao: json["observacao"] as String?,
       normaReferencia: json["norma_referencia"] as String?,
       origem: json["origem"] as String? ?? "padrao",
+      comoVerificar: json["como_verificar"] as String?,
+      explicacaoLeigo: json["explicacao_leigo"] as String?,
+      confianca: json["confianca"] as int?,
+      statusVerificacao: json["status_verificacao"] as String?,
+      group: json["group"] as String?,
     );
   }
 }
@@ -486,6 +503,7 @@ class ProjetoDoc {
     required this.arquivoUrl,
     required this.arquivoNome,
     required this.status,
+    this.erroDetalhe,
     this.resumoGeral,
     this.avisoLegal,
     required this.createdAt,
@@ -496,6 +514,7 @@ class ProjetoDoc {
   final String arquivoUrl;
   final String arquivoNome;
   final String status; // pendente | processando | concluido | erro
+  final String? erroDetalhe;
   final String? resumoGeral;
   final String? avisoLegal;
   final String createdAt;
@@ -507,6 +526,7 @@ class ProjetoDoc {
       arquivoUrl: json["arquivo_url"] as String,
       arquivoNome: json["arquivo_nome"] as String,
       status: json["status"] as String? ?? "pendente",
+      erroDetalhe: json["erro_detalhe"] as String?,
       resumoGeral: json["resumo_geral"] as String?,
       avisoLegal: json["aviso_legal"] as String?,
       createdAt: json["created_at"] as String,
@@ -539,10 +559,10 @@ class Risco {
     return Risco(
       id: json["id"] as String,
       projetoId: json["projeto_id"] as String,
-      descricao: json["descricao"] as String,
+      descricao: json["descricao"] as String? ?? "",
       severidade: json["severidade"] as String? ?? "baixo",
       normaReferencia: json["norma_referencia"] as String?,
-      traducaoLeigo: json["traducao_leigo"] as String,
+      traducaoLeigo: json["traducao_leigo"] as String? ?? "",
       requerValidacaoProfissional:
           json["requer_validacao_profissional"] as bool? ?? false,
       confianca: (json["confianca"] as num?)?.toInt() ?? 0,
@@ -637,9 +657,9 @@ class Achado {
     return Achado(
       id: json["id"] as String,
       analiseId: json["analise_id"] as String,
-      descricao: json["descricao"] as String,
+      descricao: json["descricao"] as String? ?? "",
       severidade: json["severidade"] as String? ?? "baixo",
-      acaoRecomendada: json["acao_recomendada"] as String,
+      acaoRecomendada: json["acao_recomendada"] as String? ?? "",
       requerEvidenciaAdicional:
           json["requer_evidencia_adicional"] as bool? ?? false,
       requerValidacaoProfissional:
@@ -900,12 +920,312 @@ class ChecklistInteligenteResponse {
   }
 }
 
+// ─── Cronograma ──────────────────────────────────────────────────────────────
+
+class TipoProjetoIdentificado {
+  TipoProjetoIdentificado({
+    required this.nome,
+    required this.confianca,
+    this.projetoDocId,
+    this.projetoDocNome,
+    this.confirmado = true,
+  });
+
+  final String nome;
+  final int confianca;
+  final String? projetoDocId;
+  final String? projetoDocNome;
+  bool confirmado;
+
+  factory TipoProjetoIdentificado.fromJson(Map<String, dynamic> json) {
+    return TipoProjetoIdentificado(
+      nome: json["nome"] as String,
+      confianca: json["confianca"] as int? ?? 0,
+      projetoDocId: json["projeto_doc_id"] as String?,
+      projetoDocNome: json["projeto_doc_nome"] as String?,
+    );
+  }
+}
+
+class IdentificarProjetosResponse {
+  IdentificarProjetosResponse({
+    required this.tipos,
+    required this.resumo,
+    required this.avisoLegal,
+  });
+
+  final List<TipoProjetoIdentificado> tipos;
+  final String resumo;
+  final String avisoLegal;
+
+  factory IdentificarProjetosResponse.fromJson(Map<String, dynamic> json) {
+    return IdentificarProjetosResponse(
+      tipos: (json["tipos"] as List<dynamic>)
+          .map((e) => TipoProjetoIdentificado.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      resumo: json["resumo"] as String,
+      avisoLegal: json["aviso_legal"] as String,
+    );
+  }
+}
+
+class ServicoNecessario {
+  ServicoNecessario({
+    required this.id,
+    required this.atividadeId,
+    required this.descricao,
+    required this.categoria,
+    this.prestadorId,
+  });
+
+  final String id;
+  final String atividadeId;
+  final String descricao;
+  final String categoria;
+  final String? prestadorId;
+
+  factory ServicoNecessario.fromJson(Map<String, dynamic> json) {
+    return ServicoNecessario(
+      id: json["id"] as String,
+      atividadeId: json["atividade_id"] as String,
+      descricao: json["descricao"] as String,
+      categoria: json["categoria"] as String,
+      prestadorId: json["prestador_id"] as String?,
+    );
+  }
+}
+
+class AtividadeCronograma {
+  AtividadeCronograma({
+    required this.id,
+    required this.obraId,
+    this.parentId,
+    required this.nome,
+    this.descricao,
+    required this.ordem,
+    required this.nivel,
+    required this.status,
+    this.dataInicioPrevista,
+    this.dataFimPrevista,
+    this.dataInicioReal,
+    this.dataFimReal,
+    required this.valorPrevisto,
+    required this.valorGasto,
+    this.tipoProjeto,
+    this.subAtividades = const [],
+    this.servicos = const [],
+  });
+
+  final String id;
+  final String obraId;
+  final String? parentId;
+  final String nome;
+  final String? descricao;
+  final int ordem;
+  final int nivel;
+  final String status;
+  final String? dataInicioPrevista;
+  final String? dataFimPrevista;
+  final String? dataInicioReal;
+  final String? dataFimReal;
+  final double valorPrevisto;
+  final double valorGasto;
+  final String? tipoProjeto;
+  final List<AtividadeCronograma> subAtividades;
+  final List<ServicoNecessario> servicos;
+
+  factory AtividadeCronograma.fromJson(Map<String, dynamic> json) {
+    return AtividadeCronograma(
+      id: json["id"] as String,
+      obraId: json["obra_id"] as String,
+      parentId: json["parent_id"] as String?,
+      nome: json["nome"] as String,
+      descricao: json["descricao"] as String?,
+      ordem: json["ordem"] as int? ?? 0,
+      nivel: json["nivel"] as int? ?? 1,
+      status: json["status"] as String? ?? "pendente",
+      dataInicioPrevista: json["data_inicio_prevista"] as String?,
+      dataFimPrevista: json["data_fim_prevista"] as String?,
+      dataInicioReal: json["data_inicio_real"] as String?,
+      dataFimReal: json["data_fim_real"] as String?,
+      valorPrevisto: (json["valor_previsto"] as num?)?.toDouble() ?? 0,
+      valorGasto: (json["valor_gasto"] as num?)?.toDouble() ?? 0,
+      tipoProjeto: json["tipo_projeto"] as String?,
+      subAtividades: (json["sub_atividades"] as List<dynamic>?)
+              ?.map((e) => AtividadeCronograma.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      servicos: (json["servicos"] as List<dynamic>?)
+              ?.map((e) => ServicoNecessario.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+class CronogramaResponse {
+  CronogramaResponse({
+    required this.obraId,
+    required this.totalPrevisto,
+    required this.totalGasto,
+    required this.desvioPercentual,
+    required this.atividades,
+  });
+
+  final String obraId;
+  final double totalPrevisto;
+  final double totalGasto;
+  final double desvioPercentual;
+  final List<AtividadeCronograma> atividades;
+
+  factory CronogramaResponse.fromJson(Map<String, dynamic> json) {
+    return CronogramaResponse(
+      obraId: json["obra_id"] as String,
+      totalPrevisto: (json["total_previsto"] as num?)?.toDouble() ?? 0,
+      totalGasto: (json["total_gasto"] as num?)?.toDouble() ?? 0,
+      desvioPercentual: (json["desvio_percentual"] as num?)?.toDouble() ?? 0,
+      atividades: (json["atividades"] as List<dynamic>?)
+              ?.map((e) => AtividadeCronograma.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
+}
+
+// ─── Modelos de Subscription ─────────────────────────────────────────────────
+
+class SubscriptionInfo {
+  SubscriptionInfo({
+    required this.plan,
+    required this.planConfig,
+    required this.usage,
+    required this.obraCount,
+    required this.docCount,
+    required this.conviteCount,
+    this.expiresAt,
+    required this.status,
+    required this.showAds,
+    required this.canWatchRewarded,
+  });
+
+  final String plan; // "gratuito" | "essencial" | "completo"
+  final Map<String, dynamic> planConfig;
+  final Map<String, dynamic> usage;
+  final int obraCount;
+  final int docCount;
+  final int conviteCount;
+  final String? expiresAt;
+  final String status; // "active" | "expired" | "cancelled"
+  final bool showAds;
+  final bool canWatchRewarded;
+
+  bool get isGratuito => plan == 'gratuito';
+  bool get isEssencial => plan == 'essencial';
+  bool get isCompleto => plan == 'completo' || plan == 'dono_da_obra';
+
+  int _configInt(String key) => (planConfig[key] as num?)?.toInt() ?? 0;
+  bool _configBool(String key) => planConfig[key] as bool? ?? false;
+
+  int get maxObras => _configInt('max_obras');
+  int get maxDocUploads => _configInt('max_doc_uploads');
+  bool get canDeleteDoc => _configBool('can_delete_doc');
+  bool get canCreateEtapas => _configBool('can_create_etapas');
+  bool get canCreateChecklistItems => _configBool('can_create_checklist_items');
+  int get maxConvites => _configInt('max_convites');
+
+  factory SubscriptionInfo.fromJson(Map<String, dynamic> json) {
+    return SubscriptionInfo(
+      plan: json["plan"] as String? ?? "gratuito",
+      planConfig: json["plan_config"] as Map<String, dynamic>? ?? {},
+      usage: json["usage"] as Map<String, dynamic>? ?? {},
+      obraCount: json["obra_count"] as int? ?? 0,
+      docCount: json["doc_count"] as int? ?? 0,
+      conviteCount: json["convite_count"] as int? ?? 0,
+      expiresAt: json["expires_at"] as String?,
+      status: json["status"] as String? ?? "active",
+      showAds: json["show_ads"] as bool? ?? true,
+      canWatchRewarded: json["can_watch_rewarded"] as bool? ?? false,
+    );
+  }
+}
+
+// ─── Modelos de Convites ──────────────────────────────────────────────────────
+
+class ObraConvite {
+  ObraConvite({
+    required this.id,
+    required this.obraId,
+    required this.email,
+    required this.papel,
+    required this.status,
+    this.convidadoNome,
+    required this.createdAt,
+    this.acceptedAt,
+  });
+
+  final String id;
+  final String obraId;
+  final String email;
+  final String papel;
+  final String status; // "pendente" | "aceito" | "removido"
+  final String? convidadoNome;
+  final String createdAt;
+  final String? acceptedAt;
+
+  bool get isPendente => status == 'pendente';
+  bool get isAceito => status == 'aceito';
+
+  factory ObraConvite.fromJson(Map<String, dynamic> json) {
+    return ObraConvite(
+      id: json["id"] as String,
+      obraId: json["obra_id"] as String,
+      email: json["email"] as String,
+      papel: json["papel"] as String,
+      status: json["status"] as String,
+      convidadoNome: json["convidado_nome"] as String?,
+      createdAt: json["created_at"] as String,
+      acceptedAt: json["accepted_at"] as String?,
+    );
+  }
+}
+
+class ObraConvidada {
+  ObraConvidada({
+    required this.obraId,
+    required this.obraNome,
+    required this.donoNome,
+    required this.papel,
+    required this.conviteId,
+  });
+
+  final String obraId;
+  final String obraNome;
+  final String donoNome;
+  final String papel;
+  final String conviteId;
+
+  factory ObraConvidada.fromJson(Map<String, dynamic> json) {
+    return ObraConvidada(
+      obraId: json["obra_id"] as String,
+      obraNome: json["obra_nome"] as String,
+      donoNome: json["dono_nome"] as String,
+      papel: json["papel"] as String,
+      conviteId: json["convite_id"] as String,
+    );
+  }
+}
+
 // ─── ApiClient ────────────────────────────────────────────────────────────────
 
 class ApiClient {
   ApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  /// Timeout padrão para requisições normais (SEC-10).
+  static const _defaultTimeout = Duration(seconds: 30);
+  /// Timeout estendido para operações longas (análise IA, upload).
+  static const _longTimeout = Duration(minutes: 5);
 
   Uri _uri(String path) => Uri.parse("$apiBaseUrl$path");
 
@@ -921,9 +1241,10 @@ class ApiClient {
   /// Executa [request] e, se receber 401, tenta refresh e repete uma vez.
   /// Se o refresh falhar, lança [AuthExpiredException].
   Future<http.Response> _withAuth(
-    Future<http.Response> Function() request,
-  ) async {
-    final response = await request();
+    Future<http.Response> Function() request, {
+    Duration timeout = _defaultTimeout,
+  }) async {
+    final response = await request().timeout(timeout);
     if (response.statusCode != 401) return response;
 
     // Tenta renovar o token
@@ -931,7 +1252,7 @@ class ApiClient {
     if (!refreshed) throw AuthExpiredException();
 
     // Repete a request com o novo token
-    return request();
+    return request().timeout(timeout);
   }
 
   /// Versão auth-aware para multipart requests.
@@ -961,6 +1282,40 @@ class ApiClient {
     if (response.statusCode != 200) {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       throw Exception(body["detail"] ?? "Erro ao fazer login");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> loginWithGoogle({
+    required String idToken,
+  }) async {
+    final response = await _client.post(
+      _uri("/api/auth/google"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"id_token": idToken}),
+    );
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao fazer login com Google");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> updateProfile({
+    String? nome,
+    String? telefone,
+  }) async {
+    final payload = <String, dynamic>{
+      "nome": ?nome,
+      "telefone": ?telefone,
+    };
+    final response = await _withAuth(() => _client.patch(
+      _uri("/api/auth/me"),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao atualizar perfil");
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -1008,13 +1363,15 @@ class ApiClient {
     double? orcamento,
     String? dataInicio,
     String? dataFim,
+    String tipo = "construcao",
   }) async {
-    final payload = {
+    final payload = <String, dynamic>{
       "nome": nome,
       if (localizacao != null && localizacao.isNotEmpty) "localizacao": localizacao,
       "orcamento": ?orcamento,
       "data_inicio": ?dataInicio,
       "data_fim": ?dataFim,
+      "tipo": tipo,
     };
     final response = await _withAuth(() => _client.post(
       _uri("/api/obras"),
@@ -1025,6 +1382,22 @@ class ApiClient {
       throw Exception("Erro ao criar obra");
     }
     return Obra.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  /// Remove uma obra e todos os dados associados.
+  Future<void> deletarObra(String obraId) async {
+    final response = await _withAuth(() => _client.delete(
+      _uri("/api/obras/$obraId"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao remover obra");
+      } on FormatException {
+        throw Exception("Erro ao remover obra (status ${response.statusCode})");
+      }
+    }
   }
 
   Future<void> registrarDeviceToken({
@@ -1120,7 +1493,7 @@ class ApiClient {
     bool? critico,
     String? observacao,
   }) async {
-    final payload = {
+    final payload = <String, dynamic>{
       "titulo": ?titulo,
       "descricao": ?descricao,
       "status": ?status,
@@ -1243,7 +1616,7 @@ class ApiClient {
     String? localizacao,
     String? obraTipo,
   }) async {
-    final payload = {
+    final payload = <String, dynamic>{
       "etapa_nome": etapaNome,
       "disciplina": ?disciplina,
       "localizacao": ?localizacao,
@@ -1255,8 +1628,12 @@ class ApiClient {
       body: jsonEncode(payload),
     ));
     if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(body["detail"] ?? "Erro na pesquisa de normas");
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro na pesquisa de normas");
+      } on FormatException {
+        throw Exception("Erro na pesquisa de normas (status ${response.statusCode})");
+      }
     }
     return NormaBuscarResponse.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
@@ -1352,7 +1729,7 @@ class ApiClient {
     double? percentualDesvioThreshold,
     bool? notificacaoAtiva,
   }) async {
-    final payload = {
+    final payload = <String, dynamic>{
       "percentual_desvio_threshold": ?percentualDesvioThreshold,
       "notificacao_ativa": ?notificacaoAtiva,
     };
@@ -1375,6 +1752,9 @@ class ApiClient {
     required String obraId,
     required PlatformFile file,
   }) async {
+    if (file.size == 0) {
+      throw Exception("Arquivo vazio (0 bytes). Selecione um PDF válido.");
+    }
     final response = await _withAuthMultipart(() {
       final request = http.MultipartRequest("POST", _uri("/api/obras/$obraId/projetos"));
       request.headers.addAll(_headers(json: false));
@@ -1383,7 +1763,12 @@ class ApiClient {
     });
     final body = await response.stream.bytesToString();
     if (response.statusCode != 200) {
-      throw Exception("Erro ao enviar projeto");
+      String detail = "Erro ao enviar projeto";
+      try {
+        final json = jsonDecode(body) as Map<String, dynamic>;
+        detail = (json["detail"] as String?) ?? detail;
+      } catch (_) {}
+      throw Exception(detail);
     }
     return ProjetoDoc.fromJson(jsonDecode(body) as Map<String, dynamic>);
   }
@@ -1405,16 +1790,54 @@ class ApiClient {
     return ProjetoDoc.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
-  Future<ProjetoDoc> analisarProjeto(String projetoId) async {
+  /// Remove um projeto PDF e seus riscos associados.
+  Future<void> deletarProjeto(String projetoId) async {
+    final response = await _withAuth(() => _client.delete(
+      _uri("/api/projetos/$projetoId"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao remover projeto");
+      } on FormatException {
+        throw Exception("Erro ao remover projeto (status ${response.statusCode})");
+      }
+    }
+  }
+
+  /// Dispara a análise em background (retorna 202).
+  Future<void> dispararAnalise(String projetoId) async {
     final response = await _withAuth(() => _client.post(
       _uri("/api/projetos/$projetoId/analisar"),
       headers: _headers(),
     ));
-    if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(body["detail"] ?? "Erro ao analisar projeto");
+    if (response.statusCode != 202 && response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao analisar projeto");
+      } on FormatException {
+        throw Exception("Erro ao analisar projeto (status ${response.statusCode})");
+      }
     }
-    return ProjetoDoc.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  /// Polling: consulta o status atual do projeto até concluir ou dar erro.
+  /// Retorna o ProjetoDoc final.
+  Future<ProjetoDoc> aguardarAnalise(
+    String projetoId, {
+    Duration intervalo = const Duration(seconds: 5),
+    Duration timeout = const Duration(minutes: 10),
+  }) async {
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      final projeto = await obterProjeto(projetoId);
+      if (projeto.status == "concluido" || projeto.status == "erro") {
+        return projeto;
+      }
+      await Future.delayed(intervalo);
+    }
+    throw Exception("Timeout aguardando análise do projeto");
   }
 
   Future<ProjetoAnalise> obterAnalise(String projetoId) async {
@@ -1449,8 +1872,12 @@ class ApiClient {
     });
     final body = await response.stream.bytesToString();
     if (response.statusCode != 200) {
-      final decoded = jsonDecode(body) as Map<String, dynamic>;
-      throw Exception(decoded["detail"] ?? "Erro na análise visual");
+      try {
+        final decoded = jsonDecode(body) as Map<String, dynamic>;
+        throw Exception(decoded["detail"] ?? "Erro na análise visual");
+      } on FormatException {
+        throw Exception("Erro na análise visual (status ${response.statusCode})");
+      }
     }
     return AnaliseVisualComAchados.fromJson(
       jsonDecode(body) as Map<String, dynamic>,
@@ -1610,8 +2037,12 @@ class ApiClient {
       headers: _headers(),
     ));
     if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(body["detail"] ?? "Erro ao gerar checklist inteligente");
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao gerar checklist inteligente");
+      } on FormatException {
+        throw Exception("Erro ao gerar checklist inteligente (status ${response.statusCode})");
+      }
     }
     return ChecklistInteligenteResponse.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
@@ -1633,10 +2064,378 @@ class ApiClient {
       body: jsonEncode(payload),
     ));
     if (response.statusCode != 200) {
-      final body = jsonDecode(response.body) as Map<String, dynamic>;
-      throw Exception(body["detail"] ?? "Erro ao aplicar itens");
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao aplicar itens");
+      } on FormatException {
+        throw Exception("Erro ao aplicar itens (status ${response.statusCode})");
+      }
     }
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return data["total_aplicados"] as int;
+  }
+
+  // ─── Cronograma ──────────────────────────────────────────────────────────
+
+  Future<IdentificarProjetosResponse> identificarTiposProjeto(String obraId) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/obras/$obraId/identificar-projetos"),
+      headers: _headers(),
+    ));
+    if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao identificar projetos");
+      } on FormatException {
+        throw Exception("Erro ao identificar projetos (status ${response.statusCode})");
+      }
+    }
+    return IdentificarProjetosResponse.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<CronogramaResponse> gerarCronograma({
+    required String obraId,
+    required List<String> tiposProjeto,
+  }) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/obras/$obraId/cronograma/gerar"),
+      headers: _headers(),
+      body: jsonEncode({"tipos_projeto": tiposProjeto}),
+    ));
+    if (response.statusCode != 200) {
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        throw Exception(body["detail"] ?? "Erro ao gerar cronograma");
+      } on FormatException {
+        throw Exception("Erro ao gerar cronograma (status ${response.statusCode})");
+      }
+    }
+    return CronogramaResponse.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<CronogramaResponse> listarCronograma(String obraId) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/obras/$obraId/cronograma"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar cronograma");
+    }
+    return CronogramaResponse.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<AtividadeCronograma> atualizarAtividade({
+    required String atividadeId,
+    String? status,
+    String? dataInicioReal,
+    String? dataFimReal,
+    double? valorPrevisto,
+    double? valorGasto,
+  }) async {
+    final payload = <String, dynamic>{
+      "status": ?status,
+      "data_inicio_real": ?dataInicioReal,
+      "data_fim_real": ?dataFimReal,
+      "valor_previsto": ?valorPrevisto,
+      "valor_gasto": ?valorGasto,
+    };
+    final response = await _withAuth(() => _client.patch(
+      _uri("/api/cronograma/$atividadeId"),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao atualizar atividade");
+    }
+    return AtividadeCronograma.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<List<ServicoNecessario>> listarServicos(String atividadeId) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/cronograma/$atividadeId/servicos"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar serviços");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data.map((e) => ServicoNecessario.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<ServicoNecessario> vincularPrestador({
+    required String servicoId,
+    required String prestadorId,
+  }) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/servicos/$servicoId/vincular"),
+      headers: _headers(),
+      body: jsonEncode({"prestador_id": prestadorId}),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao vincular prestador");
+    }
+    return ServicoNecessario.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<List<ChecklistItem>> listarChecklistAtividade(String atividadeId) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/cronograma/$atividadeId/checklist"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar checklist da atividade");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data.map((e) => ChecklistItem.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<ChecklistItem> criarChecklistAtividade({
+    required String atividadeId,
+    required String titulo,
+    String? descricao,
+    bool critico = false,
+  }) async {
+    final payload = {
+      "titulo": titulo,
+      if (descricao != null && descricao.isNotEmpty) "descricao": descricao,
+      "critico": critico,
+      "status": "pendente",
+    };
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/cronograma/$atividadeId/checklist"),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao criar item de checklist");
+    }
+    return ChecklistItem.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<Despesa> lancarDespesaAtividade({
+    required String atividadeId,
+    required double valor,
+    required String descricao,
+    required String data,
+    String? categoria,
+  }) async {
+    final payload = <String, dynamic>{
+      "valor": valor,
+      "descricao": descricao,
+      "data": data,
+      "categoria": ?categoria,
+    };
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/cronograma/$atividadeId/despesas"),
+      headers: _headers(),
+      body: jsonEncode(payload),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao lançar despesa");
+    }
+    return Despesa.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  // ─── Subscription ──────────────────────────────────────────────────────────
+
+  Future<SubscriptionInfo> getSubscription() async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/subscription/me"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao carregar assinatura");
+    }
+    return SubscriptionInfo.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<SubscriptionInfo> syncSubscription() async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/subscription/sync"),
+      headers: _headers(),
+      body: jsonEncode({}),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao sincronizar assinatura");
+    }
+    return SubscriptionInfo.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<String> createCheckout(String plano) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/subscription/create-checkout"),
+      headers: _headers(),
+      body: jsonEncode({"plan": plano}),
+    ));
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao criar checkout");
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data["url"] as String;
+  }
+
+  Future<void> cancelSubscription() async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/subscription/cancel-subscription"),
+      headers: _headers(),
+      body: jsonEncode({}),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao cancelar assinatura");
+    }
+  }
+
+  Future<int> rewardUsage(String feature) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/subscription/reward-usage"),
+      headers: _headers(),
+      body: jsonEncode({"feature": feature}),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao registrar recompensa");
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data["bonus_granted"] as int? ?? 0;
+  }
+
+  // ─── Convites ─────────────────────────────────────────────────────────────
+
+  Future<ObraConvite> criarConvite({
+    required String obraId,
+    required String email,
+    required String papel,
+  }) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/obras/$obraId/convites"),
+      headers: _headers(),
+      body: jsonEncode({"email": email, "papel": papel}),
+    ));
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao criar convite");
+    }
+    return ObraConvite.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<List<ObraConvite>> listarConvites(String obraId) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/obras/$obraId/convites"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar convites");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data.map((e) => ObraConvite.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> removerConvite(String conviteId) async {
+    final response = await _withAuth(() => _client.delete(
+      _uri("/api/convites/$conviteId"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao remover convite");
+    }
+  }
+
+  Future<Map<String, dynamic>> aceitarConvite({
+    required String token,
+    required String nome,
+  }) async {
+    final response = await _client.post(
+      _uri("/api/convites/aceitar"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"token": token, "nome": nome}),
+    );
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao aceitar convite");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<List<ObraConvidada>> listarObrasConvidadas() async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/convites/minhas-obras"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar obras convidadas");
+    }
+    final data = jsonDecode(response.body) as List<dynamic>;
+    return data.map((e) => ObraConvidada.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  // ─── Riscos Pendentes ─────────────────────────────────────────────────────
+
+  Future<List<Risco>> listarRiscosPendentes(String obraId) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/obras/$obraId/riscos-pendentes"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao listar riscos pendentes");
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final riscos = data["riscos"] as List<dynamic>;
+    return riscos.map((e) => Risco.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<int> aplicarRiscos({
+    required String obraId,
+    required List<String> riscoIds,
+  }) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/obras/$obraId/aplicar-riscos"),
+      headers: _headers(),
+      body: jsonEncode({"risco_ids": riscoIds}),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao aplicar riscos ao checklist");
+    }
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return data["criados"] as int? ?? 0;
+  }
+
+  // ─── Detalhamento por Cômodos ─────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> obterDetalhamento(String obraId) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/obras/$obraId/detalhamento"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao obter detalhamento");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> extrairDetalhamento(String obraId, {double peDireito = 2.70}) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/obras/$obraId/extrair-detalhamento?pe_direito=$peDireito"),
+      headers: _headers(),
+      body: jsonEncode({}),
+    ));
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao extrair detalhamento");
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
   }
 }
