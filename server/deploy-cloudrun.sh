@@ -45,7 +45,8 @@ gcloud run deploy "$SERVICE_NAME" \
   --port 8080 \
   --timeout 300 \
   --memory 1Gi \
-  --cpu 1
+  --cpu 1 \
+  --min-instances 1
 
 echo ""
 echo "========================================="
