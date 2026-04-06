@@ -58,7 +58,7 @@ Plans:
 **Plans**: 4 planos (paralelo: 01-01 e 01-02 podem rodar simultaneamente)
 
 Plans:
-- [ ] 01-01: Extração em duas passagens — visão por página do documento → `ElementoConstrutivo[]` armazenado em `ProjetoDoc.elementos_extraidos`
+- [x] 01-01: Extração em duas passagens — visão por página do documento → `ElementoConstrutivo[]` armazenado em `ProjetoDoc.elementos_extraidos`
 - [ ] 01-02: Geração fundamentada — `gerar_cronograma_com_evidencias()` recebe elementos extraídos, força LLM a citar `fonte_doc_trecho` por atividade
 - [ ] 01-03: `AtividadeCronograma` como árvore unificada (macro nivel-1 → micro nivel-2) com `SEQUENCIA_CONSTRUTIVA`, flags `is_modified`/`locked` e auto-spawn de `ChecklistItem`
 - [ ] 01-04: State machine `GeracaoUnificadaLog` (PENDENTE→CONCLUIDO), polling do cliente e detecção de disconnect SSE
