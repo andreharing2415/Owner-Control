@@ -10,6 +10,12 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 - Integer phases (0, 1, 2, ...): Trabalho planejado em sequência
 - Decimal phases: Inserções urgentes via `/gsd:insert-phase`
 
+**Execution Artifact Standard (GSD):**
+- Cada fase deve ter diretório canônico em `.planning/phases/NN-slug/`
+- Planos executáveis devem ser arquivos `NN-PP-PLAN.md` (ex: `01-02-PLAN.md`)
+- Cada `*-PLAN.md` deve conter frontmatter obrigatório + `<tasks><task>...</task></tasks>`
+- Arquivos de apoio por fase: `PLAN-OVERVIEW.md`, `RESEARCH.md` (quando aplicável), `PLAN-CHECK.md` (quando aplicável)
+
 - [ ] **Phase 0: Bloqueadores Críticos** - Corrigir 3 bugs de produção + 1 CVE de segurança antes de qualquer feature nova
 - [ ] **Phase 1: Pipeline IA de Documentos** - IA lê o documento real e gera cronograma+checklist específicos daquele projeto
 - [ ] **Phase 2: Fluxo Guiado + Dashboard do Engenheiro** - Wizard de onboarding linear e dashboard multi-obra profissional
@@ -22,6 +28,7 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 ### Phase 0: Bloqueadores Críticos
 **Goal**: Produção estável — deploy fresh funciona, autenticação é segura, PDF não corrompe texto, cold start eliminado e cancelamento de assinatura segue o período pago
 **Depends on**: Nada (pré-requisito para tudo)
+**Execution Dir**: `.planning/phases/00-bloqueadores-cr-ticos`
 **Requirements**: INFRA-01, INFRA-02, INFRA-03, INFRA-04, INFRA-05
 **Success Criteria** (what must be TRUE):
   1. `alembic upgrade head` em banco limpo completa sem erro de revision ID duplicado
@@ -32,13 +39,14 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 **Plans**: 3 planos
 
 Plans:
-- [ ] 00-01: Corrigir cadeia Alembic (IDs duplicados) e configurar Cloud Run min-instances
+- [x] 00-01: Corrigir cadeia Alembic (IDs duplicados) e configurar Cloud Run min-instances
 - [ ] 00-02: Substituir python-jose por PyJWT >=2.8.0 (CVE-2024-33663) e corrigir bug de cancelamento Stripe
 - [ ] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2 para PDFs com suporte correto a UTF-8/português
 
 ### Phase 1: Pipeline IA de Documentos
 **Goal**: A IA lê o documento real enviado e gera cronograma+checklist com atividades específicas daquele projeto, citando o trecho do documento que originou cada atividade, na sequência lógica de uma obra
 **Depends on**: Phase 0
+**Execution Dir**: `.planning/phases/01-pipeline-ia-de-documentos`
 **Requirements**: AI-01, AI-02, AI-03, AI-04, AI-05, AI-06, AI-07
 **Success Criteria** (what must be TRUE):
   1. Após processar um memorial descritivo com "piscina de 8m²", o cronograma gerado inclui atividade específica de execução de piscina — não aparece em projeto sem piscina
@@ -47,7 +55,7 @@ Plans:
   4. Engenheiro edita uma atividade gerada (renomeia, muda data) e ao reprocessar o documento as edições são preservadas (campo `is_modified` bloqueia sobrescrita)
   5. Status da geração muda de PENDENTE → ANALISANDO → GERANDO → CONCLUIDO visível ao cliente via polling — sem timeout por operação síncrona longa
   6. Ao fechar a tela de espera, o processamento de tokens de IA para (SSE disconnect detectado pelo backend)
-**Plans**: 4 planos (paralelo: 00-01 e 00-02 podem rodar simultaneamente)
+**Plans**: 4 planos (paralelo: 01-01 e 01-02 podem rodar simultaneamente)
 
 Plans:
 - [ ] 01-01: Extração em duas passagens — visão por página do documento → `ElementoConstrutivo[]` armazenado em `ProjetoDoc.elementos_extraidos`
@@ -58,6 +66,7 @@ Plans:
 ### Phase 2: Fluxo Guiado + Dashboard do Engenheiro
 **Goal**: Engenheiro novo entra no app e em menos de 3 cliques está vendo o cronograma gerado pela IA — zero desorientação; engenheiro com múltiplas obras vê tudo consolidado em um dashboard
 **Depends on**: Phase 1
+**Execution Dir**: `.planning/phases/02-fluxo-guiado-dashboard-do-engenheiro`
 **Requirements**: FLOW-01, FLOW-02, FLOW-03, FLOW-04, FLOW-05, DASH-01, DASH-02, DASH-03
 **Success Criteria** (what must be TRUE):
   1. Engenheiro sem nenhuma obra ao fazer login é redirecionado automaticamente para a tela de criação de obra — não vê tela em branco ou dashboard vazio
@@ -76,6 +85,7 @@ Plans:
 ### Phase 3: Sistema de Papéis (Engenheiro + Dono)
 **Goal**: Engenheiro gerencia, dono observa — permissões corretas e auditadas em todos os routers antes de qualquer tela role-gated chegar ao usuário
 **Depends on**: Phase 2
+**Execution Dir**: `.planning/phases/03-sistema-de-pap-is-engenheiro-dono`
 **Requirements**: ROLE-01, ROLE-02, ROLE-03, ROLE-04, ROLE-05, ROLE-06, OWNER-01, OWNER-02, OWNER-03
 
 > **Nota de pesquisa:** Esta fase é sensível em segurança. Requer pesquisa de fase antes do planejamento (`/gsd:research-phase 3`) para validar o modelo de permissões nos 13 routers e o design de `require_role()`.
@@ -98,6 +108,7 @@ Plans:
 ### Phase 4: RDO + Evidências Fotográficas
 **Goal**: Engenheiro registra o dia de obra com fotos geotagueadas; dono recebe notificação e acessa histórico; sistema alerta engenheiro sobre atrasos antes que virem problema
 **Depends on**: Phase 3
+**Execution Dir**: `.planning/phases/04-rdo-evid-ncias-fotogr-ficas`
 **Requirements**: RDO-01, RDO-02, RDO-03, RDO-04, FOTO-01, FOTO-02, NOTIF-01, NOTIF-02
 **Success Criteria** (what must be TRUE):
   1. Engenheiro preenche RDO com data, clima, mão de obra, atividades realizadas e fotos — formulário salva e publica com um botão
@@ -116,6 +127,7 @@ Plans:
 ### Phase 5: Modernização Arquitetural
 **Goal**: Riverpod 3.0 + go_router completo + in_app_purchase substituindo Stripe in-app — app em conformidade com Play Store (obrigatório desde outubro 2025) e arquitetura sustentável para crescimento
 **Depends on**: Phase 4
+**Execution Dir**: `.planning/phases/05-moderniza-o-arquitetural`
 **Requirements**: Sem requirements v1 diretos — esta fase sustenta todos os anteriores e garante compliance de plataforma
 
 > **Nota:** `go_router` começa na Phase 3 (ShellRoute básico). Esta fase completa a migração com named routes e wiring de Firebase Messaging. A migração para in_app_purchase é obrigatória — apps novos publicados na Play Store após outubro 2025 não podem processar pagamentos via Stripe direto dentro do app.
@@ -139,7 +151,7 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Bloqueadores Críticos | 0/3 | Not started | - |
+| 0. Bloqueadores Críticos | 1/3 | In Progress|  |
 | 1. Pipeline IA de Documentos | 0/4 | Not started | - |
 | 2. Fluxo Guiado + Dashboard | 0/3 | Not started | - |
 | 3. Sistema de Papéis | 0/4 | Not started | - |
