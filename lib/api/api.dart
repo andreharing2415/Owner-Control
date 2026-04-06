@@ -920,6 +920,56 @@ class ChecklistInteligenteResponse {
   }
 }
 
+// ─── Geração Unificada — state machine (AI-06/AI-07) ─────────────────────────
+
+/// Log de geração unificada (cronograma + checklist) com state machine observável.
+/// O cliente faz polling via [ApiClient.statusGeracaoUnificada] a cada 2 segundos.
+/// Estados: pendente → analisando → gerando → concluido | erro | cancelado
+class GeracaoUnificadaLog {
+  GeracaoUnificadaLog({
+    required this.id,
+    required this.obraId,
+    required this.status,
+    this.etapaAtual,
+    required this.totalAtividades,
+    required this.atividadesGeradas,
+    required this.totalItensChecklist,
+    this.erroDetalhe,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String obraId;
+  final String status; // "pendente"|"analisando"|"gerando"|"concluido"|"erro"|"cancelado"
+  final String? etapaAtual;
+  final int totalAtividades;
+  final int atividadesGeradas;
+  final int totalItensChecklist;
+  final String? erroDetalhe;
+  final String createdAt;
+  final String updatedAt;
+
+  /// Retorna true quando o processamento terminou (sucesso, erro ou cancelamento).
+  bool get isTerminal =>
+      status == "concluido" || status == "erro" || status == "cancelado";
+
+  factory GeracaoUnificadaLog.fromJson(Map<String, dynamic> json) {
+    return GeracaoUnificadaLog(
+      id: json["id"] as String,
+      obraId: json["obra_id"] as String,
+      status: json["status"] as String? ?? "pendente",
+      etapaAtual: json["etapa_atual"] as String?,
+      totalAtividades: json["total_atividades"] as int? ?? 0,
+      atividadesGeradas: json["atividades_geradas"] as int? ?? 0,
+      totalItensChecklist: json["total_itens_checklist"] as int? ?? 0,
+      erroDetalhe: json["erro_detalhe"] as String?,
+      createdAt: json["created_at"] as String? ?? "",
+      updatedAt: json["updated_at"] as String? ?? "",
+    );
+  }
+}
+
 // ─── Cronograma ──────────────────────────────────────────────────────────────
 
 class TipoProjetoIdentificado {
@@ -1227,6 +1277,10 @@ class ApiClient {
   /// Timeout estendido para operações longas (análise IA, upload).
   static const _longTimeout = Duration(minutes: 5);
 
+  /// PERF-07v2: Deduplicação de requests GET em andamento.
+  /// Se um GET idêntico já está em voo, reutiliza o Future.
+  static final Map<String, Future<http.Response>> _inflightGets = {};
+
   Uri _uri(String path) => Uri.parse("$apiBaseUrl$path");
 
   /// Headers padrão — inclui Bearer token automaticamente se disponível.
@@ -1253,6 +1307,22 @@ class ApiClient {
 
     // Repete a request com o novo token
     return request().timeout(timeout);
+  }
+
+  /// PERF-07v2: GET com deduplicação — reutiliza Future se request idêntico em voo.
+  Future<http.Response> _deduplicatedGet(
+    String path, {
+    Duration timeout = _defaultTimeout,
+  }) {
+    if (_inflightGets.containsKey(path)) {
+      return _inflightGets[path]!;
+    }
+    final future = _withAuth(
+      () => _client.get(_uri(path), headers: _headers(json: false)),
+      timeout: timeout,
+    ).whenComplete(() => _inflightGets.remove(path));
+    _inflightGets[path] = future;
+    return future;
   }
 
   /// Versão auth-aware para multipart requests.
@@ -1349,7 +1419,7 @@ class ApiClient {
   // ─── Obras ────────────────────────────────────────────────────────────────
 
   Future<List<Obra>> listarObras() async {
-    final response = await _withAuth(() => _client.get(_uri("/api/obras"), headers: _headers(json: false)));
+    final response = await _deduplicatedGet("/api/obras");
     if (response.statusCode != 200) {
       throw Exception("Erro ao listar obras");
     }
@@ -1429,7 +1499,7 @@ class ApiClient {
   }
 
   Future<List<Etapa>> listarEtapas(String obraId) async {
-    final response = await _withAuth(() => _client.get(_uri("/api/obras/$obraId"), headers: _headers(json: false)));
+    final response = await _deduplicatedGet("/api/obras/$obraId");
     if (response.statusCode != 200) {
       throw Exception("Erro ao buscar obra");
     }
@@ -1712,10 +1782,7 @@ class ApiClient {
   }
 
   Future<RelatorioFinanceiro> relatorioFinanceiro(String obraId) async {
-    final response = await _withAuth(() => _client.get(
-      _uri("/api/obras/$obraId/relatorio-financeiro"),
-      headers: _headers(json: false),
-    ));
+    final response = await _deduplicatedGet("/api/obras/$obraId/relatorio-financeiro");
     if (response.statusCode != 200) {
       throw Exception("Erro ao carregar relatório financeiro");
     }
@@ -1774,7 +1841,7 @@ class ApiClient {
   }
 
   Future<List<ProjetoDoc>> listarProjetos(String obraId) async {
-    final response = await _withAuth(() => _client.get(_uri("/api/obras/$obraId/projetos"), headers: _headers(json: false)));
+    final response = await _deduplicatedGet("/api/obras/$obraId/projetos");
     if (response.statusCode != 200) {
       throw Exception("Erro ao listar projetos");
     }
@@ -2437,5 +2504,45 @@ class ApiClient {
       throw Exception(body["detail"] ?? "Erro ao extrair detalhamento");
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  // ─── Geração Unificada — state machine (AI-06/AI-07) ─────────────────────
+
+  /// Inicia geração unificada (cronograma + checklist) em background.
+  /// Retorna imediatamente com o log para acompanhamento via polling.
+  Future<GeracaoUnificadaLog> iniciarGeracaoUnificada(
+    String obraId,
+    List<String> tiposProjeto,
+  ) async {
+    final response = await _withAuth(() => _client.post(
+      _uri("/api/obras/$obraId/geracao-unificada/iniciar"),
+      headers: _headers(),
+      body: jsonEncode({"tipos_projeto": tiposProjeto}),
+    ));
+    if (response.statusCode != 200) {
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      throw Exception(body["detail"] ?? "Erro ao iniciar geracao unificada");
+    }
+    return GeracaoUnificadaLog.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  /// Consulta o estado atual do log de geração unificada (polling).
+  /// O cliente deve chamar periodicamente até [GeracaoUnificadaLog.isTerminal].
+  Future<GeracaoUnificadaLog> statusGeracaoUnificada(
+    String obraId,
+    String logId,
+  ) async {
+    final response = await _withAuth(() => _client.get(
+      _uri("/api/obras/$obraId/geracao-unificada/$logId/status"),
+      headers: _headers(json: false),
+    ));
+    if (response.statusCode != 200) {
+      throw Exception("Erro ao consultar status da geracao unificada");
+    }
+    return GeracaoUnificadaLog.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
   }
 }

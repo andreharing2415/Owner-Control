@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -23,12 +25,51 @@ class _DocumentAnalysisScreenState extends State<DocumentAnalysisScreen> {
   Future<ProjetoAnalise>? _analiseFuture;
   bool _disparando = false;
 
+  // Polling de geração unificada (AI-06)
+  GeracaoUnificadaLog? _geracaoLog;
+  Timer? _pollingTimer;
+  static const _pollingInterval = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
     _projeto = widget.projeto;
     if (_projeto.status == 'concluido') {
       _analiseFuture = _api.obterAnalise(_projeto.id);
+    }
+  }
+
+  @override
+  void dispose() {
+    // Ao sair da tela, cancela o polling — o backend detecta a desconexão SSE
+    // (AI-07) e interrompe o processamento background para evitar consumo ocioso.
+    _stopPolling();
+    super.dispose();
+  }
+
+  void _startPolling(GeracaoUnificadaLog log) {
+    setState(() => _geracaoLog = log);
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(_pollingInterval, (_) => _pollStatus());
+  }
+
+  void _stopPolling() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+  }
+
+  Future<void> _pollStatus() async {
+    final log = _geracaoLog;
+    if (log == null) return;
+    try {
+      final atualizado = await _api.statusGeracaoUnificada(log.obraId, log.id);
+      if (!mounted) return;
+      setState(() => _geracaoLog = atualizado);
+      if (atualizado.isTerminal) {
+        _stopPolling();
+      }
+    } catch (_) {
+      // Falha de rede no polling é ignorada silenciosamente — tentará no próximo tick
     }
   }
 
@@ -94,6 +135,12 @@ class _DocumentAnalysisScreenState extends State<DocumentAnalysisScreen> {
           // ─── Info do projeto ─────────────────────────────────────
           _ProjetoInfoCard(projeto: _projeto, formatDate: _formatDate),
           const SizedBox(height: 16),
+
+          // ─── Status de geração unificada (polling AI-06) ──────────
+          if (_geracaoLog != null) ...[
+            _GeracaoUnificadaStatusCard(log: _geracaoLog!),
+            const SizedBox(height: 16),
+          ],
 
           // ─── Botão ou resultado de análise ───────────────────────
           if (_projeto.status == 'pendente' || _projeto.status == 'erro') ...[
@@ -558,6 +605,98 @@ class _SeveridadeChip extends StatelessWidget {
           fontSize: 12,
           color: color,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Card de status de geração unificada (polling AI-06) ─────────────────────
+
+class _GeracaoUnificadaStatusCard extends StatelessWidget {
+  const _GeracaoUnificadaStatusCard({required this.log});
+
+  final GeracaoUnificadaLog log;
+
+  (String, Color, IconData) get _statusStyle => switch (log.status) {
+        'concluido' => ('Geração concluída', Colors.green, Icons.check_circle_outline),
+        'erro' => ('Falha na geração', Colors.red, Icons.error_outline),
+        'cancelado' => ('Geração cancelada', Colors.orange, Icons.cancel_outlined),
+        'analisando' => ('Analisando documentos...', Colors.blue, Icons.search),
+        'gerando' => ('Gerando cronograma e checklist...', Colors.indigo, Icons.auto_awesome),
+        _ => ('Aguardando início...', Colors.grey, Icons.hourglass_empty),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = _statusStyle;
+    final emAndamento = !log.isTerminal;
+
+    return Card(
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 18, color: color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: color,
+                    ),
+                  ),
+                ),
+                if (emAndamento)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
+            if (log.etapaAtual != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                log.etapaAtual!,
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+            if (log.totalAtividades > 0) ...[
+              const SizedBox(height: 8),
+              LinearProgressIndicator(
+                value: log.totalAtividades > 0
+                    ? log.atividadesGeradas / log.totalAtividades
+                    : null,
+                color: color,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${log.atividadesGeradas} de ${log.totalAtividades} atividades',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+            ],
+            if (log.status == 'concluido' && log.totalItensChecklist > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '${log.totalItensChecklist} itens de checklist gerados',
+                style: const TextStyle(fontSize: 11, color: Colors.green),
+              ),
+            ],
+            if (log.erroDetalhe != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                log.erroDetalhe!,
+                style: const TextStyle(fontSize: 11, color: Colors.red),
+              ),
+            ],
+          ],
         ),
       ),
     );
