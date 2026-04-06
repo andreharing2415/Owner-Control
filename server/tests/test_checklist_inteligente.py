@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 
 from app.checklist_inteligente import _normalizar_fase2
+from app.schemas import ChecklistGeracaoItemRead, ItemParaAplicar
+from app.models import ChecklistGeracaoItem
 
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -201,3 +203,83 @@ class TestEstruturaResultado:
         resultado = _normalizar_fase2(raw)
 
         assert resultado["introducao_ao_proprietario"] == "O elevador exige atencao em todas as fases."
+
+
+# ─── Testes: API — schema e modelo (AI-02) ───────────────────────────────────
+
+
+class TestApiEsquema:
+    """Garante que fonte_doc_trecho aparece no response model e no modelo DB."""
+
+    def test_checklistgeracaoitem_read_tem_campo_fonte_doc_trecho(self):
+        """ChecklistGeracaoItemRead deve incluir campo fonte_doc_trecho."""
+        campos = ChecklistGeracaoItemRead.model_fields
+        assert "fonte_doc_trecho" in campos, (
+            "ChecklistGeracaoItemRead deve ter campo fonte_doc_trecho para rastreabilidade"
+        )
+
+    def test_checklistgeracaoitem_read_campo_e_opcional(self):
+        """fonte_doc_trecho em ChecklistGeracaoItemRead deve ser Optional."""
+        campo = ChecklistGeracaoItemRead.model_fields["fonte_doc_trecho"]
+        # Campo Optional aceita None como default
+        assert campo.default is None or campo.is_required() is False
+
+    def test_item_para_aplicar_tem_campo_fonte_doc_trecho(self):
+        """ItemParaAplicar deve incluir campo fonte_doc_trecho."""
+        campos = ItemParaAplicar.model_fields
+        assert "fonte_doc_trecho" in campos, (
+            "ItemParaAplicar deve ter campo fonte_doc_trecho para propagar rastreabilidade"
+        )
+
+    def test_checklistgeracaoitem_model_tem_campo_fonte_doc_trecho(self):
+        """Modelo ORM ChecklistGeracaoItem deve ter campo fonte_doc_trecho."""
+        campos = ChecklistGeracaoItem.model_fields
+        assert "fonte_doc_trecho" in campos, (
+            "ChecklistGeracaoItem (ORM) deve ter campo fonte_doc_trecho para persistencia"
+        )
+
+    def test_checklistgeracaoitem_read_instancia_com_fonte(self):
+        """ChecklistGeracaoItemRead deve serializar com fonte_doc_trecho preenchido."""
+        import uuid
+        from datetime import datetime, timezone
+
+        item = ChecklistGeracaoItemRead(
+            id=uuid.uuid4(),
+            log_id=uuid.uuid4(),
+            etapa_nome="Fundacao e Estrutura",
+            titulo="Verificar armacao",
+            descricao="Verificar bitola do aco",
+            critico=False,
+            risco_nivel="medio",
+            requer_validacao_profissional=False,
+            confianca=85,
+            como_verificar="Solicitar ART do estrutural",
+            explicacao_leigo="Aco fora do especificado reduz resistencia",
+            caracteristica_origem="elevador",
+            fonte_doc_trecho="Planta Estrutural - Folha 3: Armacao da viga V1",
+            created_at=datetime.now(timezone.utc),
+        )
+        assert item.fonte_doc_trecho == "Planta Estrutural - Folha 3: Armacao da viga V1"
+
+    def test_checklistgeracaoitem_read_instancia_sem_fonte_aceita_none(self):
+        """ChecklistGeracaoItemRead deve aceitar fonte_doc_trecho=None (legado)."""
+        import uuid
+        from datetime import datetime, timezone
+
+        item = ChecklistGeracaoItemRead(
+            id=uuid.uuid4(),
+            log_id=uuid.uuid4(),
+            etapa_nome="Acabamentos",
+            titulo="Verificar pintura",
+            descricao="Verificar espessura da tinta",
+            critico=False,
+            risco_nivel="baixo",
+            requer_validacao_profissional=False,
+            confianca=70,
+            como_verificar="Inspecao visual",
+            explicacao_leigo="Tinta fina descasca rapidamente",
+            caracteristica_origem="piscina",
+            fonte_doc_trecho=None,
+            created_at=datetime.now(timezone.utc),
+        )
+        assert item.fonte_doc_trecho is None

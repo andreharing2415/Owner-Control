@@ -759,6 +759,8 @@ def processar_checklist_background(
                                         verificacoes=json.dumps(item_data["verificacoes"], ensure_ascii=False) if item_data.get("verificacoes") else None,
                                         pergunta_engenheiro=json.dumps(item_data["pergunta_engenheiro"], ensure_ascii=False) if item_data.get("pergunta_engenheiro") else None,
                                         documentos_a_exigir=json.dumps(item_data["documentos_a_exigir"], ensure_ascii=False) if item_data.get("documentos_a_exigir") else None,
+                                        # Rastreabilidade (AI-02)
+                                        fonte_doc_trecho=item_data.get("fonte_doc_trecho"),
                                     )
                                     session.add(item)
                                     total_itens += 1

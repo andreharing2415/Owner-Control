@@ -618,6 +618,8 @@ class ItemParaAplicar(SQLModel):
     explicacao_leigo: Optional[str] = None
     projeto_doc_id: Optional[UUID] = None
     projeto_doc_nome: Optional[str] = None
+    # Rastreabilidade (AI-02)
+    fonte_doc_trecho: Optional[str] = None
 
 
 class IniciarChecklistRequest(SQLModel):
@@ -672,6 +674,8 @@ class ChecklistGeracaoItemRead(SQLModel):
     verificacoes: Optional[str] = None
     pergunta_engenheiro: Optional[str] = None
     documentos_a_exigir: Optional[str] = None
+    # Rastreabilidade: trecho do documento que originou este item
+    fonte_doc_trecho: Optional[str] = None
     created_at: datetime
 
 

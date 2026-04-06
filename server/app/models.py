@@ -331,6 +331,8 @@ class ChecklistGeracaoItem(SQLModel, table=True):
     verificacoes: Optional[str] = None
     pergunta_engenheiro: Optional[str] = None
     documentos_a_exigir: Optional[str] = None
+    # Rastreabilidade: trecho do documento que originou este item
+    fonte_doc_trecho: Optional[str] = None
     created_at: datetime = Field(default_factory=_utcnow)
 
 
