@@ -439,6 +439,9 @@ class AtividadeCronograma(SQLModel, table=True):
     valor_previsto: float = Field(default=0)
     valor_gasto: float = Field(default=0)
     tipo_projeto: Optional[str] = None  # "Estrutural", "Elétrico", etc.
+    # ─── Preservação de edições manuais (AI-03) ──────────────────────────
+    is_modified: bool = Field(default=False)  # editado manualmente pelo engenheiro
+    locked: bool = Field(default=False)       # bloqueado — nunca sobrescrito por reprocessamento
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

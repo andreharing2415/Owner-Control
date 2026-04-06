@@ -807,6 +807,9 @@ class AtividadeCronogramaRead(SQLModel):
     valor_previsto: float = 0
     valor_gasto: float = 0
     tipo_projeto: Optional[str] = None
+    # Preservação de edições manuais (AI-03)
+    is_modified: bool = False
+    locked: bool = False
     sub_atividades: List["AtividadeCronogramaRead"] = []
     servicos: List[ServicoNecessarioRead] = []
     created_at: datetime
@@ -827,6 +830,12 @@ class AtividadeUpdate(SQLModel):
     data_fim_real: Optional[date] = None
     valor_previsto: Optional[float] = None
     valor_gasto: Optional[float] = None
+    # Edições manuais (AI-03) — qualquer PATCH marca is_modified automaticamente no router
+    nome: Optional[str] = None
+    descricao: Optional[str] = None
+    data_inicio_prevista: Optional[date] = None
+    data_fim_prevista: Optional[date] = None
+    locked: Optional[bool] = None
 
 
 class VincularPrestadorRequest(SQLModel):

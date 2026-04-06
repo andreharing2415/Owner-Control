@@ -64,6 +64,8 @@ def _build_atividade_read(
         valor_previsto=atividade.valor_previsto,
         valor_gasto=atividade.valor_gasto,
         tipo_projeto=atividade.tipo_projeto,
+        is_modified=atividade.is_modified,
+        locked=atividade.locked,
         sub_atividades=sub_atividades,
         servicos=servicos,
         created_at=atividade.created_at,
@@ -90,36 +92,61 @@ def _get_servicos_read(atividade_id: UUID, session: Session) -> List[ServicoNece
 
 
 def _build_cronograma_response(obra_id: UUID, session: Session) -> CronogramaResponse:
-    """Build a full CronogramaResponse with nested L1 -> L2 activities and services."""
-    l1_atividades = session.exec(
+    """Build a full CronogramaResponse with nested L1 -> L2 activities and services.
+
+    Uses batch queries instead of N+1 pattern (PERF-01v2).
+    """
+    # 1) Fetch ALL activities for this obra in a single query
+    all_atividades = session.exec(
         select(AtividadeCronograma)
         .where(AtividadeCronograma.obra_id == obra_id)
-        .where(AtividadeCronograma.nivel == 1)
         .order_by(AtividadeCronograma.ordem)
     ).all()
 
+    if not all_atividades:
+        return CronogramaResponse(obra_id=obra_id)
+
+    # 2) Fetch ALL services for ALL activities in a single query
+    all_atividade_ids = [a.id for a in all_atividades]
+    all_servicos = session.exec(
+        select(ServicoNecessario)
+        .where(ServicoNecessario.atividade_id.in_(all_atividade_ids))  # type: ignore[attr-defined]
+    ).all()
+
+    # Index services by atividade_id
+    servicos_by_atividade: dict[UUID, List[ServicoNecessarioRead]] = {}
+    for s in all_servicos:
+        servicos_by_atividade.setdefault(s.atividade_id, []).append(
+            ServicoNecessarioRead(
+                id=s.id,
+                atividade_id=s.atividade_id,
+                descricao=s.descricao,
+                categoria=s.categoria,
+                prestador_id=s.prestador_id,
+                created_at=s.created_at,
+            )
+        )
+
+    # Separate L1 and L2, index L2 by parent_id
+    l1_atividades = [a for a in all_atividades if a.nivel == 1]
+    l2_by_parent: dict[UUID, List[AtividadeCronograma]] = {}
+    for a in all_atividades:
+        if a.nivel == 2 and a.parent_id:
+            l2_by_parent.setdefault(a.parent_id, []).append(a)
+
+    # 3) Build response from indexed data (zero additional queries)
     atividades_read: List[AtividadeCronogramaRead] = []
     total_previsto = 0.0
     total_gasto = 0.0
 
     for l1 in l1_atividades:
-        # Fetch L2 sub-activities
-        l2_atividades = session.exec(
-            select(AtividadeCronograma)
-            .where(AtividadeCronograma.parent_id == l1.id)
-            .where(AtividadeCronograma.nivel == 2)
-            .order_by(AtividadeCronograma.ordem)
-        ).all()
-
         sub_reads: List[AtividadeCronogramaRead] = []
-        for l2 in l2_atividades:
-            l2_servicos = _get_servicos_read(l2.id, session)
-            sub_reads.append(_build_atividade_read(l2, [], l2_servicos))
+        for l2 in l2_by_parent.get(l1.id, []):
+            sub_reads.append(_build_atividade_read(l2, [], servicos_by_atividade.get(l2.id, [])))
             total_previsto += l2.valor_previsto
             total_gasto += l2.valor_gasto
 
-        l1_servicos = _get_servicos_read(l1.id, session)
-        atividades_read.append(_build_atividade_read(l1, sub_reads, l1_servicos))
+        atividades_read.append(_build_atividade_read(l1, sub_reads, servicos_by_atividade.get(l1.id, [])))
         total_previsto += l1.valor_previsto
         total_gasto += l1.valor_gasto
 
@@ -323,6 +350,8 @@ def atualizar_atividade(
     updates = payload.model_dump(exclude_unset=True)
     for key, value in updates.items():
         setattr(atividade, key, value)
+    # Marcar como modificada manualmente (AI-03)
+    atividade.is_modified = True
     atividade.updated_at = datetime.now(timezone.utc)
     session.add(atividade)
     session.commit()
