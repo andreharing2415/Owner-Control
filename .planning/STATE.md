@@ -3,6 +3,7 @@ status: in_progress
 current_phase: "00"
 current_phase_name: "Bloqueadores Críticos"
 last_updated: "2026-04-06"
+phase_00_status: complete
 ---
 
 # Project State
@@ -13,12 +14,12 @@ last_updated: "2026-04-06"
 **Plans:** 3 total, 3 incomplete
 
 ## Current Position
-Phase 00 — Wave 1: 00-01 and 00-02 complete. 00-03 pending.
+Phase 00 — All plans complete. Phase 00 done.
 
 ## Phase Progress
 - [x] 00-01: Corrigir cadeia Alembic + Cloud Run min-instances
 - [x] 00-02: Substituir python-jose por PyJWT + corrigir cancelamento Stripe
-- [ ] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2
+- [x] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2
 
 ## Decisions
 - [00-01] Migração duplicada 0014 fundida como 0014 (checklist_unificado) + 0014b (add_valor_realizado) para preservar histórico
@@ -28,6 +29,9 @@ Phase 00 — Wave 1: 00-01 and 00-02 complete. 00-03 pending.
 - [00-02] cancel_subscription usa status cancel_pending — plano pago inalterado até webhook deleted
 - [00-02] Downgrade para gratuito centralizado no evento customer.subscription.deleted
 - [00-02] Testes replicam lógica inline (sem importar router) para evitar dependência de DATABASE_URL
+- [00-03] WeasyPrint+Jinja2 substitui fpdf2 — elimina _safe()/latin1 que corrompia acentuação PT-BR
+- [00-03] Dockerfile atualizado com libpango/libcairo/libgdk-pixbuf2 para WeasyPrint em python:3.11-slim
+- [00-03] Testes PDF com pytestmark.skipif (OSError) — executam em Docker Linux, skipados em Windows
 
 ## Notes
 Phase 00 is a prerequisite for all feature work. No STATE.md existed at start — created fresh.

@@ -16,7 +16,7 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 - Cada `*-PLAN.md` deve conter frontmatter obrigatório + `<tasks><task>...</task></tasks>`
 - Arquivos de apoio por fase: `PLAN-OVERVIEW.md`, `RESEARCH.md` (quando aplicável), `PLAN-CHECK.md` (quando aplicável)
 
-- [ ] **Phase 0: Bloqueadores Críticos** - Corrigir 3 bugs de produção + 1 CVE de segurança antes de qualquer feature nova
+- [x] **Phase 0: Bloqueadores Críticos** - Corrigir 3 bugs de produção + 1 CVE de segurança antes de qualquer feature nova
 - [ ] **Phase 1: Pipeline IA de Documentos** - IA lê o documento real e gera cronograma+checklist específicos daquele projeto
 - [ ] **Phase 2: Fluxo Guiado + Dashboard do Engenheiro** - Wizard de onboarding linear e dashboard multi-obra profissional
 - [ ] **Phase 3: Sistema de Papéis** - Engenheiro gerencia, dono observa — permissões corretas antes de qualquer tela role-gated
@@ -41,7 +41,7 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 Plans:
 - [x] 00-01: Corrigir cadeia Alembic (IDs duplicados) e configurar Cloud Run min-instances
 - [x] 00-02: Substituir python-jose por PyJWT >=2.8.0 (CVE-2024-33663) e corrigir bug de cancelamento Stripe
-- [ ] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2 para PDFs com suporte correto a UTF-8/português
+- [x] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2 para PDFs com suporte correto a UTF-8/português
 
 ### Phase 1: Pipeline IA de Documentos
 **Goal**: A IA lê o documento real enviado e gera cronograma+checklist com atividades específicas daquele projeto, citando o trecho do documento que originou cada atividade, na sequência lógica de uma obra
