@@ -183,6 +183,7 @@ class ProjetoDoc(SQLModel, table=True):
     erro_detalhe: Optional[str] = None
     resumo_geral: Optional[str] = None
     aviso_legal: Optional[str] = None
+    elementos_extraidos: Optional[str] = None  # JSON: [ElementoConstrutivo], populado pelo pipeline de extração em duas passagens
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 

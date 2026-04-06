@@ -24,6 +24,17 @@ class UserRegister(SQLModel):
     telefone: Optional[str] = None
     password: str
 
+    @field_validator("password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("A senha deve ter no mínimo 8 caracteres")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("A senha deve conter pelo menos um número")
+        if not any(c.isalpha() for c in v):
+            raise ValueError("A senha deve conter pelo menos uma letra")
+        return v
+
 
 class UserLogin(SQLModel):
     email: EmailStr
@@ -361,6 +372,23 @@ class RelatorioFinanceiro(SQLModel):
 
 # ─── Fase 3 — Document AI ─────────────────────────────────────────────────────
 
+class ElementoConstrutivo(SQLModel):
+    """Elemento construtivo específico extraído do documento de projeto pela IA.
+
+    Resultado da extração em duas passagens:
+    - Passagem 1: por página, identificando elementos brutos.
+    - Passagem 2: consolidação global, deduplicando e enriquecendo.
+    """
+    categoria: str  # "Estrutural" | "Elétrico" | "Hidráulico" | "Arquitetura" | "Outro"
+    nome: str  # ex: "Sapata de concreto armado", "Tubulação de esgoto PVC 100mm"
+    descricao: Optional[str] = None  # detalhes técnicos extraídos do documento
+    especificacao: Optional[str] = None  # materiais, dimensões, normas citadas
+    localizacao: Optional[str] = None  # onde na obra: "banheiro social", "bloco A", etc.
+    pagina_referencia: Optional[int] = None  # página do PDF onde o elemento foi identificado
+    prancha_referencia: Optional[str] = None  # ex: "Folha 03 – Planta Hidráulica"
+    confianca: int = 0  # 0-100, confiança da IA na extração
+
+
 class ProjetoDocRead(SQLModel):
     id: UUID
     obra_id: UUID
@@ -370,6 +398,7 @@ class ProjetoDocRead(SQLModel):
     erro_detalhe: Optional[str] = None
     resumo_geral: Optional[str] = None
     aviso_legal: Optional[str] = None
+    elementos_extraidos: Optional[str] = None  # JSON: [ElementoConstrutivo]
     created_at: datetime
     updated_at: datetime
 
