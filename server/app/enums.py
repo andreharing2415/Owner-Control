@@ -74,3 +74,12 @@ class AtividadeStatus(str, Enum):
     PENDENTE = "pendente"
     EM_ANDAMENTO = "em_andamento"
     CONCLUIDA = "concluida"
+
+
+class GeracaoUnificadaStatus(str, Enum):
+    PENDENTE = "pendente"        # criado, aguardando background worker iniciar
+    ANALISANDO = "analisando"    # lendo e indexando documentos
+    GERANDO = "gerando"          # IA produzindo cronograma + checklist
+    CONCLUIDO = "concluido"      # cronograma e checklist persistidos com sucesso
+    ERRO = "erro"                # falha irrecuperavel — erro_detalhe preenchido
+    CANCELADO = "cancelado"      # cliente desconectou antes da conclusao

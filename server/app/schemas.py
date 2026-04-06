@@ -855,4 +855,25 @@ class AplicarRiscosRequest(SQLModel):
     risco_ids: List[str]
 
 
+# ─── Geração Unificada — state machine (AI-06/AI-07) ─────────────────────────
+
+class IniciarGeracaoUnificadaRequest(SQLModel):
+    """Request para iniciar geração unificada (cronograma + checklist)."""
+    tipos_projeto: List[str]
+
+
+class GeracaoUnificadaLogRead(SQLModel):
+    """Estado atual do log de geração unificada — retornado no polling."""
+    id: UUID
+    obra_id: UUID
+    status: str                           # GeracaoUnificadaStatus values
+    etapa_atual: Optional[str] = None     # descrição humana da etapa em curso
+    total_atividades: int = 0
+    atividades_geradas: int = 0
+    total_itens_checklist: int = 0
+    erro_detalhe: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
 AtividadeCronogramaRead.model_rebuild()

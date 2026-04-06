@@ -455,3 +455,26 @@ class ServicoNecessario(SQLModel, table=True):
     prestador_id: Optional[UUID] = Field(default=None, index=True, foreign_key="prestador.id")
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+
+
+# ─── Geração Unificada — state machine (AI-06/AI-07) ─────────────────────────
+
+class GeracaoUnificadaLog(SQLModel, table=True):
+    """Log de geração unificada (cronograma + checklist) com state machine observável.
+
+    Estados: PENDENTE → ANALISANDO → GERANDO → CONCLUIDO | ERRO | CANCELADO
+    O cliente faz polling em GET /status para acompanhar a transição.
+    O backend detecta disconnect SSE e transita para CANCELADO, parando o processamento.
+    """
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    obra_id: UUID = Field(index=True, foreign_key="obra.id")
+    status: str = Field(default="pendente")  # GeracaoUnificadaStatus values
+    # Progresso observável
+    etapa_atual: Optional[str] = None        # descrição da etapa em curso (ex: "Analisando documentos")
+    total_atividades: int = Field(default=0)  # estimativa ao iniciar GERANDO
+    atividades_geradas: int = Field(default=0)  # atualizadas em tempo real
+    total_itens_checklist: int = Field(default=0)
+    # Resultado
+    erro_detalhe: Optional[str] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
