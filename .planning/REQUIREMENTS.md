@@ -15,11 +15,11 @@
 
 ### Pipeline IA de Documentos
 
-- [ ] **AI-01**: IA extrai elementos construtivos reais do documento enviado (planta baixa, memorial descritivo, etc.) — não templates genéricos
-- [ ] **AI-02**: Atividades geradas citam o trecho exato do documento que as originou (`fonte_doc_trecho`)
-- [ ] **AI-03**: Sequência de atividades respeita ordem construtiva padrão (fundação → estrutura → instalações → acabamento)
-- [ ] **AI-04**: Cronograma e checklist são um único output hierárquico (macro atividade → micro atividades)
-- [ ] **AI-05**: Output da IA é editável — engenheiro pode modificar atividades, datas e ordem sem perder as edições no próximo processamento
+- [x] **AI-01**: IA extrai elementos construtivos reais do documento enviado (planta baixa, memorial descritivo, etc.) — não templates genéricos
+- [x] **AI-02**: Atividades geradas citam o trecho exato do documento que as originou (`fonte_doc_trecho`)
+- [x] **AI-03**: Sequência de atividades respeita ordem construtiva padrão (fundação → estrutura → instalações → acabamento)
+- [x] **AI-04**: Cronograma e checklist são um único output hierárquico (macro atividade → micro atividades)
+- [x] **AI-05**: Output da IA é editável — engenheiro pode modificar atividades, datas e ordem sem perder as edições no próximo processamento
 - [ ] **AI-06**: Pipeline de geração usa state machine com polling do cliente (não chained synchronous calls que geram timeout)
 - [ ] **AI-07**: SSE stream para de processar quando cliente desconecta (elimina gasto desnecessário de tokens de IA)
 
@@ -108,11 +108,11 @@
 | INFRA-03 | Phase 0 | Complete |
 | INFRA-04 | Phase 0 | Complete |
 | INFRA-05 | Phase 0 | Complete |
-| AI-01 | Phase 1 | Pending |
-| AI-02 | Phase 1 | Pending |
-| AI-03 | Phase 1 | Pending |
-| AI-04 | Phase 1 | Pending |
-| AI-05 | Phase 1 | Pending |
+| AI-01 | Phase 1 | Complete |
+| AI-02 | Phase 1 | Complete |
+| AI-03 | Phase 1 | Complete |
+| AI-04 | Phase 1 | Complete |
+| AI-05 | Phase 1 | Complete |
 | AI-06 | Phase 1 | Pending |
 | AI-07 | Phase 1 | Pending |
 | FLOW-01 | Phase 2 | Pending |

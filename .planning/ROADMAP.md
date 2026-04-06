@@ -60,7 +60,7 @@ Plans:
 Plans:
 - [x] 01-01: Extração em duas passagens — visão por página do documento → `ElementoConstrutivo[]` armazenado em `ProjetoDoc.elementos_extraidos`
 - [x] 01-02: Geração fundamentada — `gerar_cronograma_com_evidencias()` recebe elementos extraídos, força LLM a citar `fonte_doc_trecho` por atividade
-- [ ] 01-03: `AtividadeCronograma` como árvore unificada (macro nivel-1 → micro nivel-2) com `SEQUENCIA_CONSTRUTIVA`, flags `is_modified`/`locked` e auto-spawn de `ChecklistItem`
+- [x] 01-03: `AtividadeCronograma` como árvore unificada (macro nivel-1 → micro nivel-2) com `SEQUENCIA_CONSTRUTIVA`, flags `is_modified`/`locked` e auto-spawn de `ChecklistItem`
 - [ ] 01-04: State machine `GeracaoUnificadaLog` (PENDENTE→CONCLUIDO), polling do cliente e detecção de disconnect SSE
 
 ### Phase 2: Fluxo Guiado + Dashboard do Engenheiro
@@ -152,7 +152,7 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
-| 1. Pipeline IA de Documentos | 2/4 | In Progress|  |
+| 1. Pipeline IA de Documentos | 3/4 | In Progress|  |
 | 2. Fluxo Guiado + Dashboard | 0/3 | Planned (executable) | - |
 | 3. Sistema de Papéis | 0/4 | Planned (executable) | - |
 | 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |

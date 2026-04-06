@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-04-06T23:28:23.238Z"
+last_updated: "2026-04-06T23:34:54.723Z"
 progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 20
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 01 (pipeline-ia-de-documentos) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Phase 00 — All plans complete. Phase 00 done.
 
 ## Phase Progress
@@ -46,6 +46,8 @@ Phase 00 — All plans complete. Phase 00 done.
 - [Phase 01]: Pipeline de extracao integrado como enriquecimento silencioso pos-analise — falha nao bloqueia analise principal
 - [Phase 01]: fonte_doc_trecho e Optional no schema/modelo para retrocompatibilidade com itens legados sem trecho
 - [Phase 01]: Rejeicao de itens sem fonte_doc_trecho com log.warning, sem excecao — pipeline SSE nao deve quebrar por item invalido
+- [Phase 01]: locked=True preserva atividade durante re-geracao — is_modified apenas sinaliza edicao, nao bloqueia sobrescrita
+- [Phase 01]: Auto-spawn cria ChecklistItem com origem=ia para cada nivel=2, usando macro como grupo
 
 ## Notes
 
