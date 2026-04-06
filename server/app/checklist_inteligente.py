@@ -199,6 +199,8 @@ consiga fazer sozinho.
 Alvenaria e Infraestrutura, Acabamentos, Entrega e Testes).
 4. Informe sempre a Norma Tecnica (ABNT/NR/NTC) de referencia. Se nao houver, \
 indique "Boas praticas de engenharia".
+5. OBRIGATORIO: Para cada item, cite o trecho exato do documento que fundamenta \
+esta atividade no campo "fonte_doc_trecho". Nao deixe este campo vazio.
 
 FORMATO DE RESPOSTA OBRIGATORIO (JSON puro):
 {
@@ -212,6 +214,9 @@ atencao especial na obra (max 3 linhas).",
       "risco": "ALTO | MEDIO | BAIXO",
       "titulo_verificacao": "O que verificar (ex: Impermeabilizacao do fosso do elevador)",
       "norma_tecnica": "Ex: NBR NM 313 ou ABNT NBR 5410",
+      "fonte_doc_trecho": "Trecho ou referencia exata do documento que originou \
+este item (ex: 'Planta Estrutural - Folha 3: Poco do elevador 1.60m x 1.20m'). \
+CAMPO OBRIGATORIO — nao deixe vazio.",
       "por_que_isso_importa": "Explicacao para o leigo do que acontece se der errado \
 (ex: Se infiltrar agua, a placa do elevador queima).",
       "como_o_proprietario_verifica": {
@@ -257,10 +262,23 @@ def _normalizar_fase1(raw: dict) -> dict:
 
 
 def _normalizar_fase2(raw: dict) -> dict:
-    """Converte resposta da Fase 2 (novo formato) para o formato interno de itens."""
+    """Converte resposta da Fase 2 (novo formato) para o formato interno de itens.
+
+    Itens sem fonte_doc_trecho sao rejeitados — campo obrigatorio para rastreabilidade.
+    """
     itens = []
+    itens_rejeitados = 0
     introducao = raw.get("introducao_ao_proprietario", "")
     for item in raw.get("checklist", []):
+        fonte_doc_trecho = (item.get("fonte_doc_trecho") or "").strip()
+        if not fonte_doc_trecho:
+            logger.warning(
+                "_normalizar_fase2: item '%s' rejeitado — fonte_doc_trecho ausente",
+                item.get("titulo_verificacao", "<sem titulo>"),
+            )
+            itens_rejeitados += 1
+            continue
+
         risco_raw = (item.get("risco", "BAIXO") or "BAIXO").upper()
         risco_map = {"ALTO": "alto", "MEDIO": "medio", "MÉDIO": "medio", "BAIXO": "baixo"}
         risco = risco_map.get(risco_raw, "baixo")
@@ -282,10 +300,11 @@ def _normalizar_fase2(raw: dict) -> dict:
             "como_verificar": verificacao.get("acao_pratica", ""),
             "medidas_minimas": verificacao.get("medida_ou_regra_minima"),
             "explicacao_leigo": item.get("por_que_isso_importa", "")[:200],
+            "fonte_doc_trecho": fonte_doc_trecho[:500],
             "dado_projeto": {
                 "descricao": item.get("titulo_verificacao", "")[:150],
                 "especificacao": verificacao.get("medida_ou_regra_minima", ""),
-                "fonte": "Projeto de construcao",
+                "fonte": fonte_doc_trecho[:150],
                 "valor_referencia": verificacao.get("medida_ou_regra_minima", ""),
             },
             "verificacoes": [
@@ -305,10 +324,17 @@ def _normalizar_fase2(raw: dict) -> dict:
             "documentos_a_exigir": [doc] if doc else [],
         })
 
+    if itens_rejeitados:
+        logger.warning(
+            "_normalizar_fase2: %d item(ns) rejeitado(s) por ausencia de fonte_doc_trecho",
+            itens_rejeitados,
+        )
+
     return {
         "caracteristica": raw.get("sistema_analisado", ""),
         "introducao_ao_proprietario": introducao,
         "itens": itens,
+        "itens_rejeitados_sem_fonte": itens_rejeitados,
     }
 
 
