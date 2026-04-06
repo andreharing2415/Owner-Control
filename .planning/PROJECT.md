@@ -30,7 +30,9 @@ A partir do documento do projeto, a IA gera macro e micro atividades específica
 - [ ] IA que lê o documento real e gera atividades específicas daquele projeto, respeitando a sequência lógica de construção (fundação → estrutura → acabamento) — hoje gera template genérico
 - [ ] Cronograma e checklist são o mesmo output unificado (macro atividades → micro atividades) gerado do documento — hoje são sistemas separados
 - [ ] Engenheiro como usuário principal: cria a obra, sobe o projeto, gerencia tudo — inversão do modelo atual
-- [ ] Dono de obra como usuário secundário: é convidado pelo engenheiro, acessa visão de acompanhamento de status apenas
+- [ ] Dono de obra como usuário secundário: é convidado pelo engenheiro, acessa visão de acompanhamento de status apenas — restrito à obra para a qual foi convidado
+- [ ] Dashboard do engenheiro agrega dados de todas as suas obras (visão multi-obra)
+- [ ] Dashboard do dono mostra apenas a obra à qual foi convidado
 - [ ] Output da IA é editável: engenheiro pode ajustar atividades, datas e ordem gerados
 - [ ] Estrutura de navegação clara e fluida — hoje o usuário se perde entre telas sem saber o próximo passo
 
@@ -76,6 +78,7 @@ A partir do documento do projeto, a IA gera macro e micro atividades específica
 | IA deve basear-se no documento + sequência lógica de obra | O output genérico não agrega valor; o diferencial é a especificidade por projeto | — Pending |
 | Output da IA é ponto de partida editável, não definitivo | Engenheiro conhece o canteiro — precisa poder ajustar o que a IA propôs | — Pending |
 | Manter `ObraConvite` como base para o papel de dono | Infraestrutura já existe, evita reescrever auth/permissões do zero | — Pending |
+| Engenheiro vê todas as suas obras no dashboard; dono vê apenas a obra do convite | Isolamento de dados por papel — dono não tem visibilidade de outras obras do mesmo engenheiro | — Pending |
 
 ## Evolution
 
