@@ -237,22 +237,36 @@ def gerar_cronograma_endpoint(
     if not atividades_ai:
         raise HTTPException(status_code=502, detail="IA nao retornou atividades para o cronograma")
 
-    # Remove atividades anteriores desta obra (re-gerar)
-    servicos_antigos = session.exec(
-        select(ServicoNecessario).where(
-            ServicoNecessario.atividade_id.in_(  # type: ignore[attr-defined]
-                select(AtividadeCronograma.id).where(AtividadeCronograma.obra_id == obra_id)
-            )
-        )
-    ).all()
-    for s in servicos_antigos:
-        session.delete(s)
-
-    atividades_antigas = session.exec(
+    # Busca atividades existentes — preserva locked, deleta as demais (AI-03)
+    atividades_existentes = session.exec(
         select(AtividadeCronograma).where(AtividadeCronograma.obra_id == obra_id)
     ).all()
-    for a in atividades_antigas:
-        session.delete(a)
+    ids_locked = {a.id for a in atividades_existentes if a.locked}
+    ids_para_deletar = [a.id for a in atividades_existentes if not a.locked]
+
+    # Remove servicos das atividades nao-locked
+    if ids_para_deletar:
+        servicos_antigos = session.exec(
+            select(ServicoNecessario).where(
+                ServicoNecessario.atividade_id.in_(ids_para_deletar)  # type: ignore[attr-defined]
+            )
+        ).all()
+        for s in servicos_antigos:
+            session.delete(s)
+
+        # Remove checklist items gerados por IA para atividades nao-locked
+        checklist_antigos = session.exec(
+            select(ChecklistItem).where(
+                ChecklistItem.atividade_id.in_(ids_para_deletar),  # type: ignore[attr-defined]
+                ChecklistItem.origem == "ia",
+            )
+        ).all()
+        for ci in checklist_antigos:
+            session.delete(ci)
+
+    for a in atividades_existentes:
+        if not a.locked:
+            session.delete(a)
     session.flush()
 
     # Create L1 and L2 activities from AI result
@@ -281,7 +295,7 @@ def gerar_cronograma_endpoint(
             )
             session.add(svc)
 
-        # Create L2 sub-activities
+        # Create L2 sub-activities with auto-spawn de ChecklistItem (AI-04/05)
         for sub_data in ativ_data.get("sub_atividades", []):
             l2 = AtividadeCronograma(
                 obra_id=obra_id,
@@ -298,6 +312,18 @@ def gerar_cronograma_endpoint(
             )
             session.add(l2)
             session.flush()
+
+            # Auto-spawn: cria ChecklistItem para cada micro-atividade (AI-04)
+            descricao_item = sub_data.get("descricao") or sub_data["nome"]
+            checklist_item = ChecklistItem(
+                atividade_id=l2.id,
+                titulo=f"Verificar: {sub_data['nome']}",
+                descricao=descricao_item[:500] if descricao_item else None,
+                origem="ia",
+                grupo=ativ_data["nome"],  # macro como grupo
+                ordem=sub_data.get("ordem", 0),
+            )
+            session.add(checklist_item)
 
             # Create services for L2
             for svc_data in sub_data.get("servicos", []):
