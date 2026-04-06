@@ -1,14 +1,14 @@
 """fase 6: obra area_m2, checklist new fields, obra_detalhamento table
 
 Revision ID: 20260311_0015
-Revises: 20260311_0013
+Revises: 20260309_0014b
 Create Date: 2026-03-11 12:00:00.000000
 """
 from alembic import op
 import sqlalchemy as sa
 
 revision = "20260311_0015"
-down_revision = "20260311_0013"
+down_revision = "20260309_0014b"
 branch_labels = None
 depends_on = None
 

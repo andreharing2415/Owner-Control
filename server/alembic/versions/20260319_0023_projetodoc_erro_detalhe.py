@@ -1,15 +1,15 @@
 """Add erro_detalhe column to projetodoc table.
 
-Revision ID: 0023
-Revises: 0022
+Revision ID: 20260319_0023
+Revises: 20260319_0022
 Create Date: 2026-03-19
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0023"
-down_revision = "0022"
+revision = "20260319_0023"
+down_revision = "20260319_0022"
 branch_labels = None
 depends_on = None
 
