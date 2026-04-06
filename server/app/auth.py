@@ -6,9 +6,9 @@ from typing import Optional
 from uuid import UUID
 
 import bcrypt
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
 from sqlmodel import Session
 
 from .db import get_session
@@ -60,7 +60,7 @@ def decode_token(token: str) -> dict:
             token, SECRET_KEY, algorithms=[ALGORITHM],
             issuer=TOKEN_ISSUER, audience=TOKEN_AUDIENCE,
         )
-    except JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token invalido ou expirado",
