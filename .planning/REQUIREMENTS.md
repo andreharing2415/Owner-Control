@@ -8,8 +8,8 @@
 ### Infraestrutura Crítica (Bloqueadores)
 
 - [x] **INFRA-01**: Cadeia de migrations Alembic está funcional em deploy fresh (`alembic upgrade head` sem erros)
-- [ ] **INFRA-02**: Cancelamento de assinatura não downgrade imediato — usuário mantém acesso até fim do período pago
-- [ ] **INFRA-03**: Autenticação JWT usa PyJWT >=2.8.0 (substituindo python-jose com CVE-2024-33663)
+- [x] **INFRA-02**: Cancelamento de assinatura não downgrade imediato — usuário mantém acesso até fim do período pago
+- [x] **INFRA-03**: Autenticação JWT usa PyJWT >=2.8.0 (substituindo python-jose com CVE-2024-33663)
 - [ ] **INFRA-04**: PDF reports gerados com caracteres portugueses corretos (sem corrupção de ã, ç, é, etc.)
 - [x] **INFRA-05**: Cloud Run configurado com `--min-instances=1` (elimina cold starts de 4-8s no canteiro)
 
@@ -104,8 +104,8 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | INFRA-01 | Phase 0 | Complete |
-| INFRA-02 | Phase 0 | Pending |
-| INFRA-03 | Phase 0 | Pending |
+| INFRA-02 | Phase 0 | Complete |
+| INFRA-03 | Phase 0 | Complete |
 | INFRA-04 | Phase 0 | Pending |
 | INFRA-05 | Phase 0 | Complete |
 | AI-01 | Phase 1 | Pending |

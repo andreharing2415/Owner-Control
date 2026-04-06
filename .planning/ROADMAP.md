@@ -40,7 +40,7 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 
 Plans:
 - [x] 00-01: Corrigir cadeia Alembic (IDs duplicados) e configurar Cloud Run min-instances
-- [ ] 00-02: Substituir python-jose por PyJWT >=2.8.0 (CVE-2024-33663) e corrigir bug de cancelamento Stripe
+- [x] 00-02: Substituir python-jose por PyJWT >=2.8.0 (CVE-2024-33663) e corrigir bug de cancelamento Stripe
 - [ ] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2 para PDFs com suporte correto a UTF-8/português
 
 ### Phase 1: Pipeline IA de Documentos
@@ -151,9 +151,9 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 0. Bloqueadores Críticos | 1/3 | In Progress|  |
-| 1. Pipeline IA de Documentos | 0/4 | Not started | - |
-| 2. Fluxo Guiado + Dashboard | 0/3 | Not started | - |
-| 3. Sistema de Papéis | 0/4 | Not started | - |
-| 4. RDO + Evidências Fotográficas | 0/3 | Not started | - |
-| 5. Modernização Arquitetural | 0/3 | Not started | - |
+| 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
+| 1. Pipeline IA de Documentos | 0/4 | Planned (executable) | - |
+| 2. Fluxo Guiado + Dashboard | 0/3 | Planned (executable) | - |
+| 3. Sistema de Papéis | 0/4 | Planned (executable) | - |
+| 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |
+| 5. Modernização Arquitetural | 0/3 | Planned (executable) | - |
