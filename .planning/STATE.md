@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-04-06T23:34:54.723Z"
+status: Phase complete — ready for verification
+last_updated: "2026-04-06T23:44:17.103Z"
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 20
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -48,6 +48,8 @@ Phase 00 — All plans complete. Phase 00 done.
 - [Phase 01]: Rejeicao de itens sem fonte_doc_trecho com log.warning, sem excecao — pipeline SSE nao deve quebrar por item invalido
 - [Phase 01]: locked=True preserva atividade durante re-geracao — is_modified apenas sinaliza edicao, nao bloqueia sobrescrita
 - [Phase 01]: Auto-spawn cria ChecklistItem com origem=ia para cada nivel=2, usando macro como grupo
+- [Phase 01]: threading.Event por log_id para sinalizar cancelamento SSE sem shared mutable state perigoso
+- [Phase 01]: CANCELADO nao e ERRO — log cancelado preserva progresso parcial sem erro_detalhe
 
 ## Notes
 

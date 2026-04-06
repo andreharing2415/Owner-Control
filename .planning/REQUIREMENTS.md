@@ -20,8 +20,8 @@
 - [x] **AI-03**: Sequência de atividades respeita ordem construtiva padrão (fundação → estrutura → instalações → acabamento)
 - [x] **AI-04**: Cronograma e checklist são um único output hierárquico (macro atividade → micro atividades)
 - [x] **AI-05**: Output da IA é editável — engenheiro pode modificar atividades, datas e ordem sem perder as edições no próximo processamento
-- [ ] **AI-06**: Pipeline de geração usa state machine com polling do cliente (não chained synchronous calls que geram timeout)
-- [ ] **AI-07**: SSE stream para de processar quando cliente desconecta (elimina gasto desnecessário de tokens de IA)
+- [x] **AI-06**: Pipeline de geração usa state machine com polling do cliente (não chained synchronous calls que geram timeout)
+- [x] **AI-07**: SSE stream para de processar quando cliente desconecta (elimina gasto desnecessário de tokens de IA)
 
 ### Fluxo Principal Guiado
 
@@ -113,8 +113,8 @@
 | AI-03 | Phase 1 | Complete |
 | AI-04 | Phase 1 | Complete |
 | AI-05 | Phase 1 | Complete |
-| AI-06 | Phase 1 | Pending |
-| AI-07 | Phase 1 | Pending |
+| AI-06 | Phase 1 | Complete |
+| AI-07 | Phase 1 | Complete |
 | FLOW-01 | Phase 2 | Pending |
 | FLOW-02 | Phase 2 | Pending |
 | FLOW-03 | Phase 2 | Pending |

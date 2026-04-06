@@ -17,7 +17,7 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 - Arquivos de apoio por fase: `PLAN-OVERVIEW.md`, `RESEARCH.md` (quando aplicável), `PLAN-CHECK.md` (quando aplicável)
 
 - [x] **Phase 0: Bloqueadores Críticos** - Corrigir 3 bugs de produção + 1 CVE de segurança antes de qualquer feature nova
-- [ ] **Phase 1: Pipeline IA de Documentos** - IA lê o documento real e gera cronograma+checklist específicos daquele projeto
+- [x] **Phase 1: Pipeline IA de Documentos** - IA lê o documento real e gera cronograma+checklist específicos daquele projeto (completed 2026-04-06)
 - [ ] **Phase 2: Fluxo Guiado + Dashboard do Engenheiro** - Wizard de onboarding linear e dashboard multi-obra profissional
 - [ ] **Phase 3: Sistema de Papéis** - Engenheiro gerencia, dono observa — permissões corretas antes de qualquer tela role-gated
 - [ ] **Phase 4: RDO + Evidências Fotográficas** - Registro diário de obra com fotos geotagueadas e alertas de prazo
@@ -61,7 +61,7 @@ Plans:
 - [x] 01-01: Extração em duas passagens — visão por página do documento → `ElementoConstrutivo[]` armazenado em `ProjetoDoc.elementos_extraidos`
 - [x] 01-02: Geração fundamentada — `gerar_cronograma_com_evidencias()` recebe elementos extraídos, força LLM a citar `fonte_doc_trecho` por atividade
 - [x] 01-03: `AtividadeCronograma` como árvore unificada (macro nivel-1 → micro nivel-2) com `SEQUENCIA_CONSTRUTIVA`, flags `is_modified`/`locked` e auto-spawn de `ChecklistItem`
-- [ ] 01-04: State machine `GeracaoUnificadaLog` (PENDENTE→CONCLUIDO), polling do cliente e detecção de disconnect SSE
+- [x] 01-04: State machine `GeracaoUnificadaLog` (PENDENTE→CONCLUIDO), polling do cliente e detecção de disconnect SSE
 
 ### Phase 2: Fluxo Guiado + Dashboard do Engenheiro
 **Goal**: Engenheiro novo entra no app e em menos de 3 cliques está vendo o cronograma gerado pela IA — zero desorientação; engenheiro com múltiplas obras vê tudo consolidado em um dashboard
@@ -152,7 +152,7 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
-| 1. Pipeline IA de Documentos | 3/4 | In Progress|  |
+| 1. Pipeline IA de Documentos | 4/4 | Complete   | 2026-04-06 |
 | 2. Fluxo Guiado + Dashboard | 0/3 | Planned (executable) | - |
 | 3. Sistema de Papéis | 0/4 | Planned (executable) | - |
 | 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |
