@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @page {
+      margin: 2cm;
+      size: A4;
+    }
+    body {
+      font-family: DejaVu Sans, Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      color: #333;
+      line-height: 1.4;
+    }
+    h1 {
+      font-size: 16pt;
+      color: #1a1a2e;
+      border-bottom: 2px solid #4f46e5;
+      padding-bottom: 6px;
+      margin-bottom: 12px;
+    }
+    h2 {
+      font-size: 13pt;
+      color: #4f46e5;
+      margin-top: 18px;
+      margin-bottom: 4px;
+    }
+    .meta {
+      font-size: 10pt;
+      color: #555;
+      margin-bottom: 4px;
+    }
+    .etapa {
+      margin-top: 16px;
+      page-break-inside: avoid;
+    }
+    .etapa-header {
+      background-color: #f0f4ff;
+      padding: 6px 10px;
+      border-left: 4px solid #4f46e5;
+      font-size: 12pt;
+      font-weight: bold;
+    }
+    .etapa-meta {
+      font-size: 9pt;
+      color: #666;
+      padding: 2px 10px 4px;
+    }
+    .itens {
+      margin-top: 4px;
+    }
+    .item {
+      padding: 3px 10px 3px 20px;
+      border-bottom: 1px solid #eee;
+      font-size: 10pt;
+    }
+    .item:last-child {
+      border-bottom: none;
+    }
+    .status-concluido { color: #16a34a; }
+    .status-pendente  { color: #b45309; }
+    .status-falhou    { color: #dc2626; }
+    .footer {
+      margin-top: 32px;
+      font-size: 9pt;
+      color: #aaa;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <h1>Relatório da Obra</h1>
+  <p class="meta"><strong>Obra:</strong> {{ obra.nome }}</p>
+  {% if obra.localizacao %}
+  <p class="meta"><strong>Localização:</strong> {{ obra.localizacao }}</p>
+  {% endif %}
+  {% if obra.orcamento is not none %}
+  <p class="meta"><strong>Orçamento:</strong> R$ {{ "%.2f"|format(obra.orcamento) }}</p>
+  {% endif %}
+  <p class="meta"><strong>Tipo:</strong> {{ obra.tipo }}</p>
+
+  {% for etapa in etapas %}
+  <div class="etapa">
+    <div class="etapa-header">Etapa {{ etapa.ordem }} — {{ etapa.nome }}</div>
+    <div class="etapa-meta">Status: {{ etapa.status }} | Score: {{ "%.1f"|format(etapa.score or 0) }}</div>
+    {% set etapa_itens = itens.get(etapa.id | string, []) %}
+    {% if etapa_itens %}
+    <div class="itens">
+      {% for item in etapa_itens %}
+      <div class="item">
+        <span class="status-{{ item.status }}">
+          [{{ item.status }}]
+        </span>
+        {{ item.titulo }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="footer">ObraMaster — gerado automaticamente</div>
+</body>
+</html>
