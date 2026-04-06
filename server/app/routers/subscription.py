@@ -236,16 +236,19 @@ def cancel_subscription(
         raise HTTPException(status_code=400, detail="Nenhuma assinatura ativa encontrada")
 
     try:
-        stripe.Subscription.modify(sub.stripe_subscription_id, cancel_at_period_end=True)
+        stripe_sub = stripe.Subscription.modify(sub.stripe_subscription_id, cancel_at_period_end=True)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Erro Stripe: {exc}")
 
-    sub.status = "cancelled"
-    sub.plan = "gratuito"
+    # Marca como pendente de cancelamento, mas mantém plano pago até o fim do período.
+    # O downgrade efetivo (plan→gratuito) ocorre apenas via webhook customer.subscription.deleted.
+    sub.status = "cancel_pending"
+    if sub.expires_at is None and hasattr(stripe_sub, "current_period_end") and stripe_sub.current_period_end:
+        sub.expires_at = datetime.fromtimestamp(stripe_sub.current_period_end, tz=timezone.utc)
     sub.updated_at = datetime.now(timezone.utc)
     session.add(sub)
 
-    current_user.plan = "gratuito"
+    # Plano do usuário permanece inalterado até webhook confirmar expiração.
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
 
@@ -437,9 +440,14 @@ async def stripe_webhook(
 
         if sub:
             user = session.get(User, sub.user_id)
+            cancel_at_period_end = data_object.get("cancel_at_period_end", False)
             if status_val == "active":
                 resolved_plan = _resolve_plan_from_stripe(data_object)
-                sub.status = "active"
+                # Se cancel_at_period_end=True, mantém cancel_pending para não sobrescrever.
+                if not cancel_at_period_end:
+                    sub.status = "active"
+                else:
+                    sub.status = "cancel_pending"
                 sub.plan = resolved_plan
                 period_end = data_object.get("current_period_end")
                 if period_end:
