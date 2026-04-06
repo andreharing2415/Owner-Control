@@ -16,6 +16,7 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from ..ai_providers import call_vision_with_fallback, get_document_vision_chain
+from ..document_analysis import extrair_e_persistir_elementos
 from ..documentos import analisar_documento
 from ..enums import ProjetoDocStatus
 from ..helpers import _RISCO_ETAPA_KEYWORDS, ETAPAS_PADRAO
@@ -71,6 +72,10 @@ def analisar_documento_e_persistir(session: Session, projeto_id: UUID) -> None:
         session.add(projeto)
         session.commit()
         logger.info("Analise concluida para projeto %s", projeto_id)
+
+        # Extração de elementos construtivos em duas passagens (enriquecimento)
+        # Roda após a análise de riscos — falha silenciosa se ocorrer erro
+        extrair_e_persistir_elementos(session, projeto_id)
 
     except Exception as exc:
         logger.error("Analise falhou para projeto %s: %s", projeto_id, exc)
