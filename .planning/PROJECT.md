@@ -56,9 +56,9 @@ A partir do documento do projeto, a IA gera macro e micro atividades específica
 - `lib/api/api.dart` — arquivo deus de 2458 linhas (modelos + cliente HTTP juntos)
 - 40+ telas com `ApiClient()` direto sem state management centralizado
 - Erro handling duplicado em 21+ telas
-- Zero testes no backend
-- Migration Alembic com IDs duplicados (quebra fresh deploy)
-- Stripe cancellation downgrade imediato (bug financeiro)
+- ~~Zero testes no backend~~ — testes de auth e subscription adicionados (Phase 0)
+- ~~Migration Alembic com IDs duplicados (quebra fresh deploy)~~ — resolvido (Phase 0)
+- ~~Stripe cancellation downgrade imediato (bug financeiro)~~ — resolvido (Phase 0)
 
 ## Constraints
 
@@ -98,4 +98,6 @@ Este documento evolui a cada transição de fase e marco de milestone.
 4. Atualizar Context com estado atual
 
 ---
-*Last updated: 2026-04-06 after initialization*
+**Current State:** Phase 0 complete (2026-04-06) — infraestrutura de produção estabilizada. Phase 1 (Pipeline IA de Documentos) é o próximo passo.
+
+*Last updated: 2026-04-06 after Phase 0 completion*
