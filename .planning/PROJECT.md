@@ -27,8 +27,8 @@ A partir do documento do projeto, a IA gera macro e micro atividades específica
 ### Active
 
 - [ ] Fluxo principal guiado e linear: criar obra → subir documento → processar → ver cronograma/checklist — hoje o fluxo existe mas é obscuro e fragmentado
-- [ ] IA que lê o documento real e gera atividades específicas daquele projeto, respeitando a sequência lógica de construção (fundação → estrutura → acabamento) — hoje gera template genérico
-- [ ] Cronograma e checklist são o mesmo output unificado (macro atividades → micro atividades) gerado do documento — hoje são sistemas separados
+- ✓ IA que lê o documento real e gera atividades específicas daquele projeto, respeitando a sequência lógica de construção (fundação → estrutura → acabamento) — Validated in Phase 01: pipeline-ia-de-documentos
+- ✓ Cronograma e checklist são o mesmo output unificado (macro atividades → micro atividades) gerado do documento — Validated in Phase 01: pipeline-ia-de-documentos
 - [ ] Engenheiro como usuário principal: cria a obra, sobe o projeto, gerencia tudo — inversão do modelo atual
 - [ ] Dono de obra como usuário secundário: é convidado pelo engenheiro, acessa visão de acompanhamento de status apenas — restrito à obra para a qual foi convidado
 - [ ] Dashboard do engenheiro agrega dados de todas as suas obras (visão multi-obra)
@@ -81,6 +81,8 @@ A partir do documento do projeto, a IA gera macro e micro atividades específica
 | Engenheiro vê todas as suas obras no dashboard; dono vê apenas a obra do convite | Isolamento de dados por papel — dono não tem visibilidade de outras obras do mesmo engenheiro | — Pending |
 
 ## Evolution
+
+**Phase 01 complete (2026-04-06):** Pipeline de IA end-to-end — extração em 2 passagens, rastreabilidade fonte_doc_trecho, árvore hierárquica macro/micro com edições preservadas, state machine async com SSE. 102 testes passando.
 
 Este documento evolui a cada transição de fase e marco de milestone.
 
