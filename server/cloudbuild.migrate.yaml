@@ -1,0 +1,16 @@
+﻿steps:
+  - name: python:3.11-slim
+    entrypoint: bash
+    secretEnv: [DATABASE_URL]
+    args:
+      - -lc
+      - |
+        pip install --no-cache-dir -r requirements.txt
+        export DATABASE_URL="$$DATABASE_URL"
+        export REQUIRE_SSL=true
+        alembic upgrade head
+        alembic current
+availableSecrets:
+  secretManager:
+    - versionName: projects/530484413221/secrets/database-url/versions/latest
+      env: DATABASE_URL

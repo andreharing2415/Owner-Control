@@ -1,0 +1,294 @@
+﻿{
+  "apiVersion": "serving.knative.dev/v1",
+  "kind": "Service",
+  "metadata": {
+    "annotations": {
+      "run.googleapis.com/build-enable-automatic-updates": "false",
+      "run.googleapis.com/build-id": "b79ddff5-0722-4a97-a922-cc579722732a",
+      "run.googleapis.com/build-image-uri": "us-central1-docker.pkg.dev/mestreobra/cloud-run-source-deploy/mestreobra-backend",
+      "run.googleapis.com/build-name": "projects/530484413221/locations/us-central1/builds/b79ddff5-0722-4a97-a922-cc579722732a",
+      "run.googleapis.com/build-source-location": "gs://run-sources-mestreobra-us-central1/services/mestreobra-backend/1773926012.860036-ec1e21b353c148469346983d494323cf.zip#1773926014304724",
+      "run.googleapis.com/client-name": "gcloud",
+      "run.googleapis.com/client-version": "561.0.0",
+      "run.googleapis.com/ingress": "all",
+      "run.googleapis.com/ingress-status": "all",
+      "run.googleapis.com/maxScale": "20",
+      "run.googleapis.com/operation-id": "f3ff5951-adf5-4736-a63c-816ce90a8cf1",
+      "run.googleapis.com/urls": "[\"https://mestreobra-backend-530484413221.us-central1.run.app\",\"https://mestreobra-backend-kya4oinfma-uc.a.run.app\"]",
+      "serving.knative.dev/creator": "andrefharing@gmail.com",
+      "serving.knative.dev/lastModifier": "andrefharing@gmail.com"
+    },
+    "creationTimestamp": "2026-03-05T21:46:59.456791Z",
+    "generation": 83,
+    "labels": {
+      "cloud.googleapis.com/location": "us-central1"
+    },
+    "name": "mestreobra-backend",
+    "namespace": "530484413221",
+    "resourceVersion": "AAZO1RpFGQA",
+    "selfLink": "/apis/serving.knative.dev/v1/namespaces/530484413221/services/mestreobra-backend",
+    "uid": "cc8a97f3-2f61-4ddc-b31a-3d9df4ee78f3"
+  },
+  "spec": {
+    "template": {
+      "metadata": {
+        "annotations": {
+          "autoscaling.knative.dev/maxScale": "20",
+          "autoscaling.knative.dev/minScale": "1",
+          "run.googleapis.com/client-name": "gcloud",
+          "run.googleapis.com/client-version": "561.0.0",
+          "run.googleapis.com/cpu-throttling": "false",
+          "run.googleapis.com/startup-cpu-boost": "true"
+        },
+        "labels": {
+          "client.knative.dev/nonce": "haxdzkrgvb",
+          "run.googleapis.com/startupProbeType": "Default"
+        }
+      },
+      "spec": {
+        "containerConcurrency": 80,
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "S3_BUCKET",
+                "value": "obramaster"
+              },
+              {
+                "name": "S3_ENDPOINT_URL",
+                "value": "https://lxraltzzyrwvvinbodes.supabase.co/storage/v1/s3"
+              },
+              {
+                "name": "S3_PUBLIC_URL",
+                "value": "https://lxraltzzyrwvvinbodes.supabase.co/storage/v1/object/public"
+              },
+              {
+                "name": "S3_REGION",
+                "value": "sa-east-1"
+              },
+              {
+                "name": "GOOGLE_CLIENT_ID",
+                "value": "530484413221-ce3hk4ahk234gq35s8tll80u8v9pbde8.apps.googleusercontent.com"
+              },
+              {
+                "name": "GMAIL_USER",
+                "value": "mestredaobra.app@gmail.com"
+              },
+              {
+                "name": "STRIPE_PRICE_ID",
+                "value": "price_1T99LnI8eh1s0fwjni2W9hbv"
+              },
+              {
+                "name": "DATABASE_URL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "database-url"
+                  }
+                }
+              },
+              {
+                "name": "JWT_SECRET_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "jwt-secret-key"
+                  }
+                }
+              },
+              {
+                "name": "ANTHROPIC_API_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "anthropic-api-key"
+                  }
+                }
+              },
+              {
+                "name": "OPENAI_API_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "openai-api-key"
+                  }
+                }
+              },
+              {
+                "name": "GEMINI_API_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "gemini-api-key"
+                  }
+                }
+              },
+              {
+                "name": "S3_ACCESS_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "s3-access-key"
+                  }
+                }
+              },
+              {
+                "name": "S3_SECRET_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "s3-secret-key"
+                  }
+                }
+              },
+              {
+                "name": "STRIPE_SECRET_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "stripe-secret-key"
+                  }
+                }
+              },
+              {
+                "name": "STRIPE_WEBHOOK_SECRET",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "stripe-webhook-secret"
+                  }
+                }
+              },
+              {
+                "name": "GMAIL_APP_PASSWORD",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "gmail-app-password"
+                  }
+                }
+              },
+              {
+                "name": "STRIPE_PRICE_ID_ESSENCIAL",
+                "value": "price_1TAHiWI8eh1s0fwjUQz9UN7J"
+              },
+              {
+                "name": "STRIPE_PRICE_ID_COMPLETO",
+                "value": "price_1TAHiwI8eh1s0fwjLQP4ezvi"
+              },
+              {
+                "name": "SMTP_HOST",
+                "value": "smtp.umbler.com"
+              },
+              {
+                "name": "SMTP_PORT",
+                "value": "587"
+              },
+              {
+                "name": "SMTP_USER",
+                "value": "contato@mestredaobra.ia.br"
+              },
+              {
+                "name": "SMTP_FROM",
+                "value": "contato@mestredaobra.ia.br"
+              },
+              {
+                "name": "SMTP_PASSWORD",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "smtp-password"
+                  }
+                }
+              },
+              {
+                "name": "SUPABASE_URL",
+                "value": "https://lxraltzzyrwvvinbodes.supabase.co"
+              },
+              {
+                "name": "SUPABASE_SERVICE_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "supabase-service-role-key"
+                  }
+                }
+              },
+              {
+                "name": "SUPABASE_ANON_KEY",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "latest",
+                    "name": "supabase-anon-key"
+                  }
+                }
+              }
+            ],
+            "image": "gcr.io/mestreobra/mestreobra-backend",
+            "ports": [
+              {
+                "containerPort": 8080,
+                "name": "http1"
+              }
+            ],
+            "resources": {
+              "limits": {
+                "cpu": "1",
+                "memory": "1Gi"
+              }
+            },
+            "startupProbe": {
+              "failureThreshold": 1,
+              "periodSeconds": 240,
+              "tcpSocket": {
+                "port": 8080
+              },
+              "timeoutSeconds": 240
+            }
+          }
+        ],
+        "serviceAccountName": "530484413221-compute@developer.gserviceaccount.com",
+        "timeoutSeconds": 300
+      }
+    },
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100
+      }
+    ]
+  },
+  "status": {
+    "address": {
+      "url": "https://mestreobra-backend-kya4oinfma-uc.a.run.app"
+    },
+    "conditions": [
+      {
+        "lastTransitionTime": "2026-04-07T01:57:16.000512Z",
+        "status": "True",
+        "type": "Ready"
+      },
+      {
+        "lastTransitionTime": "2026-04-07T01:56:37.566533Z",
+        "status": "True",
+        "type": "ConfigurationsReady"
+      },
+      {
+        "lastTransitionTime": "2026-04-07T01:57:15.961403Z",
+        "status": "True",
+        "type": "RoutesReady"
+      }
+    ],
+    "latestCreatedRevisionName": "mestreobra-backend-00083-th2",
+    "latestReadyRevisionName": "mestreobra-backend-00083-th2",
+    "observedGeneration": 83,
+    "traffic": [
+      {
+        "latestRevision": true,
+        "percent": 100,
+        "revisionName": "mestreobra-backend-00083-th2"
+      }
+    ],
+    "url": "https://mestreobra-backend-kya4oinfma-uc.a.run.app"
+  }
+}
