@@ -2,7 +2,7 @@ name: owner_control
 description: "Plataforma premium para proprietários gerenciarem obras de construção."
 publish_to: 'none'
 
-version: 1.0.0+15
+version: 1.0.1+16
 
 environment:
   sdk: ^3.11.0
