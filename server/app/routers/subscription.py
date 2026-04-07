@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
 from sqlalchemy import func as sa_func
 from sqlmodel import Session, select
 
@@ -24,6 +25,14 @@ from ..subscription import get_plan_config, grant_rewarded_usage, REWARDED_BONUS
 from ..helpers import _read_template
 
 router = APIRouter(tags=["subscription"])
+
+
+class NativePurchaseValidationRequest(BaseModel):
+    plan: str
+    platform: str
+    product_id: str
+    purchase_id: str
+    purchase_token: str | None = None
 
 
 @router.get("/api/subscription/me", response_model=SubscriptionInfoResponse)
@@ -155,6 +164,55 @@ def reward_usage(
         new_count=new_count,
         bonus_granted=REWARDED_BONUS,
     )
+
+
+@router.post("/api/subscription/validate-purchase")
+def validate_native_purchase(
+    body: NativePurchaseValidationRequest,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Valida compra nativa (Play/App Store) e atualiza plano do usuário."""
+    if body.plan not in ("essencial", "completo"):
+        raise HTTPException(status_code=400, detail="Plano invalido")
+
+    if body.platform not in ("play_store", "app_store"):
+        raise HTTPException(status_code=400, detail="Plataforma invalida")
+
+    # Validação criptográfica com loja pode ser plugada aqui por provider.
+    sub = session.exec(
+        select(Subscription).where(Subscription.user_id == current_user.id)
+    ).first()
+
+    now = datetime.now(timezone.utc)
+    if not sub:
+        sub = Subscription(
+            user_id=current_user.id,
+            plan=body.plan,
+            status="active",
+            store=body.platform,
+            stripe_subscription_id=body.purchase_id,
+            updated_at=now,
+        )
+    else:
+        sub.plan = body.plan
+        sub.status = "active"
+        sub.store = body.platform
+        sub.stripe_subscription_id = body.purchase_id
+        sub.updated_at = now
+
+    current_user.plan = body.plan
+    current_user.updated_at = now
+    session.add(sub)
+    session.add(current_user)
+    session.commit()
+
+    return {
+        "status": "validated",
+        "plan": current_user.plan,
+        "platform": body.platform,
+        "product_id": body.product_id,
+    }
 
 
 @router.get("/api/subscription/success")

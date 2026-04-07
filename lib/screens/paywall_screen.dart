@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api.dart';
+import '../models/subscription_purchase.dart';
+import '../services/in_app_purchase_service.dart';
 import '../utils/auth_error_handler.dart';
 
 class PaywallScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class PaywallScreen extends StatefulWidget {
 
 class _PaywallScreenState extends State<PaywallScreen> {
   final _api = ApiClient();
+  final _iap = InAppPurchaseService();
   bool _loading = false;
   String? _selectedPlan;
 
@@ -22,11 +24,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _selectedPlan = plano;
     });
     try {
-      final checkoutUrl = await _api.createCheckout(plano);
-      final uri = Uri.parse(checkoutUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
+      final result = await _iap.comprarPlano(plano);
+      await _api.validarCompraNativa(
+        NativePurchasePayload(
+          plan: plano,
+          platform: _iap.platform(),
+          productId: result.productId,
+          purchaseId: result.purchaseId,
+          purchaseToken: result.purchaseToken,
+        ),
+      );
+      await _api.syncSubscription();
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) handleApiError(context, e);
@@ -122,7 +130,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
           // Footer
           Text(
-            'Pagamento processado pelo Stripe. '
+            'Pagamento processado pelas compras in-app da loja. '
             'Cancele a qualquer momento.',
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurfaceVariant,
