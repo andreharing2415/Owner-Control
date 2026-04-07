@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-04-07T01:44:38.012Z"
+last_updated: "2026-04-07T01:49:50.589Z"
 progress:
   total_phases: 6
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 20
-  completed_plans: 19
+  completed_plans: 20
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 05 (moderniza-o-arquitetural) — PLANNED
-Plan: 2 of 3
+Plan: 3 of 3
 Phase 04 — All plans complete. Phase 04 done.
 
 ## Phase Progress
@@ -76,6 +76,8 @@ Phase 04 — All plans complete. Phase 04 done.
 - [Phase 05]: Migracao inicial focada nos fluxos principais (auth/settings/obras/owner progresso)
 - [Phase 05]: Rotas nomeadas em AppRouteNames como contrato estavel para navegacao e push
 - [Phase 05]: NotificationService usa callback para abrir deep links sem acoplamento ao router
+- [Phase 05]: Assinatura in-app valida compra no backend via /api/subscription/validate-purchase
+- [Phase 05]: lib/api/api.dart mantido como facade para preservar compatibilidade de imports
 
 ## Notes
 
