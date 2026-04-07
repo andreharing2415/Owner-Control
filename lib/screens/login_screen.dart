@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:provider/provider.dart';
 
-import '../providers/auth_provider.dart';
+import '../providers/riverpod_providers.dart';
 import '../utils/auth_error_handler.dart';
 import 'register_screen.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -30,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkBiometrics() async {
-    final auth = context.read<AuthProvider>();
+    final auth = ref.read(authProvider);
     final available = await auth.isBiometricsAvailable();
     final enabled = await auth.isBiometricsEnabled();
     if (mounted) {
@@ -49,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      await context.read<AuthProvider>().login(
+      await ref.read(authProvider).login(
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
@@ -64,7 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _doGoogleLogin() async {
     setState(() => _loadingGoogle = true);
     try {
-      await context.read<AuthProvider>().loginWithGoogle();
+      await ref.read(authProvider).loginWithGoogle();
       if (mounted) await _promptBiometricEnrollment();
     } catch (e) {
       if (mounted) handleApiError(context, e);
@@ -76,7 +76,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _doBiometricLogin() async {
     setState(() => _loadingBiometrics = true);
     try {
-      await context.read<AuthProvider>().loginWithBiometrics();
+      await ref.read(authProvider).loginWithBiometrics();
     } catch (e) {
       if (mounted) handleApiError(context, e);
     } finally {
@@ -85,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _promptBiometricEnrollment() async {
-    final auth = context.read<AuthProvider>();
+    final auth = ref.read(authProvider);
     final available = await auth.isBiometricsAvailable();
     final alreadyPrompted = await auth.wasBiometricsPrompted();
     final alreadyEnabled = await auth.isBiometricsEnabled();

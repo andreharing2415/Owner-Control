@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api.dart';
-import '../providers/auth_provider.dart';
-import '../providers/subscription_provider.dart';
+import '../providers/riverpod_providers.dart';
 import 'minha_conta_screen.dart';
 import 'paywall_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
+    final sub = ref.watch(subscriptionProvider);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
@@ -78,30 +78,26 @@ class SettingsScreen extends StatelessWidget {
               MaterialPageRoute(builder: (_) => const MinhaContaScreen()),
             ),
           ),
-          Builder(builder: (ctx) {
-            final sub = ctx.watch<SubscriptionProvider>();
-            final planLabel = switch (sub.plan) {
+          _SettingsTile(
+            icon: Icons.workspace_premium,
+            label: 'Plano',
+            subtitle: switch (sub.plan) {
               'essencial' => 'Essencial',
               'completo' || 'dono_da_obra' => 'Completo',
               _ => 'Gratuito',
-            };
-            return _SettingsTile(
-              icon: Icons.workspace_premium,
-              label: 'Plano',
-              subtitle: planLabel,
-              onTap: () async {
-                await Navigator.push(
-                  ctx,
-                  MaterialPageRoute(builder: (_) => const PaywallScreen()),
-                );
-                if (ctx.mounted) sub.sync();
-              },
-            );
-          }),
+            },
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PaywallScreen()),
+              );
+              if (context.mounted) await ref.read(subscriptionProvider).sync();
+            },
+          ),
 
           // ─── Preferências ─────────────────────────────────────────────
           const _SectionHeader('Preferências'),
-          _BiometricsTile(),
+          const _BiometricsTile(),
           _SettingsTile(
             icon: Icons.notifications_outlined,
             label: 'Notificações',
@@ -177,7 +173,8 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await context.read<AuthProvider>().logout();
+      final container = ProviderScope.containerOf(context, listen: false);
+      await container.read(authProvider).logout();
     }
   }
 
@@ -197,12 +194,14 @@ class SettingsScreen extends StatelessWidget {
 
 // ─── Toggle de biometria ──────────────────────────────────────────────────────
 
-class _BiometricsTile extends StatefulWidget {
+class _BiometricsTile extends ConsumerStatefulWidget {
+  const _BiometricsTile();
+
   @override
-  State<_BiometricsTile> createState() => _BiometricsTileState();
+  ConsumerState<_BiometricsTile> createState() => _BiometricsTileState();
 }
 
-class _BiometricsTileState extends State<_BiometricsTile> {
+class _BiometricsTileState extends ConsumerState<_BiometricsTile> {
   bool _available = false;
   bool _enabled = false;
   bool _loaded = false;
@@ -214,7 +213,7 @@ class _BiometricsTileState extends State<_BiometricsTile> {
   }
 
   Future<void> _load() async {
-    final auth = context.read<AuthProvider>();
+    final auth = ref.read(authProvider);
     final available = await auth.isBiometricsAvailable();
     final enabled = await auth.isBiometricsEnabled();
     if (mounted) {
@@ -235,7 +234,7 @@ class _BiometricsTileState extends State<_BiometricsTile> {
       subtitle: const Text('Entrar com impressão digital ou rosto'),
       value: _enabled,
       onChanged: (val) async {
-        await context.read<AuthProvider>().setBiometricsEnabled(val);
+        await ref.read(authProvider).setBiometricsEnabled(val);
         setState(() => _enabled = val);
       },
     );

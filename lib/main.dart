@@ -4,11 +4,14 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart' show FlutterError, PlatformDispatcher, kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart' as rp;
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
+import 'providers/owner_progress_provider.dart';
+import 'providers/riverpod_providers.dart' as riverpod;
 import 'providers/subscription_provider.dart';
-import 'screens/auth_gate.dart';
+import 'routes/app_router.dart';
 import 'services/auth_service.dart';
 import 'services/ad_service.dart';
 import 'services/notification_service.dart';
@@ -55,7 +58,7 @@ Future<void> main() async {
     // AdMob: inicializa SDK de anúncios (não bloqueia se falhar)
     AdService.instance.initialize();
 
-    runApp(const MestreDaObraApp());
+    runApp(const rp.ProviderScope(child: MestreDaObraApp()));
   }, (error, stack) {
     // Erros da zona raiz (runZonedGuarded)
     if (_crashlyticsReady) {
@@ -66,24 +69,29 @@ Future<void> main() async {
   });
 }
 
-class MestreDaObraApp extends StatelessWidget {
+class MestreDaObraApp extends rp.ConsumerWidget {
   const MestreDaObraApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, rp.WidgetRef ref) {
+    final authNotifier = ref.watch(riverpod.authProvider);
+    final ownerNotifier = ref.watch(riverpod.ownerProgressProvider);
+    final subscriptionNotifier = ref.watch(riverpod.subscriptionProvider);
+
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
+        ChangeNotifierProvider<AuthProvider>.value(value: authNotifier),
+        ChangeNotifierProvider<OwnerProgressProvider>.value(value: ownerNotifier),
+        ChangeNotifierProvider<SubscriptionProvider>.value(value: subscriptionNotifier),
       ],
-      child: MaterialApp(
+      child: MaterialApp.router(
         title: 'Mestre da Obra',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
           useMaterial3: true,
         ),
-        home: const AuthGate(),
+        routerConfig: AppRouter(authProvider: authNotifier).router,
       ),
     );
   }

@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/auth_provider.dart';
+import '../providers/riverpod_providers.dart';
 import '../utils/auth_error_handler.dart';
 
-class MinhaContaScreen extends StatefulWidget {
+class MinhaContaScreen extends ConsumerStatefulWidget {
   const MinhaContaScreen({super.key});
 
   @override
-  State<MinhaContaScreen> createState() => _MinhaContaScreenState();
+  ConsumerState<MinhaContaScreen> createState() => _MinhaContaScreenState();
 }
 
-class _MinhaContaScreenState extends State<MinhaContaScreen> {
+class _MinhaContaScreenState extends ConsumerState<MinhaContaScreen> {
   bool _saving = false;
 
   Future<void> _editField({
@@ -68,7 +68,7 @@ class _MinhaContaScreenState extends State<MinhaContaScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    final auth = ref.watch(authProvider);
     final user = auth.user ?? {};
     final nome = user['nome'] as String? ?? '';
     final email = user['email'] as String? ?? '';

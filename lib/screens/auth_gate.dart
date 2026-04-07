@@ -1,35 +1,36 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/auth_provider.dart';
-import '../providers/subscription_provider.dart';
+import '../providers/riverpod_providers.dart';
 import 'complete_profile_screen.dart';
 import 'login_screen.dart';
 import 'main_shell.dart';
 
 /// Widget raiz que roteia entre splash, login e app principal.
-class AuthGate extends StatefulWidget {
+class AuthGate extends ConsumerStatefulWidget {
   const AuthGate({super.key});
 
   @override
-  State<AuthGate> createState() => _AuthGateState();
+  ConsumerState<AuthGate> createState() => _AuthGateState();
 }
 
-class _AuthGateState extends State<AuthGate> {
+class _AuthGateState extends ConsumerState<AuthGate> {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await context.read<AuthProvider>().checkAuth();
-      if (mounted && context.read<AuthProvider>().isAuthenticated) {
-        context.read<SubscriptionProvider>().load();
+      final auth = ref.read(authProvider);
+      await auth.checkAuth();
+      if (mounted && auth.isAuthenticated) {
+        await ref.read(subscriptionProvider).load();
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    final auth = ref.watch(authProvider);
     return switch (auth.status) {
       AuthStatus.unknown => const _SplashView(),
       AuthStatus.authenticated => auth.isNewUser

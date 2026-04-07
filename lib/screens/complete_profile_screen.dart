@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../providers/auth_provider.dart';
+import '../providers/riverpod_providers.dart';
 import '../utils/auth_error_handler.dart';
 
 /// Tela exibida apos o primeiro login via Google para completar nome e telefone.
-class CompleteProfileScreen extends StatefulWidget {
+class CompleteProfileScreen extends ConsumerStatefulWidget {
   const CompleteProfileScreen({super.key});
 
   @override
-  State<CompleteProfileScreen> createState() => _CompleteProfileScreenState();
+  ConsumerState<CompleteProfileScreen> createState() => _CompleteProfileScreenState();
 }
 
-class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
+class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
   final _telefoneController = TextEditingController();
@@ -21,7 +21,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final auth = context.read<AuthProvider>();
+    final auth = ref.read(authProvider);
     _nomeController.text = auth.userName;
   }
 
@@ -36,7 +36,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _loading = true);
     try {
-      final auth = context.read<AuthProvider>();
+      final auth = ref.read(authProvider);
       await auth.updateProfile(
         nome: _nomeController.text.trim(),
         telefone: _telefoneController.text.trim().isEmpty

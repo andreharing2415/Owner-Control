@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api.dart';
+import '../providers/riverpod_providers.dart';
+import '../services/obra_service.dart';
 import '../utils/auth_error_handler.dart';
 import 'convites_screen.dart';
 import 'etapas_screen.dart';
 import 'criar_obra_wizard.dart';
 import 'cronograma_screen.dart';
+import 'rdo_screen.dart';
 
-class ObrasScreen extends StatefulWidget {
+class ObrasScreen extends ConsumerStatefulWidget {
   const ObrasScreen({super.key, this.modoSelecao = false});
 
   final bool modoSelecao;
 
   @override
-  State<ObrasScreen> createState() => _ObrasScreenState();
+  ConsumerState<ObrasScreen> createState() => _ObrasScreenState();
 }
 
-class _ObrasScreenState extends State<ObrasScreen> {
-  final ApiClient _api = ApiClient();
+class _ObrasScreenState extends ConsumerState<ObrasScreen> {
   late Future<List<Obra>> _obrasFuture;
+
+  ObraService get _obraService => ref.read(obraServiceProvider);
 
   // Controla se o redirect automático para criação já foi disparado nesta sessão.
   // Evita loop infinito caso o usuário cancele o wizard sem criar obra.
@@ -26,12 +31,12 @@ class _ObrasScreenState extends State<ObrasScreen> {
   @override
   void initState() {
     super.initState();
-    _obrasFuture = _api.listarObras();
+    _obrasFuture = _obraService.listarObras();
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _obrasFuture = _api.listarObras();
+      _obrasFuture = _obraService.listarObras();
     });
   }
 
@@ -56,7 +61,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
     if (confirm != true) return;
 
     try {
-      await _api.deletarObra(obra.id);
+      await _obraService.deletarObra(obra.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Obra excluída.')),
@@ -131,7 +136,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
                 if (created == true && mounted) {
                   setState(() {
                     _redirectedToCreate = false;
-                    _obrasFuture = _api.listarObras();
+                    _obrasFuture = _obraService.listarObras();
                   });
                 }
               });
@@ -190,6 +195,13 @@ class _ObrasScreenState extends State<ObrasScreen> {
                                     ),
                                   ),
                                 );
+                              } else if (v == 'rdo') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RdoScreen(obra: obra),
+                                  ),
+                                );
                               } else if (v == 'excluir') {
                                 _deletarObra(obra);
                               }
@@ -201,6 +213,14 @@ class _ObrasScreenState extends State<ObrasScreen> {
                                   Icon(Icons.person_add_outlined, size: 18),
                                   SizedBox(width: 8),
                                   Text('Convites'),
+                                ]),
+                              ),
+                              PopupMenuItem(
+                                value: 'rdo',
+                                child: Row(children: [
+                                  Icon(Icons.event_note_outlined, size: 18),
+                                  SizedBox(width: 8),
+                                  Text('RDO diario'),
                                 ]),
                               ),
                               PopupMenuItem(

@@ -20,6 +20,9 @@ abstract class ObraService {
     String? dataFim,
   });
 
+  /// Exclui uma obra existente.
+  Future<void> deletarObra(String obraId);
+
   /// Lista etapas de uma obra.
   Future<List<Etapa>> listarEtapas(String obraId);
 
@@ -54,6 +57,9 @@ class ApiObraService implements ObraService {
         dataInicio: dataInicio,
         dataFim: dataFim,
       );
+
+  @override
+  Future<void> deletarObra(String obraId) => _client.deletarObra(obraId);
 
   @override
   Future<List<Etapa>> listarEtapas(String obraId) =>
