@@ -28,14 +28,14 @@
 - [ ] **FLOW-01**: Usuário sem obras é redirecionado automaticamente para wizard de criação (não tela em branco)
 - [ ] **FLOW-02**: Após criar obra, app navega automaticamente para upload de documento
 - [ ] **FLOW-03**: Após processar documento, app navega automaticamente para resultado (cronograma+checklist)
-- [ ] **FLOW-04**: Status de processamento da IA visível em tempo real na tela de espera
+- [x] **FLOW-04**: Status de processamento da IA visível em tempo real na tela de espera
 - [ ] **FLOW-05**: Estrutura de navegação clara — usuário sempre sabe em que etapa do fluxo está
 
 ### Dashboard do Engenheiro
 
-- [ ] **DASH-01**: Engenheiro vê todas as suas obras em um dashboard consolidado
-- [ ] **DASH-02**: Dashboard mostra % de conclusão, status financeiro e alertas por obra
-- [ ] **DASH-03**: Engenheiro pode alternar entre obras sem perder contexto
+- [x] **DASH-01**: Engenheiro vê todas as suas obras em um dashboard consolidado
+- [x] **DASH-02**: Dashboard mostra % de conclusão, status financeiro e alertas por obra
+- [x] **DASH-03**: Engenheiro pode alternar entre obras sem perder contexto
 
 ### Sistema de Papéis (Engenheiro + Dono)
 
@@ -118,11 +118,11 @@
 | FLOW-01 | Phase 2 | Pending |
 | FLOW-02 | Phase 2 | Pending |
 | FLOW-03 | Phase 2 | Pending |
-| FLOW-04 | Phase 2 | Pending |
+| FLOW-04 | Phase 2 | Complete |
 | FLOW-05 | Phase 2 | Pending |
-| DASH-01 | Phase 2 | Pending |
-| DASH-02 | Phase 2 | Pending |
-| DASH-03 | Phase 2 | Pending |
+| DASH-01 | Phase 2 | Complete |
+| DASH-02 | Phase 2 | Complete |
+| DASH-03 | Phase 2 | Complete |
 | ROLE-01 | Phase 3 | Pending |
 | ROLE-02 | Phase 3 | Pending |
 | ROLE-03 | Phase 3 | Pending |

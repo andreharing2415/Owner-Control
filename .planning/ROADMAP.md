@@ -78,7 +78,7 @@ Plans:
 
 Plans:
 - [ ] 02-01: Wizard de criação + navegação automática (zero-obras redirect, auto-navigate após criar obra e após processar documento)
-- [ ] 02-02: Dashboard multi-obra com % conclusão, status financeiro e alertas — skeleton loaders + lazy tab loading
+- [x] 02-02: Dashboard multi-obra com % conclusão, status financeiro e alertas — skeleton loaders + lazy tab loading
 - [ ] 02-03: Camada de seam no `ApiService` (wrapper antes de Provider) preparando migração gradual para Riverpod
 **UI hint**: yes
 
@@ -153,7 +153,7 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
 | 1. Pipeline IA de Documentos | 4/4 | Complete   | 2026-04-06 |
-| 2. Fluxo Guiado + Dashboard | 0/3 | Planned (executable) | - |
+| 2. Fluxo Guiado + Dashboard | 1/3 | In Progress|  |
 | 3. Sistema de Papéis | 0/4 | Planned (executable) | - |
 | 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |
 | 5. Modernização Arquitetural | 0/3 | Planned (executable) | - |
