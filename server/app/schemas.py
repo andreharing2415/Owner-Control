@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union
 from uuid import UUID
 
 from sqlmodel import SQLModel
@@ -943,6 +943,30 @@ class CronogramaResponse(SQLModel):
     total_gasto: float = 0
     desvio_percentual: float = 0
     atividades: List[AtividadeCronogramaRead] = []
+
+
+ChecklistItemRoleView = Union[ChecklistItemRead, ChecklistItemOwnerView]
+CronogramaRoleView = Union[CronogramaResponse, CronogramaOwnerView]
+
+
+def project_checklist_item_for_role(
+    item: ChecklistItemRead,
+    role: str,
+) -> ChecklistItemRoleView:
+    """Seleciona projeção de checklist conforme papel do usuário."""
+    if role == "dono_da_obra":
+        return ChecklistItemOwnerView.from_item(item)
+    return item
+
+
+def project_cronograma_for_role(
+    cronograma: CronogramaResponse,
+    role: str,
+) -> CronogramaRoleView:
+    """Seleciona projeção de cronograma conforme papel do usuário."""
+    if role == "dono_da_obra":
+        return CronogramaOwnerView.from_cronograma(cronograma)
+    return cronograma
 
 
 class AtividadeUpdate(SQLModel):
