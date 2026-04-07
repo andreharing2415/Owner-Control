@@ -21,6 +21,12 @@ abstract class AuthApiService {
     required String telefone,
     required String password,
   });
+
+  /// Realiza login com conta Google usando id token.
+  Future<Map<String, dynamic>> loginWithGoogle({required String idToken});
+
+  /// Atualiza perfil do usuario autenticado.
+  Future<Map<String, dynamic>> updateProfile({String? nome, String? telefone});
 }
 
 /// Implementacao concreta que delega para [ApiClient].
@@ -49,4 +55,12 @@ class ApiAuthService implements AuthApiService {
         telefone: telefone,
         password: password,
       );
+
+  @override
+  Future<Map<String, dynamic>> loginWithGoogle({required String idToken}) =>
+      _client.loginWithGoogle(idToken: idToken);
+
+  @override
+  Future<Map<String, dynamic>> updateProfile({String? nome, String? telefone}) =>
+      _client.updateProfile(nome: nome, telefone: telefone);
 }

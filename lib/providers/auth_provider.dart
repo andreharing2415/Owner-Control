@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 
-import '../api/api.dart';
 import '../services/auth_service.dart';
 import '../services/auth_api_service.dart';
 
@@ -102,8 +101,7 @@ class AuthProvider extends ChangeNotifier {
     final idToken = auth.idToken;
     if (idToken == null) throw Exception('Erro ao obter token do Google');
 
-    final api = ApiClient();
-    final result = await api.loginWithGoogle(idToken: idToken);
+    final result = await _authApi.loginWithGoogle(idToken: idToken);
 
     await AuthService.instance.saveTokens(
       accessToken: result['access_token'] as String,
@@ -119,8 +117,7 @@ class AuthProvider extends ChangeNotifier {
   // ─── Atualizar perfil ──────────────────────────────────────────────────
 
   Future<void> updateProfile({String? nome, String? telefone}) async {
-    final api = ApiClient();
-    final updatedUser = await api.updateProfile(nome: nome, telefone: telefone);
+    final updatedUser = await _authApi.updateProfile(nome: nome, telefone: telefone);
     _user = updatedUser;
     await AuthService.instance.updateCachedUser(updatedUser);
     notifyListeners();
