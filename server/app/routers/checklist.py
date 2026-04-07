@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -12,7 +12,8 @@ from ..db import get_session
 from ..models import User, ChecklistItem, Evidencia
 from ..schemas import (
     ChecklistItemCreate, ChecklistItemRead, ChecklistItemUpdate,
-    EvidenciaRead, RegistrarVerificacaoRequest,
+    ChecklistItemOwnerView, EvidenciaRead, RegistrarVerificacaoRequest,
+    project_checklist_item_for_role,
 )
 from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config
@@ -24,14 +25,21 @@ from ..helpers import (
 router = APIRouter(tags=["checklist"])
 
 
-@router.get("/api/etapas/{etapa_id}/checklist-items", response_model=List[ChecklistItemRead])
+@router.get(
+    "/api/etapas/{etapa_id}/checklist-items",
+    response_model=List[Union[ChecklistItemRead, ChecklistItemOwnerView]],
+)
 def listar_itens(
     etapa_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-) -> list[ChecklistItem]:
+) -> list[Union[ChecklistItemRead, ChecklistItemOwnerView]]:
     _verify_etapa_access(etapa_id, current_user, session)
-    return session.exec(select(ChecklistItem).where(ChecklistItem.etapa_id == etapa_id)).all()
+    items = session.exec(select(ChecklistItem).where(ChecklistItem.etapa_id == etapa_id)).all()
+    return [
+        project_checklist_item_for_role(ChecklistItemRead.model_validate(item), current_user.role)
+        for item in items
+    ]
 
 
 @router.post("/api/etapas/{etapa_id}/checklist-items", response_model=ChecklistItemRead)

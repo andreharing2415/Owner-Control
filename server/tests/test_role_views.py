@@ -27,6 +27,8 @@ from app.schemas import (
     CronogramaResponse,
     CronogramaOwnerView,
     ServicoNecessarioRead,
+    project_checklist_item_for_role,
+    project_cronograma_for_role,
 )
 from app.enums import ChecklistStatus
 
@@ -392,12 +394,7 @@ class TestProjectionByRole:
         """dono_da_obra deve receber ChecklistItemOwnerView sem campos tecnicos."""
         item = _make_checklist_item_read()
 
-        # Simula logica de selecao de serializer por role
-        role = "dono_da_obra"
-        if role == "dono_da_obra":
-            view = ChecklistItemOwnerView.from_item(item)
-        else:
-            view = item
+        view = project_checklist_item_for_role(item, "dono_da_obra")
 
         assert isinstance(view, ChecklistItemOwnerView)
         assert not hasattr(view, "norma_referencia")
@@ -407,12 +404,7 @@ class TestProjectionByRole:
         """owner/admin deve receber ChecklistItemRead com todos os campos tecnicos."""
         item = _make_checklist_item_read()
 
-        # Simula logica de selecao de serializer por role
-        role = "owner"
-        if role == "dono_da_obra":
-            view = ChecklistItemOwnerView.from_item(item)
-        else:
-            view = item
+        view = project_checklist_item_for_role(item, "owner")
 
         assert isinstance(view, ChecklistItemRead)
         assert view.norma_referencia is not None
@@ -422,12 +414,7 @@ class TestProjectionByRole:
         """convidado (colaborador tecnico) recebe ChecklistItemRead completo."""
         item = _make_checklist_item_read()
 
-        # Convidados sao colaboradores tecnicos — recebem visao completa
-        role = "convidado"
-        if role == "dono_da_obra":
-            view = ChecklistItemOwnerView.from_item(item)
-        else:
-            view = item
+        view = project_checklist_item_for_role(item, "convidado")
 
         assert isinstance(view, ChecklistItemRead)
         assert view.norma_referencia is not None
@@ -442,12 +429,7 @@ class TestProjectionByRole:
             desvio_percentual=-50.0,
             atividades=[ativ],
         )
-
-        role = "dono_da_obra"
-        if role == "dono_da_obra":
-            view = CronogramaOwnerView.from_cronograma(cronograma)
-        else:
-            view = cronograma
+        view = project_cronograma_for_role(cronograma, "dono_da_obra")
 
         assert isinstance(view, CronogramaOwnerView)
         assert not hasattr(view, "total_previsto")
@@ -463,12 +445,7 @@ class TestProjectionByRole:
             desvio_percentual=-50.0,
             atividades=[ativ],
         )
-
-        role = "owner"
-        if role == "dono_da_obra":
-            view = CronogramaOwnerView.from_cronograma(cronograma)
-        else:
-            view = cronograma
+        view = project_cronograma_for_role(cronograma, "owner")
 
         assert isinstance(view, CronogramaResponse)
         assert view.total_previsto == 100000.0

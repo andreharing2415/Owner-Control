@@ -1,7 +1,7 @@
 """Cronograma router — identificar projetos, gerar cronograma, atividades, servicos, checklist, despesas."""
 
 from datetime import date, datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,12 +18,14 @@ from ..schemas import (
     ServicoNecessarioRead, AtividadeCronogramaRead,
     CronogramaResponse, AtividadeUpdate,
     VincularPrestadorRequest, DespesaAtividadeCreate,
-    ChecklistItemCreate, ChecklistItemRead,
+    ChecklistItemCreate, ChecklistItemRead, ChecklistItemOwnerView,
+    CronogramaOwnerView,
     DespesaRead,
+    project_checklist_item_for_role, project_cronograma_for_role,
 )
 from ..enums import ProjetoDocStatus, AtividadeStatus
 from ..auth import get_current_user, require_engineer
-from ..helpers import _verify_obra_ownership
+from ..helpers import _verify_obra_ownership, _verify_obra_access
 from ..cronograma_ai import identificar_tipos_projeto, gerar_cronograma
 
 router = APIRouter(tags=["cronograma"])
@@ -342,15 +344,19 @@ def gerar_cronograma_endpoint(
 # ─── 3. Listar cronograma ───────────────────────────────────────────────────
 
 
-@router.get("/api/obras/{obra_id}/cronograma", response_model=CronogramaResponse)
+@router.get(
+    "/api/obras/{obra_id}/cronograma",
+    response_model=Union[CronogramaResponse, CronogramaOwnerView],
+)
 def listar_cronograma(
     obra_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-) -> CronogramaResponse:
+) -> Union[CronogramaResponse, CronogramaOwnerView]:
     """Lista o cronograma completo da obra com atividades L1, L2 e servicos."""
-    _verify_obra_ownership(obra_id, current_user, session)
-    return _build_cronograma_response(obra_id, session)
+    _verify_obra_access(obra_id, current_user, session)
+    cronograma = _build_cronograma_response(obra_id, session)
+    return project_cronograma_for_role(cronograma, current_user.role)
 
 
 # ─── 4. Atualizar atividade ─────────────────────────────────────────────────
@@ -468,26 +474,30 @@ def vincular_prestador(
 # ─── 7. Listar checklist de uma atividade ───────────────────────────────────
 
 
-@router.get("/api/cronograma/{atividade_id}/checklist", response_model=List[ChecklistItemRead])
+@router.get(
+    "/api/cronograma/{atividade_id}/checklist",
+    response_model=List[Union[ChecklistItemRead, ChecklistItemOwnerView]],
+)
 def listar_checklist_atividade(
     atividade_id: UUID,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-) -> List[ChecklistItemRead]:
+) -> List[Union[ChecklistItemRead, ChecklistItemOwnerView]]:
     """Lista itens de checklist vinculados a uma atividade do cronograma."""
     atividade = session.get(AtividadeCronograma, atividade_id)
     if not atividade:
         raise HTTPException(status_code=404, detail="Atividade nao encontrada")
 
-    obra = session.get(Obra, atividade.obra_id)
-    if not obra or obra.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Atividade nao encontrada")
+    _verify_obra_access(atividade.obra_id, current_user, session)
 
     items = session.exec(
         select(ChecklistItem).where(ChecklistItem.atividade_id == atividade_id)
     ).all()
 
-    return [ChecklistItemRead.model_validate(item) for item in items]
+    return [
+        project_checklist_item_for_role(ChecklistItemRead.model_validate(item), current_user.role)
+        for item in items
+    ]
 
 
 # ─── 8. Criar checklist item para atividade ──────────────────────────────────
