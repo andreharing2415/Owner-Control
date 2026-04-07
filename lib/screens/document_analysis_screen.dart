@@ -4,15 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../api/api.dart';
+import 'cronograma_screen.dart';
 import 'detalhe_risco_screen.dart';
+import 'etapas_screen.dart';
 import 'pdf_viewer_screen.dart';
 import 'riscos_review_screen.dart';
 import '../utils/auth_error_handler.dart';
 
 class DocumentAnalysisScreen extends StatefulWidget {
-  const DocumentAnalysisScreen({super.key, required this.projeto});
+  const DocumentAnalysisScreen({
+    super.key,
+    required this.projeto,
+    /// Quando fornecida, ao concluir a geração unificada a tela navega
+    /// automaticamente para o resultado (CronogramaScreen ou EtapasScreen).
+    this.obra,
+  });
 
   final ProjetoDoc projeto;
+  final Obra? obra;
 
   @override
   State<DocumentAnalysisScreen> createState() => _DocumentAnalysisScreenState();
@@ -67,10 +76,27 @@ class _DocumentAnalysisScreenState extends State<DocumentAnalysisScreen> {
       setState(() => _geracaoLog = atualizado);
       if (atualizado.isTerminal) {
         _stopPolling();
+        if (atualizado.status == 'concluido' && widget.obra != null) {
+          // Navega automaticamente ao resultado após geração concluída.
+          _navigateToResultado(widget.obra!);
+        }
       }
     } catch (_) {
       // Falha de rede no polling é ignorada silenciosamente — tentará no próximo tick
     }
+  }
+
+  /// Navega para a tela de resultado (CronogramaScreen ou EtapasScreen)
+  /// dependendo do tipo da obra.
+  void _navigateToResultado(Obra obra) {
+    if (!mounted) return;
+    final destino = obra.tipo == 'construcao'
+        ? CronogramaScreen(obra: obra)
+        : EtapasScreen(obra: obra);
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => destino),
+    );
   }
 
   Future<void> _dispararAnalise() async {

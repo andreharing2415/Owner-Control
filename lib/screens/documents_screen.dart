@@ -288,7 +288,10 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                   onTap: (p) => Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => DocumentAnalysisScreen(projeto: p),
+                      builder: (_) => DocumentAnalysisScreen(
+                        projeto: p,
+                        obra: _obraSelecionada,
+                      ),
                     ),
                   ).then((_) => _recarregar()),
                 ),
