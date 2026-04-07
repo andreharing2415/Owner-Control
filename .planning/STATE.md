@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Ready to execute
-last_updated: "2026-04-07T00:07:21.952Z"
+status: Phase complete — ready for verification
+last_updated: "2026-04-07T00:12:53.613Z"
 progress:
   total_phases: 6
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 20
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -55,6 +55,7 @@ Phase 00 — All plans complete. Phase 00 done.
 - [Phase 02]: _MultiObraSummaryRow so aparece quando ha obras com alerta no cache — evita widget vazio
 - [Phase 02-01]: ObraTabNotification desacopla HomeScreen de MainShell para mudanca de aba
 - [Phase 02-01]: DocumentAnalysisScreen aceita Obra opcional para navegacao pos-geracao
+- [Phase 02]: Seam via abstract class + injecao opcional — AuthProvider e HomeScreen desacoplados de ApiClient sem impacto em callsites
 
 ## Notes
 

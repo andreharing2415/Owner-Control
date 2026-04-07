@@ -18,7 +18,7 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 
 - [x] **Phase 0: Bloqueadores Críticos** - Corrigir 3 bugs de produção + 1 CVE de segurança antes de qualquer feature nova
 - [x] **Phase 1: Pipeline IA de Documentos** - IA lê o documento real e gera cronograma+checklist específicos daquele projeto (completed 2026-04-06)
-- [ ] **Phase 2: Fluxo Guiado + Dashboard do Engenheiro** - Wizard de onboarding linear e dashboard multi-obra profissional
+- [x] **Phase 2: Fluxo Guiado + Dashboard do Engenheiro** - Wizard de onboarding linear e dashboard multi-obra profissional (completed 2026-04-07)
 - [ ] **Phase 3: Sistema de Papéis** - Engenheiro gerencia, dono observa — permissões corretas antes de qualquer tela role-gated
 - [ ] **Phase 4: RDO + Evidências Fotográficas** - Registro diário de obra com fotos geotagueadas e alertas de prazo
 - [ ] **Phase 5: Modernização Arquitetural** - Riverpod + go_router + in_app_purchase para compliance e sustentabilidade
@@ -79,7 +79,7 @@ Plans:
 Plans:
 - [x] 02-01: Wizard de criação + navegação automática (zero-obras redirect, auto-navigate após criar obra e após processar documento)
 - [x] 02-02: Dashboard multi-obra com % conclusão, status financeiro e alertas — skeleton loaders + lazy tab loading
-- [ ] 02-03: Camada de seam no `ApiService` (wrapper antes de Provider) preparando migração gradual para Riverpod
+- [x] 02-03: Camada de seam no `ApiService` (wrapper antes de Provider) preparando migração gradual para Riverpod
 **UI hint**: yes
 
 ### Phase 3: Sistema de Papéis (Engenheiro + Dono)
@@ -153,7 +153,7 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
 | 1. Pipeline IA de Documentos | 4/4 | Complete   | 2026-04-06 |
-| 2. Fluxo Guiado + Dashboard | 2/3 | In Progress|  |
+| 2. Fluxo Guiado + Dashboard | 3/3 | Complete   | 2026-04-07 |
 | 3. Sistema de Papéis | 0/4 | Planned (executable) | - |
 | 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |
 | 5. Modernização Arquitetural | 0/3 | Planned (executable) | - |
