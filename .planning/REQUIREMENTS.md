@@ -25,11 +25,11 @@
 
 ### Fluxo Principal Guiado
 
-- [ ] **FLOW-01**: Usuário sem obras é redirecionado automaticamente para wizard de criação (não tela em branco)
-- [ ] **FLOW-02**: Após criar obra, app navega automaticamente para upload de documento
-- [ ] **FLOW-03**: Após processar documento, app navega automaticamente para resultado (cronograma+checklist)
+- [x] **FLOW-01**: Usuário sem obras é redirecionado automaticamente para wizard de criação (não tela em branco)
+- [x] **FLOW-02**: Após criar obra, app navega automaticamente para upload de documento
+- [x] **FLOW-03**: Após processar documento, app navega automaticamente para resultado (cronograma+checklist)
 - [x] **FLOW-04**: Status de processamento da IA visível em tempo real na tela de espera
-- [ ] **FLOW-05**: Estrutura de navegação clara — usuário sempre sabe em que etapa do fluxo está
+- [x] **FLOW-05**: Estrutura de navegação clara — usuário sempre sabe em que etapa do fluxo está
 
 ### Dashboard do Engenheiro
 
@@ -39,12 +39,12 @@
 
 ### Sistema de Papéis (Engenheiro + Dono)
 
-- [ ] **ROLE-01**: Engenheiro é o criador e gestor da obra (inversão do modelo atual onde qualquer usuário cria)
-- [ ] **ROLE-02**: Dono de obra é convidado pelo engenheiro e acessa visão restrita da obra específica
-- [ ] **ROLE-03**: Dono vê somente a obra para a qual foi convidado — sem visibilidade de outras obras do engenheiro
+- [x] **ROLE-01**: Engenheiro é o criador e gestor da obra (inversão do modelo atual onde qualquer usuário cria)
+- [x] **ROLE-02**: Dono de obra é convidado pelo engenheiro e acessa visão restrita da obra específica
+- [x] **ROLE-03**: Dono vê somente a obra para a qual foi convidado — sem visibilidade de outras obras do engenheiro
 - [ ] **ROLE-04**: Visão do dono usa linguagem leiga (sem campos técnicos de engenharia)
-- [ ] **ROLE-05**: Todas as operações de escrita requerem papel de engenheiro
-- [ ] **ROLE-06**: Permissões auditadas em todos os 13 routers antes de qualquer tela role-gated
+- [x] **ROLE-05**: Todas as operações de escrita requerem papel de engenheiro
+- [x] **ROLE-06**: Permissões auditadas em todos os 13 routers antes de qualquer tela role-gated
 
 ### Portal do Dono de Obra
 
@@ -115,20 +115,20 @@
 | AI-05 | Phase 1 | Complete |
 | AI-06 | Phase 1 | Complete |
 | AI-07 | Phase 1 | Complete |
-| FLOW-01 | Phase 2 | Pending |
-| FLOW-02 | Phase 2 | Pending |
-| FLOW-03 | Phase 2 | Pending |
+| FLOW-01 | Phase 2 | Complete |
+| FLOW-02 | Phase 2 | Complete |
+| FLOW-03 | Phase 2 | Complete |
 | FLOW-04 | Phase 2 | Complete |
-| FLOW-05 | Phase 2 | Pending |
+| FLOW-05 | Phase 2 | Complete |
 | DASH-01 | Phase 2 | Complete |
 | DASH-02 | Phase 2 | Complete |
 | DASH-03 | Phase 2 | Complete |
-| ROLE-01 | Phase 3 | Pending |
-| ROLE-02 | Phase 3 | Pending |
-| ROLE-03 | Phase 3 | Pending |
+| ROLE-01 | Phase 3 | Complete |
+| ROLE-02 | Phase 3 | Complete |
+| ROLE-03 | Phase 3 | Complete |
 | ROLE-04 | Phase 3 | Pending |
-| ROLE-05 | Phase 3 | Pending |
-| ROLE-06 | Phase 3 | Pending |
+| ROLE-05 | Phase 3 | Complete |
+| ROLE-06 | Phase 3 | Complete |
 | OWNER-01 | Phase 3 | Pending |
 | OWNER-02 | Phase 3 | Pending |
 | OWNER-03 | Phase 3 | Pending |

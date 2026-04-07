@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: Phase complete — ready for verification
-last_updated: "2026-04-07T00:12:53.613Z"
+status: Ready to execute
+last_updated: "2026-04-07T00:36:47.473Z"
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 20
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -21,8 +21,8 @@ progress:
 
 ## Current Position
 
-Phase: 02 (fluxo-guiado-dashboard-do-engenheiro) — EXECUTING
-Plan: 3 of 3
+Phase: 03 (sistema-de-pap-is-engenheiro-dono) — EXECUTING
+Plan: 2 of 4
 Phase 00 — All plans complete. Phase 00 done.
 
 ## Phase Progress
@@ -56,6 +56,9 @@ Phase 00 — All plans complete. Phase 00 done.
 - [Phase 02-01]: ObraTabNotification desacopla HomeScreen de MainShell para mudanca de aba
 - [Phase 02-01]: DocumentAnalysisScreen aceita Obra opcional para navegacao pos-geracao
 - [Phase 02]: Seam via abstract class + injecao opcional — AuthProvider e HomeScreen desacoplados de ApiClient sem impacto em callsites
+- [Phase 03]: require_engineer como FastAPI Depends — integracao idiomatica sem codigo adicional nos handlers
+- [Phase 03]: ENGINEER_ROLES = {owner, admin} — dono_da_obra e convidado bloqueados de escrita por padrao
+- [Phase 03]: dono_da_obra role sem nova migration — campo User.role ja e string livre
 
 ## Notes
 

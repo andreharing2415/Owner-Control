@@ -99,7 +99,7 @@ Plans:
 **Plans**: 4 planos
 
 Plans:
-- [ ] 03-01: Auditoria e implementação de `require_role()` em todos os 13 routers + testes de integração da matriz de permissões
+- [x] 03-01: Auditoria e implementação de `require_role()` em todos os 13 routers + testes de integração da matriz de permissões
 - [ ] 03-02: Projeções de schema em runtime — `ChecklistItemOwnerView` e `ChecklistItemEngineerView` com campos distintos por papel
 - [ ] 03-03: Tela de progresso para o dono (linguagem leiga, % conclusão, fotos recentes, próximas etapas)
 - [ ] 03-04: Migração para `go_router` com `ShellRoute` para bottom nav condicionado por papel (habilita deep linking e navegação correta por role)
@@ -154,6 +154,6 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 | 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
 | 1. Pipeline IA de Documentos | 4/4 | Complete   | 2026-04-06 |
 | 2. Fluxo Guiado + Dashboard | 3/3 | Complete   | 2026-04-07 |
-| 3. Sistema de Papéis | 0/4 | Planned (executable) | - |
+| 3. Sistema de Papéis | 1/4 | In Progress|  |
 | 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |
 | 5. Modernização Arquitetural | 0/3 | Planned (executable) | - |
