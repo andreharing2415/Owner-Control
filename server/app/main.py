@@ -65,7 +65,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$|https://mestreobra-[a-z0-9.-]*\.run\.app$",
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?$|https://mestreobra-backend-530484413221\.us-central1\.run\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["Content-Type", "Authorization", "X-Requested-With"],

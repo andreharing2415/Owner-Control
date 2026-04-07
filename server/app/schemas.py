@@ -191,6 +191,127 @@ class ChecklistItemRead(SQLModel):
     updated_at: datetime
 
 
+# ─── Role-based view projections (ROLE-04 / OWNER-03) ────────────────────────
+
+class ChecklistItemOwnerView(SQLModel):
+    """Projecao do checklist para o dono da obra — campos leigos, sem terminologia tecnica.
+
+    Exclui: norma_referencia, severidade, dado_projeto, verificacoes,
+            pergunta_engenheiro, documentos_a_exigir, confianca,
+            requer_validacao_profissional, resultado_cruzamento, status_verificacao.
+    Inclui: traducao_leigo, explicacao_leigo, como_verificar — linguagem acessivel.
+    """
+    id: UUID
+    etapa_id: Optional[UUID] = None
+    atividade_id: Optional[UUID] = None
+    titulo: str
+    descricao: Optional[str] = None
+    status: ChecklistStatus
+    critico: bool
+    observacao: Optional[str] = None
+    grupo: str
+    ordem: int
+    # Campos de linguagem leiga (mantidos para o dono)
+    traducao_leigo: Optional[str] = None
+    explicacao_leigo: Optional[str] = None
+    como_verificar: Optional[str] = None
+    # Registro do proprio dono
+    registro_proprietario: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_item(cls, item: "ChecklistItemRead") -> "ChecklistItemOwnerView":
+        """Projeta ChecklistItemRead filtrando campos tecnicos."""
+        return cls(
+            id=item.id,
+            etapa_id=item.etapa_id,
+            atividade_id=item.atividade_id,
+            titulo=item.titulo,
+            descricao=item.descricao,
+            status=item.status,
+            critico=item.critico,
+            observacao=item.observacao,
+            grupo=item.grupo,
+            ordem=item.ordem,
+            traducao_leigo=item.traducao_leigo,
+            explicacao_leigo=item.explicacao_leigo,
+            como_verificar=item.como_verificar,
+            registro_proprietario=item.registro_proprietario,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
+
+
+class AtividadeOwnerView(SQLModel):
+    """Projecao do cronograma para o dono da obra — progresso simplificado sem financeiro.
+
+    Exclui: valor_previsto, valor_gasto, tipo_projeto, is_modified, locked,
+            servicos (detalhe operacional do engenheiro).
+    Inclui: nome, descricao, status, datas — suficiente para acompanhamento.
+    """
+    id: UUID
+    obra_id: UUID
+    parent_id: Optional[UUID] = None
+    nome: str
+    descricao: Optional[str] = None
+    ordem: int
+    nivel: int
+    status: str
+    data_inicio_prevista: Optional[date] = None
+    data_fim_prevista: Optional[date] = None
+    data_inicio_real: Optional[date] = None
+    data_fim_real: Optional[date] = None
+    sub_atividades: List["AtividadeOwnerView"] = []
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_atividade(cls, ativ: "AtividadeCronogramaRead") -> "AtividadeOwnerView":
+        """Projeta AtividadeCronogramaRead removendo campos financeiros e operacionais."""
+        return cls(
+            id=ativ.id,
+            obra_id=ativ.obra_id,
+            parent_id=ativ.parent_id,
+            nome=ativ.nome,
+            descricao=ativ.descricao,
+            ordem=ativ.ordem,
+            nivel=ativ.nivel,
+            status=ativ.status,
+            data_inicio_prevista=ativ.data_inicio_prevista,
+            data_fim_prevista=ativ.data_fim_prevista,
+            data_inicio_real=ativ.data_inicio_real,
+            data_fim_real=ativ.data_fim_real,
+            sub_atividades=[
+                cls.from_atividade(sub) for sub in (ativ.sub_atividades or [])
+            ],
+            created_at=ativ.created_at,
+            updated_at=ativ.updated_at,
+        )
+
+
+class CronogramaOwnerView(SQLModel):
+    """Projecao do cronograma completo para o dono da obra.
+
+    Remove totais financeiros — exibe apenas progresso por atividade.
+    """
+    obra_id: UUID
+    atividades: List[AtividadeOwnerView] = []
+
+    @classmethod
+    def from_cronograma(cls, cronograma: "CronogramaResponse") -> "CronogramaOwnerView":
+        """Projeta CronogramaResponse removendo dados financeiros."""
+        return cls(
+            obra_id=cronograma.obra_id,
+            atividades=[
+                AtividadeOwnerView.from_atividade(a) for a in (cronograma.atividades or [])
+            ],
+        )
+
+
+AtividadeOwnerView.model_rebuild()
+
+
 class ChecklistItemUpdate(SQLModel):
     titulo: Optional[str] = None
     descricao: Optional[str] = None

@@ -100,10 +100,12 @@ def enviar_email_convite(
     if resend_key:
         return _send_via_resend(resend_key, destinatario, subject, body_html)
 
-    # Fallback: log para desenvolvimento
+    # Fallback: log para desenvolvimento (SEC-04v2: não logar token/link)
+    import hashlib
+    token_hash = hashlib.sha256(token.encode()).hexdigest()[:12]
     logger.warning(
-        "EMAIL NÃO ENVIADO (nenhum provedor configurado):\n  Para: %s\n  Obra: %s\n  Link: %s",
-        destinatario, obra_nome, magic_link,
+        "EMAIL NÃO ENVIADO (nenhum provedor configurado):\n  Para: %s\n  Obra: %s\n  Token hash: %s",
+        destinatario, obra_nome, token_hash,
     )
     return False
 
