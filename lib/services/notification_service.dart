@@ -32,7 +32,27 @@ class NotificationService {
   static final NotificationService instance = NotificationService._();
 
   final _local = FlutterLocalNotificationsPlugin();
+  final List<void Function(Map<String, dynamic>)> _dataListeners = [];
+  Future<void> Function(Map<String, dynamic>)? _deepLinkHandler;
   bool _initialized = false;
+
+  void setDeepLinkHandler(Future<void> Function(Map<String, dynamic>) handler) {
+    _deepLinkHandler = handler;
+  }
+
+  void addDataListener(void Function(Map<String, dynamic>) listener) {
+    _dataListeners.add(listener);
+  }
+
+  void removeDataListener(void Function(Map<String, dynamic>) listener) {
+    _dataListeners.remove(listener);
+  }
+
+  void _notifyDataListeners(Map<String, dynamic> data) {
+    for (final listener in _dataListeners) {
+      listener(data);
+    }
+  }
 
   // ── Inicialização ────────────────────────────────────────────────────────────
 
@@ -53,6 +73,14 @@ class NotificationService {
     );
     await _local.initialize(
       const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      onDidReceiveNotificationResponse: (response) {
+        if (response.payload == null || response.payload!.isEmpty) return;
+        final payload = <String, dynamic>{'route': response.payload};
+        _notifyDataListeners(payload);
+        if (_deepLinkHandler != null) {
+          _deepLinkHandler!(payload);
+        }
+      },
     );
 
     // Criar canal de alta prioridade no Android 8+
@@ -94,6 +122,11 @@ class NotificationService {
     // Handlers
     FirebaseMessaging.onMessage.listen(_onForegroundMessage);
     FirebaseMessaging.onMessageOpenedApp.listen(_onMessageOpenedApp);
+
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      _onMessageOpenedApp(initialMessage);
+    }
   }
 
   // ── Token FCM ────────────────────────────────────────────────────────────────
@@ -140,8 +173,10 @@ class NotificationService {
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   void _onForegroundMessage(RemoteMessage message) {
+    _notifyDataListeners(message.data);
     final n = message.notification;
     if (n == null) return;
+    final route = message.data['route'] as String?;
 
     _local.show(
       message.hashCode,
@@ -162,11 +197,15 @@ class NotificationService {
           presentSound: true,
         ),
       ),
+      payload: route,
     );
   }
 
   void _onMessageOpenedApp(RemoteMessage message) {
-    // TODO (Fase Auth): navegar para a obra indicada em message.data['obra_id']
+    _notifyDataListeners(message.data);
+    if (_deepLinkHandler != null) {
+      _deepLinkHandler!(message.data);
+    }
     debugPrint('[FCM] app aberto via notificação: ${message.data}');
   }
 }

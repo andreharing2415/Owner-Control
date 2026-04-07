@@ -77,6 +77,11 @@ class MestreDaObraApp extends rp.ConsumerWidget {
     final authNotifier = ref.watch(riverpod.authProvider);
     final ownerNotifier = ref.watch(riverpod.ownerProgressProvider);
     final subscriptionNotifier = ref.watch(riverpod.subscriptionProvider);
+    final appRouter = AppRouter(authProvider: authNotifier);
+
+    NotificationService.instance.setDeepLinkHandler((payload) {
+      return appRouter.openFromNotificationPayload(payload);
+    });
 
     return MultiProvider(
       providers: [
@@ -91,7 +96,7 @@ class MestreDaObraApp extends rp.ConsumerWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
           useMaterial3: true,
         ),
-        routerConfig: AppRouter(authProvider: authNotifier).router,
+        routerConfig: appRouter.router,
       ),
     );
   }
