@@ -3,33 +3,40 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-04-07T00:36:47.473Z"
+last_updated: "2026-04-07T01:42:10.357Z"
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 5
   total_plans: 20
-  completed_plans: 11
+  completed_plans: 18
 ---
 
 # Project State
 
 ## Current Status
 
-**Active Phase:** 00 — Bloqueadores Críticos
+**Active Phase:** 05 — Modernização Arquitetural
 **Started:** 2026-04-06
 **Plans:** 3 total, 3 incomplete
 
 ## Current Position
 
-Phase: 03 (sistema-de-pap-is-engenheiro-dono) — EXECUTING
-Plan: 2 of 4
-Phase 00 — All plans complete. Phase 00 done.
+Phase: 05 (moderniza-o-arquitetural) — PLANNED
+Plan: 1 of 3
+Phase 04 — All plans complete. Phase 04 done.
 
 ## Phase Progress
 
 - [x] 00-01: Corrigir cadeia Alembic + Cloud Run min-instances
 - [x] 00-02: Substituir python-jose por PyJWT + corrigir cancelamento Stripe
 - [x] 00-03: Substituir fpdf2 por WeasyPrint+Jinja2
+- [x] 03-01: Auditoria de permissões + require_engineer em 13 routers
+- [x] 03-02: Projeções de schema por role (OwnerView/EngineerView)
+- [x] 03-03: Tela de progresso do dono + provider de atualização
+- [x] 03-04: go_router com ShellRoute condicionado por role
+- [x] 04-01: Formulário de RDO + publicação com push para dono
+- [x] 04-02: Geotag e timestamp automáticos + vínculo de evidência em atividade
+- [x] 04-03: Alertas de atraso/prazo com disparo FCM para engenheiro
 
 ## Decisions
 
@@ -59,6 +66,14 @@ Phase 00 — All plans complete. Phase 00 done.
 - [Phase 03]: require_engineer como FastAPI Depends — integracao idiomatica sem codigo adicional nos handlers
 - [Phase 03]: ENGINEER_ROLES = {owner, admin} — dono_da_obra e convidado bloqueados de escrita por padrao
 - [Phase 03]: dono_da_obra role sem nova migration — campo User.role ja e string livre
+- [Phase 03]: Projecao de payload por role via helpers project_checklist_item_for_role/project_cronograma_for_role
+- [Phase 03]: OwnerProgressoScreen + OwnerProgressProvider para visao leiga de acompanhamento
+- [Phase 03]: AppRouter com dois ShellRoute (engenheiro e dono) e guard role-aware
+- [Phase 04]: RdoDiario com endpoints de criar/listar/publicar e push ao dono no publish
+- [Phase 04]: Geolocator integrado no app para enviar latitude/longitude/capturado_em no upload de evidência
+- [Phase 04]: Serviço de alertas de cronograma detecta atraso de atividade e janela de 7 dias para prazo final
+- [Phase 05]: Bridge Provider+Riverpod para rollout incremental sem regressao
+- [Phase 05]: Migracao inicial focada nos fluxos principais (auth/settings/obras/owner progresso)
 
 ## Notes
 

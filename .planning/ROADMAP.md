@@ -19,8 +19,8 @@ O app já existe como codebase brownfield com 40+ telas e 13 routers de backend.
 - [x] **Phase 0: Bloqueadores Críticos** - Corrigir 3 bugs de produção + 1 CVE de segurança antes de qualquer feature nova
 - [x] **Phase 1: Pipeline IA de Documentos** - IA lê o documento real e gera cronograma+checklist específicos daquele projeto (completed 2026-04-06)
 - [x] **Phase 2: Fluxo Guiado + Dashboard do Engenheiro** - Wizard de onboarding linear e dashboard multi-obra profissional (completed 2026-04-07)
-- [ ] **Phase 3: Sistema de Papéis** - Engenheiro gerencia, dono observa — permissões corretas antes de qualquer tela role-gated
-- [ ] **Phase 4: RDO + Evidências Fotográficas** - Registro diário de obra com fotos geotagueadas e alertas de prazo
+- [x] **Phase 3: Sistema de Papéis** - Engenheiro gerencia, dono observa — permissões corretas antes de qualquer tela role-gated (completed 2026-04-07)
+- [x] **Phase 4: RDO + Evidências Fotográficas** - Registro diário de obra com fotos geotagueadas e alertas de prazo (completed 2026-04-06)
 - [ ] **Phase 5: Modernização Arquitetural** - Riverpod + go_router + in_app_purchase para compliance e sustentabilidade
 
 ## Phase Details
@@ -100,9 +100,9 @@ Plans:
 
 Plans:
 - [x] 03-01: Auditoria e implementação de `require_role()` em todos os 13 routers + testes de integração da matriz de permissões
-- [ ] 03-02: Projeções de schema em runtime — `ChecklistItemOwnerView` e `ChecklistItemEngineerView` com campos distintos por papel
-- [ ] 03-03: Tela de progresso para o dono (linguagem leiga, % conclusão, fotos recentes, próximas etapas)
-- [ ] 03-04: Migração para `go_router` com `ShellRoute` para bottom nav condicionado por papel (habilita deep linking e navegação correta por role)
+- [x] 03-02: Projeções de schema em runtime — `ChecklistItemOwnerView` e `ChecklistItemEngineerView` com campos distintos por papel
+- [x] 03-03: Tela de progresso para o dono (linguagem leiga, % conclusão, fotos recentes, próximas etapas)
+- [x] 03-04: Migração para `go_router` com `ShellRoute` para bottom nav condicionado por papel (habilita deep linking e navegação correta por role)
 **UI hint**: yes
 
 ### Phase 4: RDO + Evidências Fotográficas
@@ -119,9 +119,9 @@ Plans:
 **Plans**: 3 planos (paralelo: 04-01 e 04-02 rodam simultaneamente)
 
 Plans:
-- [ ] 04-01: Formulário RDO (data, clima, mão de obra, atividades, fotos) + publicação com push notification ao dono
-- [ ] 04-02: Integração `geolocator` — geotag + timestamp automáticos em fotos + vinculação de fotos a `AtividadeCronograma`
-- [ ] 04-03: Alertas de atraso e prazo (engenheiro) — lógica de comparação cronograma × data atual + disparo via FCM
+- [x] 04-01: Formulário RDO (data, clima, mão de obra, atividades, fotos) + publicação com push notification ao dono
+- [x] 04-02: Integração `geolocator` — geotag + timestamp automáticos em fotos + vinculação de fotos a `AtividadeCronograma`
+- [x] 04-03: Alertas de atraso e prazo (engenheiro) — lógica de comparação cronograma × data atual + disparo via FCM
 **UI hint**: yes
 
 ### Phase 5: Modernização Arquitetural
@@ -140,7 +140,7 @@ Plans:
 **Plans**: 3 planos (paralelo: 05-01 e 05-02 rodam simultaneamente)
 
 Plans:
-- [ ] 05-01: Migração Provider → Riverpod 3.0 por domínio (seam já implantado na Phase 2, migrar providers um domínio por vez)
+- [x] 05-01: Migração Provider → Riverpod 3.0 por domínio (seam já implantado na Phase 2, migrar providers um domínio por vez)
 - [ ] 05-02: Completar go_router com named routes + Firebase Messaging wiring para deep linking via push
 - [ ] 05-03: Substituir Stripe in-app por `in_app_purchase` (Google Play Billing / StoreKit 2) + dividir `api.dart` em módulos de domínio
 
@@ -154,6 +154,6 @@ Phases executam em ordem numérica: 0 → 1 → 2 → 3 → 4 → 5
 | 0. Bloqueadores Críticos | 1/3 | In progress | 00-01 |
 | 1. Pipeline IA de Documentos | 4/4 | Complete   | 2026-04-06 |
 | 2. Fluxo Guiado + Dashboard | 3/3 | Complete   | 2026-04-07 |
-| 3. Sistema de Papéis | 1/4 | In Progress|  |
-| 4. RDO + Evidências Fotográficas | 0/3 | Planned (executable) | - |
+| 3. Sistema de Papéis | 4/4 | Complete | 2026-04-07 |
+| 4. RDO + Evidências Fotográficas | 3/3 | Complete | 2026-04-06 |
 | 5. Modernização Arquitetural | 0/3 | Planned (executable) | - |
