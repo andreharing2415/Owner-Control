@@ -7,6 +7,9 @@ import 'documents_screen.dart';
 import 'prestadores_screen.dart';
 import 'settings_screen.dart';
 
+// Índice da aba Obras na NavigationBar.
+const _kObrasTabIndex = 1;
+
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -56,62 +59,68 @@ class _MainShellState extends State<MainShell> {
           nav.pop();
         }
       },
-      child: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: [
-            _TabNavigator(
-              navigatorKey: _navigatorKeys[0],
-              child: HomeScreen(refreshNotifier: _homeRefresh),
-            ),
-            _TabNavigator(
-              navigatorKey: _navigatorKeys[1],
-              child: const ObrasScreen(),
-            ),
-            _TabNavigator(
-              navigatorKey: _navigatorKeys[2],
-              child: DocumentsScreen(refreshNotifier: _documentsRefresh),
-            ),
-            _TabNavigator(
-              navigatorKey: _navigatorKeys[3],
-              child: const PrestadoresScreen(),
-            ),
-            _TabNavigator(
-              navigatorKey: _navigatorKeys[4],
-              child: const SettingsScreen(),
-            ),
-          ],
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: _onTabChanged,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
-              label: 'Inicio',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.home_work_outlined),
-              selectedIcon: Icon(Icons.home_work),
-              label: 'Obra',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.folder_outlined),
-              selectedIcon: Icon(Icons.folder),
-              label: 'Documentos',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.people_outline),
-              selectedIcon: Icon(Icons.people),
-              label: 'Prestadores',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              selectedIcon: Icon(Icons.settings),
-              label: 'Config',
-            ),
-          ],
+      child: NotificationListener<ObraTabNotification>(
+        onNotification: (_) {
+          _onTabChanged(_kObrasTabIndex);
+          return true;
+        },
+        child: Scaffold(
+          body: IndexedStack(
+            index: _currentIndex,
+            children: [
+              _TabNavigator(
+                navigatorKey: _navigatorKeys[0],
+                child: HomeScreen(refreshNotifier: _homeRefresh),
+              ),
+              _TabNavigator(
+                navigatorKey: _navigatorKeys[1],
+                child: const ObrasScreen(),
+              ),
+              _TabNavigator(
+                navigatorKey: _navigatorKeys[2],
+                child: DocumentsScreen(refreshNotifier: _documentsRefresh),
+              ),
+              _TabNavigator(
+                navigatorKey: _navigatorKeys[3],
+                child: const PrestadoresScreen(),
+              ),
+              _TabNavigator(
+                navigatorKey: _navigatorKeys[4],
+                child: const SettingsScreen(),
+              ),
+            ],
+          ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _currentIndex,
+            onDestinationSelected: _onTabChanged,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Inicio',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.home_work_outlined),
+                selectedIcon: Icon(Icons.home_work),
+                label: 'Obra',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.folder_outlined),
+                selectedIcon: Icon(Icons.folder),
+                label: 'Documentos',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.people_outline),
+                selectedIcon: Icon(Icons.people),
+                label: 'Prestadores',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.settings_outlined),
+                selectedIcon: Icon(Icons.settings),
+                label: 'Config',
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -19,6 +19,10 @@ class _ObrasScreenState extends State<ObrasScreen> {
   final ApiClient _api = ApiClient();
   late Future<List<Obra>> _obrasFuture;
 
+  // Controla se o redirect automático para criação já foi disparado nesta sessão.
+  // Evita loop infinito caso o usuário cancele o wizard sem criar obra.
+  bool _redirectedToCreate = false;
+
   @override
   void initState() {
     super.initState();
@@ -115,6 +119,23 @@ class _ObrasScreenState extends State<ObrasScreen> {
           }
           final obras = snapshot.data ?? [];
           if (obras.isEmpty) {
+            // Redireciona automaticamente para o wizard na primeira vez.
+            if (!_redirectedToCreate && !widget.modoSelecao) {
+              _redirectedToCreate = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                if (!mounted) return;
+                final created = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CriarObraWizard()),
+                );
+                if (created == true && mounted) {
+                  setState(() {
+                    _redirectedToCreate = false;
+                    _obrasFuture = _api.listarObras();
+                  });
+                }
+              });
+            }
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -124,6 +145,12 @@ class _ObrasScreenState extends State<ObrasScreen> {
                   Text("Nenhuma obra cadastrada", style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 8),
                   const Text("Toque em 'Nova Obra' para começar."),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _criarObra,
+                    icon: const Icon(Icons.add),
+                    label: const Text("Criar primeira obra"),
+                  ),
                 ],
               ),
             );

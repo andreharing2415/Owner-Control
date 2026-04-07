@@ -11,6 +11,10 @@ import '../widgets/ad_banner_widget.dart';
 
 final _brl = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$\u00a0');
 
+/// Notificação disparada quando HomeScreen quer mudar para a aba Obras.
+/// Capturada por MainShell via NotificationListener.
+class ObraTabNotification extends Notification {}
+
 // ─── Dados consolidados de uma obra para o dashboard ─────────────────────────
 
 class _DashboardData {
@@ -615,23 +619,37 @@ class _SemObrasView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.home_work_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 12),
-          Text(
-            'Nenhuma obra cadastrada.',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Acesse "Obra" no menu para criar sua primeira obra.',
-            style: TextStyle(color: Colors.grey, fontSize: 13),
-            textAlign: TextAlign.center,
-          ),
-        ],
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.home_work_outlined, size: 64, color: Colors.grey),
+            const SizedBox(height: 12),
+            const Text(
+              'Bem-vindo ao ObraMaster!',
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Crie sua primeira obra para começar a gerar cronograma e checklist com IA.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () {
+                // Navega para a aba Obras (índice 1) pelo ancestral MainShell.
+                // Usa notificação para desacoplar HomeScreen do MainShell.
+                ObraTabNotification().dispatch(context);
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Criar primeira obra'),
+            ),
+          ],
+        ),
       ),
     );
   }
