@@ -4,11 +4,20 @@ import 'package:local_auth/local_auth.dart';
 
 import '../api/api.dart';
 import '../services/auth_service.dart';
+import '../services/auth_api_service.dart';
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 /// Provider de autenticação — gerencia estado de login/logout.
+///
+/// Aceita [AuthApiService] opcional para desacoplar do cliente HTTP concreto
+/// e facilitar testes e migração para Riverpod na fase 5.
 class AuthProvider extends ChangeNotifier {
+  AuthProvider({AuthApiService? authApiService})
+      : _authApi = authApiService ?? ApiAuthService();
+
+  final AuthApiService _authApi;
+
   AuthStatus _status = AuthStatus.unknown;
   Map<String, dynamic>? _user;
   bool _isNewUser = false;
@@ -47,8 +56,7 @@ class AuthProvider extends ChangeNotifier {
   // ─── Login ────────────────────────────────────────────────────────────────
 
   Future<void> login({required String email, required String password}) async {
-    final api = ApiClient();
-    final result = await api.login(email: email, password: password);
+    final result = await _authApi.login(email: email, password: password);
     await AuthService.instance.saveTokens(
       accessToken: result['access_token'] as String,
       refreshToken: result['refresh_token'] as String,
@@ -67,8 +75,7 @@ class AuthProvider extends ChangeNotifier {
     required String telefone,
     required String password,
   }) async {
-    final api = ApiClient();
-    final result = await api.register(
+    final result = await _authApi.register(
       nome: nome,
       email: email,
       telefone: telefone,
