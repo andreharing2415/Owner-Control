@@ -3,11 +3,13 @@ import 'package:intl/intl.dart';
 
 import '../api/api.dart';
 import '../providers/tab_refresh_notifier.dart';
+import '../services/obra_service.dart';
+import '../widgets/skeleton_loader.dart';
+import '../widgets/ad_banner_widget.dart';
 import 'etapas_screen.dart';
 import 'cronograma_screen.dart';
 import 'orcamento_edit_screen.dart';
 import 'prestadores_screen.dart';
-import '../widgets/ad_banner_widget.dart';
 
 final _brl = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$\u00a0');
 
@@ -45,24 +47,35 @@ class _DashboardData {
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, this.refreshNotifier});
+  /// Aceita [obraService] opcional para desacoplar do cliente HTTP concreto
+  /// e facilitar testes e migração para Riverpod na fase 5.
+  const HomeScreen({super.key, this.refreshNotifier, ObraService? obraService})
+      : _obraService = obraService;
+
   final TabRefreshNotifier? refreshNotifier;
+  final ObraService? _obraService;
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final ApiClient _api = ApiClient();
+class HomeScreenState extends State<HomeScreen> {
+  late final ObraService _obras;
 
   late Future<List<Obra>> _obrasFuture;
   Obra? _obraSelecionada;
+
+  /// Cache de dados do dashboard por obraId — preserva estado ao trocar de obra.
+  final Map<String, _DashboardData> _dashCache = {};
+
+  /// Future em progresso para a obra selecionada atual.
   Future<_DashboardData>? _dashFuture;
 
   @override
   void initState() {
     super.initState();
-    _obrasFuture = _api.listarObras();
+    _obras = widget._obraService ?? ApiObraService();
+    _obrasFuture = _obras.listarObras();
     widget.refreshNotifier?.addListener(_onRefreshRequested);
   }
 
@@ -76,34 +89,53 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _obraSelecionada = null;
       _dashFuture = null;
-      _obrasFuture = _api.listarObras();
+      _dashCache.clear();
+      _obrasFuture = _obras.listarObras();
     });
   }
 
+  /// Chamado pelo MainShell ao trocar para esta aba.
+  void recarregarObras() => _onRefreshRequested();
+
   void _selecionarObra(Obra obra) {
+    if (_obraSelecionada?.id == obra.id) return;
     setState(() {
       _obraSelecionada = obra;
-      _dashFuture = _carregarDashboard(obra);
+      final cached = _dashCache[obra.id];
+      if (cached != null) {
+        // Usa dado em cache — sem nova requisição, sem flicker.
+        _dashFuture = Future.value(cached);
+      } else {
+        _dashFuture = _carregarDashboard(obra);
+      }
     });
   }
 
   Future<_DashboardData> _carregarDashboard(Obra obra) async {
     final results = await Future.wait([
-      _api.listarEtapas(obra.id),
-      _api.relatorioFinanceiro(obra.id),
-      _api.listarProjetos(obra.id),
+      _obras.listarEtapas(obra.id),
+      _obras.relatorioFinanceiro(obra.id),
+      _obras.listarProjetos(obra.id),
     ]);
-    return _DashboardData(
+    final data = _DashboardData(
       obra: obra,
       etapas: results[0] as List<Etapa>,
       relatorio: results[1] as RelatorioFinanceiro,
       totalProjetos: (results[2] as List<ProjetoDoc>).length,
     );
+    // Armazena no cache para reutilização posterior sem nova requisição.
+    _dashCache[obra.id] = data;
+    return data;
   }
 
   Future<void> _recarregar() async {
+    if (!mounted) return;
     setState(() {
-      _obrasFuture = _api.listarObras();
+      // Invalida cache da obra atual para forçar reload dos dados.
+      if (_obraSelecionada != null) {
+        _dashCache.remove(_obraSelecionada!.id);
+      }
+      _obrasFuture = _obras.listarObras();
       if (_obraSelecionada != null) {
         _dashFuture = _carregarDashboard(_obraSelecionada!);
       }
@@ -121,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
         future: _obrasFuture,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const _ObrasLoadingSkeleton();
           }
           if (snap.hasError) {
             return _ErroView(mensagem: '${snap.error}', onRetry: _recarregar);
@@ -140,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                // Seletor horizontal de obras — sempre visível quando há mais de uma.
                 if (obras.length > 1) ...[
                   _ObraSelector(
                     obras: obras,
@@ -148,17 +181,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 12),
                 ],
+                // Resumo multi-obra: exibe alertas consolidados de todas as obras.
+                if (obras.length > 1) ...[
+                  _MultiObraSummaryRow(obras: obras, dashCache: _dashCache),
+                  const SizedBox(height: 14),
+                ],
+                // Dashboard detalhado da obra selecionada.
                 if (_dashFuture != null)
                   FutureBuilder<_DashboardData>(
                     future: _dashFuture,
                     builder: (context, ds) {
                       if (ds.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.all(48),
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
+                        return const DashboardSkeleton();
                       }
                       if (ds.hasError) {
                         return _ErroView(
@@ -190,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => data.obra.tipo == "construcao"
+                                  builder: (_) => data.obra.tipo == 'construcao'
                                       ? CronogramaScreen(obra: data.obra)
                                       : EtapasScreen(obra: data.obra),
                                 ),
@@ -213,6 +247,22 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
+    );
+  }
+}
+
+// ─── Skeleton de carregamento inicial das obras ───────────────────────────────
+
+class _ObrasLoadingSkeleton extends StatelessWidget {
+  const _ObrasLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: const [
+        DashboardSkeleton(),
+      ],
     );
   }
 }
@@ -246,6 +296,54 @@ class _ObraSelector extends StatelessWidget {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+}
+
+// ─── Resumo consolidado multi-obra ───────────────────────────────────────────
+
+/// Exibe alertas financeiros de todas as obras em cache numa barra horizontal.
+/// Permite ao engenheiro detectar obras problemáticas sem abrir cada uma.
+class _MultiObraSummaryRow extends StatelessWidget {
+  const _MultiObraSummaryRow({
+    required this.obras,
+    required this.dashCache,
+  });
+
+  final List<Obra> obras;
+  final Map<String, _DashboardData> dashCache;
+
+  @override
+  Widget build(BuildContext context) {
+    final obrasComAlerta = obras.where((o) {
+      final cached = dashCache[o.id];
+      return cached != null && cached.relatorio.alerta;
+    }).toList();
+
+    if (obrasComAlerta.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.orange.withValues(alpha: 0.08),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              color: Colors.orange, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              obrasComAlerta.length == 1
+                  ? '${obrasComAlerta.first.nome}: desvio orçamentário detectado.'
+                  : '${obrasComAlerta.length} obras com desvio orçamentário.',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -472,34 +570,34 @@ class _KpiCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 4),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                ),
               ),
-            ),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall,
-              textAlign: TextAlign.center,
-            ),
-            Text(
-              subtitle,
-              style:
-                  TextStyle(fontSize: 10, color: color.withValues(alpha: 0.8)),
-              textAlign: TextAlign.center,
-            ),
-          ],
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall,
+                textAlign: TextAlign.center,
+              ),
+              Text(
+                subtitle,
+                style:
+                    TextStyle(fontSize: 10, color: color.withValues(alpha: 0.8)),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
