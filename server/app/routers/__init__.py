@@ -11,6 +11,7 @@ from . import (
     checklist_inteligente,
     subscription,
     convites,
+    rdo,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "checklist_inteligente",
     "subscription",
     "convites",
+    "rdo",
 ]

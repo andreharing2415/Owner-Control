@@ -11,23 +11,47 @@ from .push import enviar_push_multiplos
 logger = logging.getLogger(__name__)
 
 
+def _tokens_por_obra(session: Session, obra_id: UUID) -> list[str]:
+    tokens = session.exec(
+        select(DeviceToken).where(DeviceToken.obra_id == obra_id)
+    ).all()
+    return [t.token for t in tokens]
+
+
 def notificar_dono_atualizacao(session: Session, obra_id: UUID, nome_convidado: str) -> None:
     """Envia push notification ao dono da obra quando convidado faz atualização."""
     try:
         obra = session.get(Obra, obra_id)
         if not obra or not obra.user_id:
             return
-        tokens = session.exec(
-            select(DeviceToken).where(DeviceToken.obra_id == obra_id)
-        ).all()
+        tokens = _tokens_por_obra(session, obra_id)
         if tokens:
             enviar_push_multiplos(
-                tokens=[t.token for t in tokens],
+                tokens=tokens,
                 titulo="Obra atualizada",
                 corpo=f"O andamento da sua obra foi atualizado por {nome_convidado}",
             )
     except Exception as exc:
         logger.warning("Falha ao enviar push de atualização: %s", exc)
+
+
+def notificar_publicacao_rdo(session: Session, obra_id: UUID, data_referencia: str) -> None:
+    """Envia push quando um RDO diário é publicado para acompanhamento do dono."""
+    try:
+        obra = session.get(Obra, obra_id)
+        if not obra:
+            return
+        tokens = _tokens_por_obra(session, obra_id)
+        if not tokens:
+            return
+        enviar_push_multiplos(
+            tokens=tokens,
+            titulo="RDO publicado",
+            corpo=f"{obra.nome}: diário de obra publicado em {data_referencia}",
+            data={"obra_id": str(obra_id), "tipo": "rdo_publicado"},
+        )
+    except Exception as exc:
+        logger.warning("Falha ao enviar push de RDO: %s", exc)
 
 
 def verificar_e_notificar_alerta(obra_id: UUID, obra: Obra, session: Session) -> None:
@@ -61,20 +85,16 @@ def verificar_e_notificar_alerta(obra_id: UUID, obra: Obra, session: Session) ->
         if desvio_pct <= alerta_config.percentual_desvio_threshold:
             return
 
-        tokens = session.exec(
-            select(DeviceToken).where(DeviceToken.obra_id == obra_id)
-        ).all()
+        tokens = _tokens_por_obra(session, obra_id)
         if not tokens:
             return
-
-        token_list = [dt.token for dt in tokens]
         titulo = "⚠️ Alerta Orçamentário"
         corpo = (
             f"{obra.nome}: desvio de {desvio_pct:.1f}% "
             f"(limite: {alerta_config.percentual_desvio_threshold:.0f}%)"
         )
         enviar_push_multiplos(
-            token_list,
+            tokens,
             titulo,
             corpo,
             data={"obra_id": str(obra_id), "tipo": "alerta_orcamentario"},

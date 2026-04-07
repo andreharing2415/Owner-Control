@@ -344,10 +344,38 @@ class EtapaPrazoUpdate(SQLModel):
 class EvidenciaRead(SQLModel):
     id: UUID
     checklist_item_id: UUID
+    atividade_id: Optional[UUID] = None
     arquivo_url: str
     arquivo_nome: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    capturado_em: Optional[datetime] = None
     mime_type: Optional[str] = None
     tamanho_bytes: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class RdoCreate(SQLModel):
+    data_referencia: date
+    clima: str
+    mao_obra_total: int = 0
+    atividades_executadas: str
+    observacoes: Optional[str] = None
+    fotos_urls: List[str] = []
+
+
+class RdoRead(SQLModel):
+    id: UUID
+    obra_id: UUID
+    data_referencia: date
+    clima: str
+    mao_obra_total: int
+    atividades_executadas: str
+    observacoes: Optional[str] = None
+    fotos_urls: List[str] = []
+    publicado: bool
+    publicado_em: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 from ..db import get_session
 from ..models import (
     User, Obra, ProjetoDoc, AtividadeCronograma, ServicoNecessario,
-    ChecklistItem, Despesa, Prestador,
+    ChecklistItem, Despesa, Prestador, Evidencia,
 )
 from ..schemas import (
     IdentificarProjetosResponse,
@@ -20,13 +20,14 @@ from ..schemas import (
     VincularPrestadorRequest, DespesaAtividadeCreate,
     ChecklistItemCreate, ChecklistItemRead, ChecklistItemOwnerView,
     CronogramaOwnerView,
-    DespesaRead,
+    DespesaRead, EvidenciaRead,
     project_checklist_item_for_role, project_cronograma_for_role,
 )
 from ..enums import ProjetoDocStatus, AtividadeStatus
 from ..auth import get_current_user, require_engineer
 from ..helpers import _verify_obra_ownership, _verify_obra_access
 from ..cronograma_ai import identificar_tipos_projeto, gerar_cronograma
+from ..services.cronograma_alert_service import detectar_alertas, enviar_alertas_cronograma
 
 router = APIRouter(tags=["cronograma"])
 
@@ -564,3 +565,40 @@ def criar_despesa_atividade(
     session.refresh(despesa)
 
     return DespesaRead.model_validate(despesa)
+
+
+@router.get("/api/cronograma/{atividade_id}/evidencias", response_model=List[EvidenciaRead])
+def listar_evidencias_atividade(
+    atividade_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+) -> List[EvidenciaRead]:
+    """Lista evidências vinculadas a uma atividade do cronograma."""
+    atividade = session.get(AtividadeCronograma, atividade_id)
+    if not atividade:
+        raise HTTPException(status_code=404, detail="Atividade nao encontrada")
+
+    _verify_obra_access(atividade.obra_id, current_user, session)
+
+    evidencias = session.exec(
+        select(Evidencia).where(Evidencia.atividade_id == atividade_id)
+    ).all()
+    return [EvidenciaRead.model_validate(e) for e in evidencias]
+
+
+@router.post("/api/obras/{obra_id}/cronograma/alertas/verificar")
+def verificar_alertas_cronograma(
+    obra_id: UUID,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(require_engineer),
+) -> dict:
+    """Avalia regras de atraso/prazo e dispara push para alertas de cronograma."""
+    _verify_obra_ownership(obra_id, current_user, session)
+    alertas = detectar_alertas(session, obra_id)
+    enviados = enviar_alertas_cronograma(session, obra_id)
+    return {
+        "obra_id": str(obra_id),
+        "total_alertas": len(alertas),
+        "push_enviados": enviados,
+        "alertas": alertas,
+    }

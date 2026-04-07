@@ -32,6 +32,7 @@ from .routers import (
     subscription,
     convites,
     cronograma,
+    rdo,
 )
 
 logger = logging.getLogger(__name__)
@@ -111,3 +112,4 @@ app.include_router(checklist_inteligente.router)
 app.include_router(subscription.router)
 app.include_router(convites.router)
 app.include_router(cronograma.router)
+app.include_router(rdo.router)

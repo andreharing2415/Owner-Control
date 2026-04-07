@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../api/api.dart';
+import '../services/evidence_metadata_service.dart';
 import 'detalhe_item_screen.dart';
 import 'evidencias_screen.dart';
 import '../utils/auth_error_handler.dart';
@@ -18,6 +19,7 @@ class ChecklistScreen extends StatefulWidget {
 class _ChecklistScreenState extends State<ChecklistScreen> {
   final ApiClient _api = ApiClient();
   final ImagePicker _imagePicker = ImagePicker();
+  final EvidenceMetadataService _metadataService = EvidenceMetadataService();
   late Future<List<ChecklistItem>> _itensFuture;
 
   @override
@@ -149,12 +151,12 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         final image = await _imagePicker.pickImage(
             source: ImageSource.camera, imageQuality: 85);
         if (image == null) return;
-        await _api.uploadEvidenciaImagem(itemId: item.id, image: image);
+        await _uploadImagemComMetadata(item, image);
       } else if (opcao == "galeria") {
         final image = await _imagePicker.pickImage(
             source: ImageSource.gallery, imageQuality: 85);
         if (image == null) return;
-        await _api.uploadEvidenciaImagem(itemId: item.id, image: image);
+        await _uploadImagemComMetadata(item, image);
       } else {
         final result =
             await FilePicker.platform.pickFiles(withData: true, withReadStream: true);
@@ -174,6 +176,53 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
         );
       }
     }
+  }
+
+  Future<String?> _selecionarAtividadeCronograma() async {
+    try {
+      final cronograma = await _api.listarCronograma(widget.etapa.obraId);
+      final atividades = cronograma.atividades
+          .expand((macro) => macro.subAtividades.isNotEmpty ? macro.subAtividades : <AtividadeCronograma>[macro])
+          .where((a) => a.nivel == 2)
+          .toList();
+
+      if (atividades.isEmpty || !mounted) return null;
+
+      return await showDialog<String?>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text("Vincular a atividade"),
+          children: [
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, null),
+              child: const Text("Sem vinculo"),
+            ),
+            ...atividades.map(
+              (atividade) => SimpleDialogOption(
+                onPressed: () => Navigator.pop(context, atividade.id),
+                child: Text(atividade.nome),
+              ),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _uploadImagemComMetadata(ChecklistItem item, XFile image) async {
+    final metadata = await _metadataService.collect();
+    final atividadeId = await _selecionarAtividadeCronograma();
+
+    await _api.uploadEvidenciaImagemComMeta(
+      itemId: item.id,
+      image: image,
+      atividadeId: atividadeId,
+      latitude: metadata.latitude,
+      longitude: metadata.longitude,
+      capturadoEm: metadata.capturedAt,
+    );
   }
 
   Future<void> _verEvidencias(ChecklistItem item) async {

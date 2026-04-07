@@ -142,3 +142,50 @@ class _TabNavigator extends StatelessWidget {
     );
   }
 }
+
+class RoleShellDestination {
+  const RoleShellDestination({
+    required this.path,
+    required this.destination,
+  });
+
+  final String path;
+  final NavigationDestination destination;
+}
+
+class RoleAwareShell extends StatelessWidget {
+  const RoleAwareShell({
+    super.key,
+    required this.child,
+    required this.currentPath,
+    required this.destinations,
+    required this.onNavigate,
+  });
+
+  final Widget child;
+  final String currentPath;
+  final List<RoleShellDestination> destinations;
+  final ValueChanged<String> onNavigate;
+
+  int _resolveSelectedIndex() {
+    final exact = destinations.indexWhere((d) => d.path == currentPath);
+    if (exact >= 0) return exact;
+    final nested = destinations.indexWhere(
+      (d) => currentPath.startsWith('${d.path}/'),
+    );
+    return nested >= 0 ? nested : 0;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedIndex = _resolveSelectedIndex();
+    return Scaffold(
+      body: child,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: (index) => onNavigate(destinations[index].path),
+        destinations: destinations.map((d) => d.destination).toList(),
+      ),
+    );
+  }
+}

@@ -22,6 +22,8 @@
 		<string>Necessário para selecionar fotos da galeria como evidências.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>Necessário para salvar fotos das evidências na galeria.</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Necessário para registrar geolocalização automática nas evidências fotográficas.</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>

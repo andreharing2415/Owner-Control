@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -21,6 +22,7 @@ class AuthService {
   static const _keyUserJson = 'user_json';
   static const _keyBiometricsEnabled = 'biometrics_enabled';
   static const _keyBiometricsPrompted = 'biometrics_prompted';
+  static const _authTimeout = Duration(seconds: 15);
 
   final _storage = const FlutterSecureStorage(
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
@@ -92,7 +94,7 @@ class AuthService {
         Uri.parse('$apiBaseUrl/api/auth/refresh'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'refresh_token': _refreshToken}),
-      );
+      ).timeout(_authTimeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         await saveTokens(
@@ -102,6 +104,8 @@ class AuthService {
         );
         return true;
       }
+    } on TimeoutException {
+      debugPrint('[AuthService] refresh timeout após ${_authTimeout.inSeconds}s');
     } catch (e) {
       debugPrint('[AuthService] refresh failed: $e');
     }
@@ -134,7 +138,7 @@ class AuthService {
       final response = await http.get(
         Uri.parse('$apiBaseUrl/api/auth/me'),
         headers: {'Authorization': 'Bearer $_accessToken'},
-      );
+      ).timeout(_authTimeout);
       if (response.statusCode == 200) {
         _userJson = jsonDecode(response.body) as Map<String, dynamic>;
         return true;
@@ -142,6 +146,8 @@ class AuthService {
       if (response.statusCode == 401) {
         return await refreshAccessToken();
       }
+    } on TimeoutException {
+      debugPrint('[AuthService] validate timeout após ${_authTimeout.inSeconds}s');
     } catch (e) {
       debugPrint('[AuthService] validate failed: $e');
     }

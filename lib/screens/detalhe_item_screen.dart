@@ -376,7 +376,7 @@ class _StatusButton extends StatelessWidget {
 // ─── Grid de evidências ───────────────────────────────────────────────────────
 
 class _EvidenciasGrid extends StatefulWidget {
-  const _EvidenciasGrid({required this.itemId});
+  const _EvidenciasGrid({super.key, required this.itemId});
   final String itemId;
 
   @override

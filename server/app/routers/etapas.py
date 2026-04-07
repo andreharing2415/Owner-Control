@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlmodel import Session, select
 
 from ..db import get_session
@@ -148,6 +148,10 @@ def sugerir_grupo_item(
 def upload_evidencia(
     item_id: UUID,
     file: UploadFile = File(...),
+    atividade_id: UUID | None = Form(default=None),
+    latitude: float | None = Form(default=None),
+    longitude: float | None = Form(default=None),
+    capturado_em: str | None = Form(default=None),
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> Evidencia:
@@ -165,10 +169,21 @@ def upload_evidencia(
     tamanho_bytes = file.file.tell()
     file.file.seek(0)
     file_url = upload_file(bucket, object_key, file.file, file.content_type)
+    capturado_em_dt = None
+    if capturado_em:
+        try:
+            capturado_em_dt = datetime.fromisoformat(capturado_em.replace("Z", "+00:00"))
+        except ValueError:
+            raise HTTPException(status_code=400, detail="capturado_em invalido")
+
     evidencia = Evidencia(
         checklist_item_id=item_id,
+        atividade_id=atividade_id,
         arquivo_url=file_url,
         arquivo_nome=file.filename,
+        latitude=latitude,
+        longitude=longitude,
+        capturado_em=capturado_em_dt,
         mime_type=file.content_type,
         tamanho_bytes=tamanho_bytes,
     )

@@ -93,10 +93,30 @@ class ChecklistItem(SQLModel, table=True):
 class Evidencia(SQLModel, table=True):
     id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
     checklist_item_id: UUID = Field(index=True, foreign_key="checklistitem.id")
+    atividade_id: Optional[UUID] = Field(default=None, index=True, foreign_key="atividadecronograma.id")
     arquivo_url: str
     arquivo_nome: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    capturado_em: Optional[datetime] = None
     mime_type: Optional[str] = None
     tamanho_bytes: Optional[int] = None
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
+class RdoDiario(SQLModel, table=True):
+    """Registro diário de obra com publicação para acompanhamento do dono."""
+    id: UUID = Field(default_factory=uuid4, primary_key=True, index=True)
+    obra_id: UUID = Field(index=True, foreign_key="obra.id")
+    data_referencia: date = Field(index=True)
+    clima: str
+    mao_obra_total: int = Field(default=0)
+    atividades_executadas: str
+    observacoes: Optional[str] = None
+    fotos_urls: Optional[str] = None  # JSON: [url1, url2]
+    publicado: bool = Field(default=False)
+    publicado_em: Optional[datetime] = None
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
 
