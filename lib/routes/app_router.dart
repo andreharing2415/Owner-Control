@@ -71,7 +71,7 @@ class AppRouter {
           GoRoute(
             name: AppRouteNames.splash,
             path: '/splash',
-            builder: (context, state) => const _SplashRouteView(),
+            builder: (context, state) => _SplashRouteView(authProvider: authProvider),
           ),
           GoRoute(
             name: AppRouteNames.login,
@@ -253,8 +253,23 @@ class AppRouter {
   }
 }
 
-class _SplashRouteView extends StatelessWidget {
-  const _SplashRouteView();
+class _SplashRouteView extends StatefulWidget {
+  const _SplashRouteView({required this.authProvider, super.key});
+
+  final AuthProvider authProvider;
+
+  @override
+  State<_SplashRouteView> createState() => _SplashRouteViewState();
+}
+
+class _SplashRouteViewState extends State<_SplashRouteView> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.authProvider.checkAuth();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
