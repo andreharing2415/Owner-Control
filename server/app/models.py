@@ -20,7 +20,7 @@ class User(SQLModel, table=True):
     google_id: Optional[str] = Field(default=None, unique=True, index=True)
     nome: str
     telefone: Optional[str] = None
-    role: str = Field(default="owner")  # "owner" | "admin" | "convidado"
+    role: str = Field(default="owner")  # "owner" | "admin" | "convidado" | "dono_da_obra"
     plan: str = Field(default="gratuito")  # "gratuito" | "essencial" | "completo" | "dono_da_obra" (legacy)
     ativo: bool = Field(default=True)
     created_at: datetime = Field(default_factory=_utcnow)

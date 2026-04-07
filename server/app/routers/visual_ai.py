@@ -14,7 +14,7 @@ from ..models import User, Obra, Etapa, AnaliseVisual, Achado
 from ..schemas import (
     AnaliseVisualRead, AchadoRead, AnaliseVisualComAchadosRead,
 )
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..enums import AnaliseVisualStatus
 from ..subscription import get_plan_config, check_and_increment_usage
 from ..storage import upload_file
@@ -30,7 +30,7 @@ async def analisar_visual(
     file: UploadFile = File(...),
     grupo: str | None = Form(None),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> AnaliseVisualComAchadosRead:
     """
     Faz upload de uma foto e dispara análise visual por IA.

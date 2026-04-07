@@ -15,7 +15,7 @@ from ..schemas import (
     AvaliacaoCreate, AvaliacaoRead, PrestadorDetalheRead,
 )
 from ..enums import CategoriaPrestador, SubcategoriaPrestadorServico, SubcategoriaMateriais
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config
 
 router = APIRouter(prefix="/api/prestadores", tags=["prestadores"])
@@ -42,7 +42,7 @@ def listar_subcategorias() -> JSONResponse:
 def criar_prestador(
     payload: PrestadorCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> dict:
     """Cadastra um novo prestador de serviço ou fornecedor de materiais."""
     if payload.categoria not in SUBCATEGORIAS_MAP:
@@ -188,7 +188,7 @@ def atualizar_prestador(
     prestador_id: UUID,
     payload: PrestadorUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> dict:
     """Atualiza dados de um prestador."""
     prestador = session.get(Prestador, prestador_id)
@@ -227,7 +227,7 @@ def criar_avaliacao(
     prestador_id: UUID,
     payload: AvaliacaoCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> Avaliacao:
     """Cria uma avaliação para um prestador, validando os tópicos pela categoria."""
     prestador = session.get(Prestador, prestador_id)

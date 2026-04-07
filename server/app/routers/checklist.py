@@ -14,7 +14,7 @@ from ..schemas import (
     ChecklistItemCreate, ChecklistItemRead, ChecklistItemUpdate,
     EvidenciaRead, RegistrarVerificacaoRequest,
 )
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config
 from ..helpers import (
     _verify_etapa_ownership, _verify_etapa_access,
@@ -82,7 +82,7 @@ def atualizar_item(
 def deletar_item(
     item_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     item = session.get(ChecklistItem, item_id)
     if not item:

@@ -14,6 +14,14 @@ from sqlmodel import Session
 from .db import get_session
 from .models import User
 
+# ─── Role constants ───────────────────────────────────────────────────────────
+
+# Papéis com permissão plena de escrita (engenheiro/gestor da obra)
+ENGINEER_ROLES = {"owner", "admin"}
+
+# Papel do dono de obra — acesso somente leitura à obra convidada
+DONO_DA_OBRA_ROLE = "dono_da_obra"
+
 # ─── Config ──────────────────────────────────────────────────────────────────
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
@@ -101,3 +109,46 @@ def get_current_user(
             detail="Usuario nao encontrado",
         )
     return user
+
+
+# ─── Role enforcement ────────────────────────────────────────────────────────
+
+
+def require_role(allowed_roles: set[str] | list[str] | None = None) -> None:
+    """Verifica que o usuário possui papel autorizado para operações de escrita.
+
+    Por padrão (allowed_roles=None) exige papel de engenheiro (owner ou admin).
+    Dono de obra ('dono_da_obra') nunca tem acesso a operações de escrita.
+
+    Uso:
+        require_role(current_user)  # usa ENGINEER_ROLES padrão
+        require_role(current_user, {"owner"})
+
+    Args:
+        allowed_roles: conjunto de roles permitidos. Se None, usa ENGINEER_ROLES.
+    """
+    # Retorna uma closure para uso como dependência ou chamada direta
+    roles = set(allowed_roles) if allowed_roles is not None else ENGINEER_ROLES
+
+    def _check(user: User) -> None:
+        if user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Operacao nao permitida para seu perfil de acesso",
+            )
+
+    return _check
+
+
+def require_engineer(current_user: User = Depends(get_current_user)) -> User:
+    """FastAPI dependency — exige papel de engenheiro (owner ou admin).
+
+    Bloqueia 'dono_da_obra' e 'convidado' de operações de escrita.
+    Retorna o User autenticado para uso no endpoint.
+    """
+    if current_user.role not in ENGINEER_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operacao nao permitida para seu perfil de acesso",
+        )
+    return current_user

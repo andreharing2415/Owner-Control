@@ -12,7 +12,7 @@ from ..models import User, NormaLog, NormaResultado
 from ..schemas import (
     NormaBuscarRequest, NormaBuscarResponse, NormaResultadoRead, NormaLogRead,
 )
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config, check_and_increment_usage
 from ..normas import buscar_normas
 
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/normas", tags=["normas"])
 def buscar_normas_endpoint(
     payload: NormaBuscarRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> NormaBuscarResponse:
     """
     Pesquisa normas técnicas brasileiras aplicáveis à etapa informada.
@@ -109,23 +109,40 @@ def buscar_normas_endpoint(
 @router.get("/historico", response_model=List[NormaLogRead])
 def listar_historico_normas(
     limit: int = 20,
+    offset: int = 0,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
-) -> list[NormaLog]:
-    """Lista as últimas consultas normativas realizadas pelo usuário."""
+) -> list[NormaLogRead]:
+    """Lista as últimas consultas normativas realizadas pelo usuário (PERF-04v2: paginado)."""
     logs = session.exec(
         select(NormaLog)
         .where(NormaLog.user_id == current_user.id)
         .order_by(NormaLog.data_consulta.desc())
-        .limit(limit)
+        .offset(offset)
+        .limit(min(limit, 50))
     ).all()
+    if not logs:
+        return []
+
+    # Batch fetch all resultados for all logs in a single query
+    log_ids = [log.id for log in logs]
+    all_resultados = session.exec(
+        select(NormaResultado).where(
+            NormaResultado.norma_log_id.in_(log_ids)  # type: ignore[attr-defined]
+        )
+    ).all()
+
+    # Index by log_id
+    resultados_by_log: dict[UUID, list[NormaResultadoRead]] = {}
+    for r in all_resultados:
+        resultados_by_log.setdefault(r.norma_log_id, []).append(
+            NormaResultadoRead.model_validate(r)
+        )
+
     result = []
     for log in logs:
-        resultados = session.exec(
-            select(NormaResultado).where(NormaResultado.norma_log_id == log.id)
-        ).all()
         log_read = NormaLogRead.model_validate(log)
-        log_read.resultados = [NormaResultadoRead.model_validate(r) for r in resultados]
+        log_read.resultados = resultados_by_log.get(log.id, [])
         result.append(log_read)
     return result
 

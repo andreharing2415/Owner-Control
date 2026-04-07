@@ -21,7 +21,7 @@ from ..schemas import (
     ObraCreate, ObraRead, ObraDetailResponse, EtapaEnrichedRead, OkResponse,
 )
 from ..enums import EtapaStatus, ChecklistStatus
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import check_obra_limit
 from ..pdf import render_obra_pdf
 from ..seed_checklists import get_itens_padrao
@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/obras", tags=["obras"])
 def criar_obra(
     payload: ObraCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> Obra:
     check_obra_limit(session, current_user)
     obra = Obra(user_id=current_user.id, **payload.model_dump())
@@ -168,63 +168,74 @@ def _subquery_ids(session: Session, model, id_col, condition):
     return [row for row in session.exec(select(id_col).where(condition)).all()]
 
 
-def _cascade_delete_obra_data(session: Session, obra_id: UUID) -> list[str]:
-    """Remove todos os dados associados a uma obra com bulk DELETEs.
-    Retorna storage keys para limpeza."""
+def _delete_projetos_cascade(session: Session, obra_id: UUID) -> None:
+    """COMPL-03v2: Remove ProjetoDoc e Riscos associados."""
     from sqlalchemy import delete
-
-    bucket = os.getenv("S3_BUCKET")
-    storage_keys: list[str] = []
-
-    # Coletar storage keys ANTES de deletar ProjetoDoc
-    if bucket:
-        storage_keys = _collect_storage_keys(session, obra_id, bucket)
-
-    # ProjetoDoc → Risco (bulk)
     projeto_ids = _subquery_ids(session, ProjetoDoc, ProjetoDoc.id, ProjetoDoc.obra_id == obra_id)
     if projeto_ids:
         session.exec(delete(Risco).where(Risco.projeto_id.in_(projeto_ids)))
     session.exec(delete(ProjetoDoc).where(ProjetoDoc.obra_id == obra_id))
 
-    # Etapa → ChecklistItem → Evidencia, AnaliseVisual → Achado, EtapaComentario
+
+def _delete_etapas_cascade(session: Session, obra_id: UUID) -> None:
+    """COMPL-03v2: Remove Etapas e dependencias (ChecklistItem, Evidencia, AnaliseVisual, Achado, Comentarios)."""
+    from sqlalchemy import delete
     etapa_ids = _subquery_ids(session, Etapa, Etapa.id, Etapa.obra_id == obra_id)
     if etapa_ids:
-        # ChecklistItem → Evidencia
         item_ids = _subquery_ids(session, ChecklistItem, ChecklistItem.id, ChecklistItem.etapa_id.in_(etapa_ids))
         if item_ids:
             session.exec(delete(Evidencia).where(Evidencia.checklist_item_id.in_(item_ids)))
         session.exec(delete(ChecklistItem).where(ChecklistItem.etapa_id.in_(etapa_ids)))
 
-        # AnaliseVisual → Achado
         analise_ids = _subquery_ids(session, AnaliseVisual, AnaliseVisual.id, AnaliseVisual.etapa_id.in_(etapa_ids))
         if analise_ids:
             session.exec(delete(Achado).where(Achado.analise_id.in_(analise_ids)))
         session.exec(delete(AnaliseVisual).where(AnaliseVisual.etapa_id.in_(etapa_ids)))
-
         session.exec(delete(EtapaComentario).where(EtapaComentario.etapa_id.in_(etapa_ids)))
     session.exec(delete(Etapa).where(Etapa.obra_id == obra_id))
 
-    # Financeiro e config (bulk direto — FK aponta para obra)
-    session.exec(delete(OrcamentoEtapa).where(OrcamentoEtapa.obra_id == obra_id))
-    session.exec(delete(Despesa).where(Despesa.obra_id == obra_id))
-    session.exec(delete(AlertaConfig).where(AlertaConfig.obra_id == obra_id))
 
-    # Misc
-    session.exec(delete(DeviceToken).where(DeviceToken.obra_id == obra_id))
-    session.exec(delete(ObraConvite).where(ObraConvite.obra_id == obra_id))
-    session.exec(delete(ObraDetalhamento).where(ObraDetalhamento.obra_id == obra_id))
+def _delete_atividades_cascade(session: Session, obra_id: UUID) -> None:
+    """COMPL-03v2: Remove AtividadeCronograma e ServicoNecessario."""
+    from sqlalchemy import delete
+    atividade_ids = _subquery_ids(session, AtividadeCronograma, AtividadeCronograma.id, AtividadeCronograma.obra_id == obra_id)
+    if atividade_ids:
+        session.exec(delete(ServicoNecessario).where(ServicoNecessario.atividade_id.in_(atividade_ids)))
+    session.exec(delete(AtividadeCronograma).where(AtividadeCronograma.obra_id == obra_id))
 
-    # ChecklistGeracaoLog → ChecklistGeracaoItem
+
+def _delete_checklist_logs_cascade(session: Session, obra_id: UUID) -> None:
+    """COMPL-03v2: Remove ChecklistGeracaoLog e itens."""
+    from sqlalchemy import delete
     log_ids = _subquery_ids(session, ChecklistGeracaoLog, ChecklistGeracaoLog.id, ChecklistGeracaoLog.obra_id == obra_id)
     if log_ids:
         session.exec(delete(ChecklistGeracaoItem).where(ChecklistGeracaoItem.log_id.in_(log_ids)))
     session.exec(delete(ChecklistGeracaoLog).where(ChecklistGeracaoLog.obra_id == obra_id))
 
-    # AtividadeCronograma → ServicoNecessario + ChecklistItem + Despesa (FK atividade_id)
-    atividade_ids = _subquery_ids(session, AtividadeCronograma, AtividadeCronograma.id, AtividadeCronograma.obra_id == obra_id)
-    if atividade_ids:
-        session.exec(delete(ServicoNecessario).where(ServicoNecessario.atividade_id.in_(atividade_ids)))
-    session.exec(delete(AtividadeCronograma).where(AtividadeCronograma.obra_id == obra_id))
+
+def _cascade_delete_obra_data(session: Session, obra_id: UUID) -> list[str]:
+    """Remove todos os dados associados a uma obra com bulk DELETEs.
+    Retorna storage keys para limpeza. (COMPL-03v2: refatorado em funcoes menores)"""
+    from sqlalchemy import delete
+
+    bucket = os.getenv("S3_BUCKET")
+    storage_keys: list[str] = []
+    if bucket:
+        storage_keys = _collect_storage_keys(session, obra_id, bucket)
+
+    _delete_projetos_cascade(session, obra_id)
+    _delete_etapas_cascade(session, obra_id)
+
+    # Financeiro e config (bulk direto — FK aponta para obra)
+    session.exec(delete(OrcamentoEtapa).where(OrcamentoEtapa.obra_id == obra_id))
+    session.exec(delete(Despesa).where(Despesa.obra_id == obra_id))
+    session.exec(delete(AlertaConfig).where(AlertaConfig.obra_id == obra_id))
+    session.exec(delete(DeviceToken).where(DeviceToken.obra_id == obra_id))
+    session.exec(delete(ObraConvite).where(ObraConvite.obra_id == obra_id))
+    session.exec(delete(ObraDetalhamento).where(ObraDetalhamento.obra_id == obra_id))
+
+    _delete_checklist_logs_cascade(session, obra_id)
+    _delete_atividades_cascade(session, obra_id)
 
     return storage_keys
 
@@ -233,7 +244,7 @@ def _cascade_delete_obra_data(session: Session, obra_id: UUID) -> list[str]:
 def deletar_obra(
     obra_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """Remove uma obra e todos os dados associados (cascata)."""
     obra = _verify_obra_ownership(obra_id, current_user, session)

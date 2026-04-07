@@ -16,7 +16,7 @@ from ..schemas import (
     EvidenciaRead,
 )
 from ..enums import ChecklistStatus
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config
 from ..storage import upload_file
 from ..helpers import (
@@ -32,8 +32,10 @@ router = APIRouter(tags=["etapas"])
 def score_etapa(
     etapa_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> dict:
+    # SEC-05v2: verificar ownership antes de calcular score
+    etapa = _verify_etapa_ownership(etapa_id, current_user, session)
     itens = session.exec(select(ChecklistItem).where(ChecklistItem.etapa_id == etapa_id)).all()
     total = len(itens)
     if total == 0:
@@ -41,12 +43,10 @@ def score_etapa(
     else:
         ok_count = len([item for item in itens if item.status == ChecklistStatus.OK.value])
         score = (ok_count / total) * 100
-    etapa = session.get(Etapa, etapa_id)
-    if etapa:
-        etapa.score = score
-        etapa.updated_at = datetime.now(timezone.utc)
-        session.add(etapa)
-        session.commit()
+    etapa.score = score
+    etapa.updated_at = datetime.now(timezone.utc)
+    session.add(etapa)
+    session.commit()
     return {"etapa_id": etapa_id, "score": score}
 
 
@@ -55,7 +55,7 @@ def atualizar_status_etapa(
     etapa_id: UUID,
     payload: EtapaStatusUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> Etapa:
     etapa = _verify_etapa_ownership(etapa_id, current_user, session)
     etapa.status = payload.status.value
@@ -71,7 +71,7 @@ def atualizar_prazo_etapa(
     etapa_id: UUID,
     payload: EtapaPrazoUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> EtapaRead:
     etapa = session.get(Etapa, etapa_id)
     if not etapa:
@@ -117,7 +117,7 @@ def sugerir_grupo_item(
     etapa_id: UUID,
     payload: SugerirGrupoRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> SugerirGrupoResponse:
     etapa = session.get(Etapa, etapa_id)
     if not etapa:

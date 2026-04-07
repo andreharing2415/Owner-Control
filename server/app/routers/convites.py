@@ -17,7 +17,7 @@ from ..schemas import (
     ObraConvidadaRead, ComentarioCreateRequest, ComentarioRead,
     UserRead,
 )
-from ..auth import get_current_user, create_access_token, create_refresh_token
+from ..auth import get_current_user, create_access_token, create_refresh_token, require_engineer
 from ..enums import ConviteStatus
 from ..subscription import get_plan_config, check_convite_limit
 from ..email_service import enviar_email_convite
@@ -37,7 +37,7 @@ def criar_convite(
     obra_id: UUID,
     payload: ConviteCreateRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """Dono cria convite para profissional acessar a obra."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -126,7 +126,7 @@ def listar_convites(
 def remover_convite(
     convite_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """Dono remove convidado (acesso revogado instantaneamente)."""
     convite = session.get(ObraConvite, convite_id)
@@ -156,7 +156,7 @@ def aceitar_convite(
     if not convite:
         raise HTTPException(status_code=404, detail="Convite não encontrado ou já utilizado")
 
-    if convite.token_expires_at < datetime.now(timezone.utc):
+    if convite.token_expires_at <= datetime.now(timezone.utc):
         raise HTTPException(status_code=410, detail="Link expirado. Solicite um novo convite ao proprietário.")
 
     user = session.exec(
@@ -177,6 +177,7 @@ def aceitar_convite(
     convite.convidado_id = user.id
     convite.status = ConviteStatus.ACEITO
     convite.accepted_at = datetime.now(timezone.utc)
+    convite.token = None  # SEC-07v2: invalidar token após uso
     session.add(convite)
     session.commit()
 

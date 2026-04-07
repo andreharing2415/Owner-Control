@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlmodel import Session, select
 
 from ..db import get_session
@@ -20,7 +20,7 @@ from ..schemas import (
     DeviceTokenCreate, DeviceTokenRead,
     CurvaSPonto,
 )
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..helpers import _verify_obra_ownership, _verificar_e_notificar_alerta
 
 router = APIRouter(tags=["financeiro"])
@@ -31,7 +31,7 @@ def registrar_orcamento(
     obra_id: UUID,
     payload: List[OrcamentoEtapaCreate],
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> list[OrcamentoEtapa]:
     """Registra ou atualiza o orçamento previsto e realizado por etapa (upsert)."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -81,7 +81,7 @@ def lancar_despesa(
     obra_id: UUID,
     payload: DespesaCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> Despesa:
     """Lança uma nova despesa na obra."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -116,10 +116,13 @@ def listar_despesas(
 @router.get("/api/obras/{obra_id}/relatorio-financeiro", response_model=RelatorioFinanceiro)
 def relatorio_financeiro(
     obra_id: UUID,
+    response: Response,
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> RelatorioFinanceiro:
-    """Calcula desvio orçamentário e prepara dados para curva S."""
+    """Calcula desvio orçamentário e prepara dados para curva S (PERF-06v2: cacheable)."""
+    # PERF-06v2: allow client-side caching for 60s
+    response.headers["Cache-Control"] = "private, max-age=60"
     obra = _verify_obra_ownership(obra_id, current_user, session)
 
     etapas = session.exec(
@@ -197,7 +200,7 @@ def configurar_alertas(
     obra_id: UUID,
     payload: AlertaConfigUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> AlertaConfig:
     """Cria ou atualiza a configuração de alertas de desvio da obra."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -222,7 +225,7 @@ def registrar_device_token(
     obra_id: UUID,
     payload: DeviceTokenCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> DeviceToken:
     """Registra (ou atualiza) o token FCM de um dispositivo para esta obra."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -255,7 +258,7 @@ def remover_device_token(
     obra_id: UUID,
     token: str,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> None:
     """Remove o token FCM de um dispositivo (ex: ao fazer logout ou desativar alertas)."""
     dt = session.exec(

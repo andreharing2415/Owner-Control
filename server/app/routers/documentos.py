@@ -20,7 +20,7 @@ from ..schemas import (
     ProjetoDocRead, RiscoRead, AplicarRiscosRequest,
 )
 from ..enums import ChecklistStatus, ProjetoDocStatus
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config, require_paid
 from ..storage import upload_file, download_by_url, extract_object_key
 from ..rate_limit import limiter
@@ -42,7 +42,7 @@ def upload_projeto(
     obra_id: UUID,
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> ProjetoDoc:
     """Faz upload de um PDF de projeto e cria o registro para análise."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -179,11 +179,14 @@ def download_projeto_pdf(
 def deletar_projeto(
     projeto_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """Remove um projeto PDF e seus riscos associados."""
     projeto = session.get(ProjetoDoc, projeto_id)
     if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto nao encontrado")
+    obra = session.get(Obra, projeto.obra_id)
+    if not obra or obra.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Projeto nao encontrado")
     try:
         riscos = session.exec(select(Risco).where(Risco.projeto_id == projeto_id)).all()
@@ -222,7 +225,7 @@ async def analisar_projeto(
     request: Request,
     projeto_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """
     Executa a análise de IA sobre o PDF do projeto.
@@ -231,6 +234,9 @@ async def analisar_projeto(
     """
     projeto = session.get(ProjetoDoc, projeto_id)
     if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto nao encontrado")
+    obra = session.get(Obra, projeto.obra_id)
+    if not obra or obra.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Projeto nao encontrado")
     if projeto.status == ProjetoDocStatus.PROCESSANDO:
         raise HTTPException(status_code=409, detail="Analise ja em andamento")
@@ -261,6 +267,9 @@ def obter_analise(
     """Retorna o projeto com seus riscos (análise completa)."""
     projeto = session.get(ProjetoDoc, projeto_id)
     if not projeto:
+        raise HTTPException(status_code=404, detail="Projeto nao encontrado")
+    obra = session.get(Obra, projeto.obra_id)
+    if not obra or obra.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Projeto nao encontrado")
     if projeto.status != ProjetoDocStatus.CONCLUIDO:
         raise HTTPException(status_code=400, detail="Analise ainda nao concluida")
@@ -324,7 +333,7 @@ def aplicar_riscos(
     obra_id: UUID,
     body: AplicarRiscosRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """Converte riscos selecionados em ChecklistItems nas etapas adequadas."""
     _verify_obra_ownership(obra_id, current_user, session)

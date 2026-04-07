@@ -22,7 +22,7 @@ from ..schemas import (
     DespesaRead,
 )
 from ..enums import ProjetoDocStatus, AtividadeStatus
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..helpers import _verify_obra_ownership
 from ..cronograma_ai import identificar_tipos_projeto, gerar_cronograma
 
@@ -175,7 +175,7 @@ class GerarCronogramaRequest(BaseModel):
 def identificar_projetos(
     obra_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> IdentificarProjetosResponse:
     """Analisa documentos concluidos da obra e identifica tipos de projeto."""
     _verify_obra_ownership(obra_id, current_user, session)
@@ -215,7 +215,7 @@ def gerar_cronograma_endpoint(
     obra_id: UUID,
     payload: GerarCronogramaRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> CronogramaResponse:
     """Gera cronograma hierarquico a partir dos tipos de projeto confirmados."""
     obra = _verify_obra_ownership(obra_id, current_user, session)
@@ -361,7 +361,7 @@ def atualizar_atividade(
     atividade_id: UUID,
     payload: AtividadeUpdate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> AtividadeCronogramaRead:
     """Atualiza status, datas ou valores de uma atividade do cronograma."""
     atividade = session.get(AtividadeCronograma, atividade_id)
@@ -429,7 +429,7 @@ def vincular_prestador(
     servico_id: UUID,
     payload: VincularPrestadorRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> ServicoNecessarioRead:
     """Vincula um prestador a um servico necessario."""
     servico = session.get(ServicoNecessario, servico_id)
@@ -498,7 +498,7 @@ def criar_checklist_atividade(
     atividade_id: UUID,
     payload: ChecklistItemCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> ChecklistItemRead:
     """Cria um item de checklist vinculado a uma atividade do cronograma."""
     atividade = session.get(AtividadeCronograma, atividade_id)
@@ -530,7 +530,7 @@ def criar_despesa_atividade(
     atividade_id: UUID,
     payload: DespesaAtividadeCreate,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> DespesaRead:
     """Cria uma despesa vinculada a uma atividade do cronograma."""
     atividade = session.get(AtividadeCronograma, atividade_id)

@@ -27,7 +27,7 @@ from ..schemas import (
     IniciarGeracaoUnificadaRequest, GeracaoUnificadaLogRead,
 )
 from ..enums import ChecklistStatus, ChecklistGeracaoStatus, GeracaoUnificadaStatus
-from ..auth import get_current_user
+from ..auth import get_current_user, require_engineer
 from ..subscription import get_plan_config, check_and_increment_usage, require_paid
 from ..storage import download_by_url, extract_object_key
 from ..checklist_inteligente import gerar_checklist_stream, processar_checklist_background, enriquecer_item_unico
@@ -65,7 +65,7 @@ def _build_documento_contexto(obra_id: UUID, session: Session) -> str:
 def stream_checklist_inteligente(
     obra_id: UUID,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """
     SSE endpoint que gera checklist inteligente em tempo real.
@@ -111,7 +111,7 @@ def iniciar_checklist_inteligente(
     obra_id: UUID,
     payload: IniciarChecklistRequest | None = None,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """
     Inicia o processamento do checklist inteligente em background.
@@ -228,7 +228,7 @@ def aplicar_checklist_inteligente(
     obra_id: UUID,
     payload: AplicarChecklistRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> AplicarChecklistResponse:
     """
     Aplica os itens selecionados pelo usuario ao checklist real.
@@ -319,11 +319,9 @@ def historico_checklist_inteligente(
 @router.post("/api/admin/migrar-riscos-para-checklist")
 def migrar_riscos_para_checklist(
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     """One-time migration: converts Risco records into ChecklistItems."""
-    if current_user.role != "admin" and current_user.role != "owner":
-        raise HTTPException(status_code=403, detail="Sem permissao")
 
     riscos = session.exec(select(Risco)).all()
     migrados = 0
@@ -755,7 +753,7 @@ def iniciar_geracao_unificada(
     obra_id: UUID,
     payload: IniciarGeracaoUnificadaRequest,
     session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ) -> GeracaoUnificadaLogRead:
     """Inicia geração unificada (cronograma + checklist) em background.
 
