@@ -49,7 +49,7 @@
 ### Portal do Dono de Obra
 
 - [ ] **OWNER-01**: Dono acessa visão de progresso da sua obra (% conclusão, fotos recentes, próximas etapas)
-- [ ] **OWNER-02**: Dono recebe notificações push quando engenheiro atualiza progresso
+- [x] **OWNER-02**: Dono recebe notificações push quando engenheiro atualiza progresso
 - [ ] **OWNER-03**: Dono não tem acesso a funcionalidades de gestão (criar etapas, editar cronograma, ver prestadores)
 
 ### RDO — Relatório Diário de Obra
@@ -130,7 +130,7 @@
 | ROLE-05 | Phase 3 | Complete |
 | ROLE-06 | Phase 3 | Complete |
 | OWNER-01 | Phase 3 | Pending |
-| OWNER-02 | Phase 3 | Pending |
+| OWNER-02 | Phase 3 | Complete |
 | OWNER-03 | Phase 3 | Pending |
 | RDO-01 | Phase 4 | Pending |
 | RDO-02 | Phase 4 | Pending |

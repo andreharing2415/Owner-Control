@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: Ready to execute
-last_updated: "2026-04-07T01:42:10.357Z"
+last_updated: "2026-04-07T01:44:38.012Z"
 progress:
   total_phases: 6
   completed_phases: 5
   total_plans: 20
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # Project State
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 05 (moderniza-o-arquitetural) — PLANNED
-Plan: 1 of 3
+Plan: 2 of 3
 Phase 04 — All plans complete. Phase 04 done.
 
 ## Phase Progress
@@ -74,6 +74,8 @@ Phase 04 — All plans complete. Phase 04 done.
 - [Phase 04]: Serviço de alertas de cronograma detecta atraso de atividade e janela de 7 dias para prazo final
 - [Phase 05]: Bridge Provider+Riverpod para rollout incremental sem regressao
 - [Phase 05]: Migracao inicial focada nos fluxos principais (auth/settings/obras/owner progresso)
+- [Phase 05]: Rotas nomeadas em AppRouteNames como contrato estavel para navegacao e push
+- [Phase 05]: NotificationService usa callback para abrir deep links sem acoplamento ao router
 
 ## Notes
 

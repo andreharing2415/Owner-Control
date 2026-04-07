@@ -141,7 +141,7 @@ Plans:
 
 Plans:
 - [x] 05-01: Migração Provider → Riverpod 3.0 por domínio (seam já implantado na Phase 2, migrar providers um domínio por vez)
-- [ ] 05-02: Completar go_router com named routes + Firebase Messaging wiring para deep linking via push
+- [x] 05-02: Completar go_router com named routes + Firebase Messaging wiring para deep linking via push
 - [ ] 05-03: Substituir Stripe in-app por `in_app_purchase` (Google Play Billing / StoreKit 2) + dividir `api.dart` em módulos de domínio
 
 ## Progress
